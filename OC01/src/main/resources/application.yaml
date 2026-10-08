@@ -1,3 +1,185 @@
 spring:
   application:
     name: OC01
+
+  # ============================================================
+  # DATASOURCE — PostgreSQL
+  # ============================================================
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:ecms_db}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+
+  # ============================================================
+  # JPA / HIBERNATE
+  # ============================================================
+  jpa:
+    show-sql: true
+    hibernate:
+      # validate: kiểm tra schema khớp với entity, không tự sửa
+      # none: không làm gì (production)
+      ddl-auto: validate
+      naming:
+        physical-strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+        show_sql: true
+        jdbc:
+          time_zone: Asia/Ho_Chi_Minh
+    open-in-view: false
+
+  # ============================================================
+  # REDIS (dùng cho cache, session, rate limit)
+  # ============================================================
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: 3000ms
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 2
+
+  # ============================================================
+  # OAUTH2 (Google)
+  # ============================================================
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: ${GOOGLE_CLIENT_ID:}
+            client-secret: ${GOOGLE_CLIENT_SECRET:}
+            redirect-uri: "{baseUrl}/login/oauth2/code/google"
+            scope:
+              - profile
+              - email
+
+  # ============================================================
+  # MAIL (Gmail SMTP)
+  # ============================================================
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true
+          connectiontimeout: 5000
+          timeout: 5000
+          writetimeout: 500
+
+  # ============================================================
+  # FILE UPLOAD
+  # ============================================================
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
+
+  # ============================================================
+  # STATIC RESOURCES
+  # ============================================================
+  web:
+    resources:
+      static-locations: classpath:/static/
+
+# ============================================================
+# SERVER
+# ============================================================
+server:
+  port: ${SERVER_PORT:8080}
+  address: 0.0.0.0
+  error:
+    include-message: always
+    include-binding-errors: always
+
+# ============================================================
+# SWAGGER / OPENAPI
+# ============================================================
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: method
+    tags-sorter: alpha
+    try-it-out-enabled: true
+  api-docs:
+    path: /v3/api-docs
+
+# ============================================================
+# JWT
+# ============================================================
+jwt:
+  secret: ${JWT_SECRET:dummy_secret_key_for_dev_mode_only_change_in_prod_1234567890}
+  access-token-expiration: ${JWT_ACCESS_TOKEN_EXPIRATION:900000}        # 15 phút
+  refresh-token-expiration: ${JWT_REFRESH_TOKEN_EXPIRATION:2592000000}  # 30 ngày
+
+# ============================================================
+# APPLICATION CONFIG
+# ============================================================
+app:
+  upload:
+    dir: ${UPLOAD_DIR:uploads/}
+    max-size: ${UPLOAD_MAX_SIZE:10485760}    # 10MB
+
+  password:
+    min-length: ${PASSWORD_MIN_LENGTH:6}
+    max-length: ${PASSWORD_MAX_LENGTH:128}
+
+  account:
+    max-failed-attempts: ${MAX_FAILED_LOGIN_ATTEMPTS:5}
+    lock-duration-minutes: ${ACCOUNT_LOCK_DURATION_MINUTES:15}
+
+  oauth2:
+    success-redirect: ${OAUTH2_SUCCESS_REDIRECT:http://study.ecms.local:3000/oauth2/callback}
+    failure-redirect: ${OAUTH2_FAILURE_REDIRECT:http://study.ecms.local:3000/login?error=oauth2}
+
+  cors:
+    allowed-origins:
+      - ${CORS_FE_ADMIN:http://admin.ecms.local:3001}
+      - ${CORS_FE_PUBLIC:http://study.ecms.local:3000}
+      - ${CORS_FE_ADMIN_LOCAL:http://localhost:3001}
+      - ${CORS_FE_PUBLIC_LOCAL:http://localhost:3000}
+
+# ============================================================
+# LOGGING
+# ============================================================
+logging:
+  level:
+    root: INFO
+    com.ecms_web_application.OC01: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.hibernate.orm.jdbc.bind: TRACE
+    org.springframework.security: DEBUG
+    org.springframework.web: INFO
+
+# ============================================================
+# COOKIE (dùng cho refresh token + access token)
+# ============================================================
+cookie:
+  access-token-name: access_token
+  refresh-token-name: refresh_token
+  domain: ${COOKIE_DOMAIN:.ecms.local}      # ← dấu chấm đầu = share cho mọi subdomain
+  path: /
+  secure: ${COOKIE_SECURE:false}            # true khi production có HTTPS
+  http-only: true
+  same-site: ${COOKIE_SAME_SITE:Lax}        # None nếu FE và BE khác domain hoàn toàn
+  access-token-max-age: 900                 # 15 phút (giây)
+  refresh-token-max-age: 2592000            # 30 ngày (giây)

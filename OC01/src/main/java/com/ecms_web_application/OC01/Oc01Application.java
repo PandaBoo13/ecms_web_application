@@ -1,4 +1,4 @@
-package com.ecms_web_applicatiton.OC01;
+package com.ecms_web_application.OC01;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;

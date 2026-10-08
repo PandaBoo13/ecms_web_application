@@ -1,4 +1,4 @@
-package com.ecms_web_applicatiton.OC01;
+package com.ecms_web_application.OC01;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
