@@ -24,7 +24,7 @@ import java.util.Map;
 
 /**
  * OAuth2 login:
- * - Account chưa tồn tại → tạo mới với role CUSTOMER (KHÔNG gán permission)
+ * - Account chưa tồn tại → tạo mới với role STUDENT (KHÔNG gán permission)
  * - Account đã tồn tại → cập nhật provider info + lastLoginAt
  *
  * Admin sẽ gán permission thủ công sau khi cần.
@@ -38,7 +38,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
     private final RoleRepository roleRepository;
     private final UserProfileRepository userProfileRepository;
 
-    private static final String DEFAULT_ROLE = "CUSTOMER";
+    private static final String DEFAULT_ROLE = "STUDENT";
 
     @Override
     @Transactional

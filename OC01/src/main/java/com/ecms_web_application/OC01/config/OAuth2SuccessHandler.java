@@ -53,8 +53,8 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
                 .orElseThrow(() -> new ErrorHandler(HttpStatus.INTERNAL_SERVER_ERROR,
                         "Không tìm thấy account sau OAuth2 login: " + email));
 
-        // ✅ Sửa: CUSTOMER (không phải CUSTOMER_STD)
-        String roleCode = account.getRole() != null ? account.getRole().getCode() : "CUSTOMER";
+        // ✅ Fallback role: STUDENT (thống nhất DEFAULT_ROLE)
+        String roleCode = account.getRole() != null ? account.getRole().getCode() : "STUDENT";
 
         String accessToken = jwtService.generateAccessTokenWithUserInfo(
                 account.getEmail(),
