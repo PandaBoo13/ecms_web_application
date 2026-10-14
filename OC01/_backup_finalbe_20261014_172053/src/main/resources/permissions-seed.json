@@ -1,0 +1,41 @@
+[
+  { "method": "GET",    "path": "/api/courses",                          "module": "course",     "description": "Xem danh sách khóa học" },
+  { "method": "GET",    "path": "/api/courses/{id}",                     "module": "course",     "description": "Xem chi tiết khóa học" },
+  { "method": "POST",   "path": "/api/courses",                          "module": "course",     "description": "Tạo khóa học" },
+  { "method": "PUT",    "path": "/api/courses/{id}",                     "module": "course",     "description": "Sửa khóa học" },
+  { "method": "DELETE", "path": "/api/courses/{id}",                     "module": "course",     "description": "Xóa mềm khóa học" },
+
+  { "method": "POST",   "path": "/api/courses/{id}/submit-review",       "module": "course",     "description": "Gửi duyệt khóa" },
+  { "method": "POST",   "path": "/api/courses/{id}/review",              "module": "course",     "description": "Duyệt/từ chối khóa" },
+  { "method": "POST",   "path": "/api/courses/{id}/archive",             "module": "course",     "description": "Lưu trữ khóa" },
+  { "method": "POST",   "path": "/api/courses/{id}/cancel",              "module": "course",     "description": "Hủy khóa" },
+  { "method": "POST",   "path": "/api/courses/{sourceId}/copy",          "module": "course",     "description": "Copy khóa học" },
+  { "method": "PUT",    "path": "/api/courses/{id}/offline-info",        "module": "course",     "description": "Cập nhật thông tin lớp Offline" },
+  { "method": "DELETE", "path": "/api/courses/{id}/hard",                "module": "course",     "description": "Xóa cứng khóa (SUPER_ADMIN)" },
+
+  { "method": "GET",    "path": "/api/courses/{courseId}/resources/tree", "module": "resource",  "description": "Xem cây nội dung" },
+  { "method": "POST",   "path": "/api/courses/{courseId}/resources",      "module": "resource",  "description": "Tạo resource" },
+  { "method": "PUT",    "path": "/api/courses/{courseId}/resources/{id}", "module": "resource",  "description": "Sửa resource" },
+  { "method": "DELETE", "path": "/api/courses/{courseId}/resources/{id}", "module": "resource",  "description": "Xóa resource" },
+
+  { "method": "GET",    "path": "/api/courses/{courseId}/sessions",       "module": "session",   "description": "Xem danh sách session" },
+  { "method": "POST",   "path": "/api/courses/{courseId}/sessions",       "module": "session",   "description": "Thêm session" },
+  { "method": "POST",   "path": "/api/courses/{courseId}/sessions/{id}/cancel", "module": "session", "description": "Hủy session" },
+  { "method": "PATCH",  "path": "/api/courses/{courseId}/sessions/{id}/substitute", "module": "session", "description": "Gán GV dạy thay" },
+
+  { "method": "GET",    "path": "/api/courses/{courseId}/questions",      "module": "question",  "description": "Xem câu hỏi" },
+  { "method": "POST",   "path": "/api/courses/{courseId}/questions",      "module": "question",  "description": "Tạo câu hỏi" },
+  { "method": "PUT",    "path": "/api/courses/{courseId}/questions/{id}", "module": "question",  "description": "Sửa câu hỏi" },
+  { "method": "DELETE", "path": "/api/courses/{courseId}/questions/{id}", "module": "question",  "description": "Xóa câu hỏi" },
+
+  { "method": "GET",    "path": "/api/courses/{courseId}/quizzes",        "module": "quiz",      "description": "Xem quiz" },
+  { "method": "POST",   "path": "/api/courses/{courseId}/quizzes",        "module": "quiz",      "description": "Tạo quiz" },
+  { "method": "PUT",    "path": "/api/courses/{courseId}/quizzes/{id}",   "module": "quiz",      "description": "Sửa quiz" },
+  { "method": "DELETE", "path": "/api/courses/{courseId}/quizzes/{id}",   "module": "quiz",      "description": "Xóa quiz" },
+
+  { "method": "GET",    "path": "/api/audit-logs",                        "module": "audit",     "description": "Xem audit log" },
+
+  { "method": "GET",    "path": "/api/refunds",                           "module": "refund",    "description": "Xem danh sách refund" },
+  { "method": "POST",   "path": "/api/refunds",                           "module": "refund",    "description": "Tạo refund request" },
+  { "method": "GET",    "path": "/api/refunds/courses/{courseId}",        "module": "refund",    "description": "Xem refund theo course" }
+]

@@ -29,7 +29,6 @@ public class AccountRoleServiceImpl implements AccountRoleService {
     private final RoleRepository roleRepository;
     private final PermissionManager permissionManager;
 
-    /** ⚠️ ĐỔI: "TEACHER" → "INSTRUCTOR" */
     private static final String INSTRUCTOR_ROLE_CODE = "INSTRUCTOR";
 
     @Override
@@ -84,8 +83,9 @@ public class AccountRoleServiceImpl implements AccountRoleService {
     @Transactional(readOnly = true)
     public Page<AccountResponse> searchAccounts(
             String roleCode, Boolean isActive, String search, Pageable pageable) {
+        // ⚠️ FIX: String params PHẢI dùng "" thay vì null (PostgreSQL lower(bytea))
         return accountRepository
-                .searchAccounts(emptyToNull(roleCode), isActive, emptyToNull(search), pageable)
+                .searchAccounts(emptyToBlank(roleCode), isActive, emptyToBlank(search), pageable)
                 .map(this::toResponse);
     }
 
@@ -100,7 +100,6 @@ public class AccountRoleServiceImpl implements AccountRoleService {
     @Override
     @Transactional(readOnly = true)
     public List<AccountResponse> getTeacherAccounts() {
-        // ⚠️ SỬA: dùng INSTRUCTOR_ROLE_CODE thay TEACHER_ROLE_CODE
         return accountRepository.findByRoleCode(INSTRUCTOR_ROLE_CODE)
                 .stream()
                 .map(this::toResponse)
@@ -135,7 +134,8 @@ public class AccountRoleServiceImpl implements AccountRoleService {
         return res;
     }
 
-    private String emptyToNull(String s) {
-        return (s == null || s.isBlank()) ? null : s.trim();
+    /** FIX: trả "" thay vì null cho String params */
+    private String emptyToBlank(String s) {
+        return (s == null || s.isBlank()) ? "" : s.trim();
     }
 }

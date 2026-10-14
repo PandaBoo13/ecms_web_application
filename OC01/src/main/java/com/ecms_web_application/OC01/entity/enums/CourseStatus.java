@@ -5,5 +5,6 @@ public enum CourseStatus {
     PENDING_REVIEW,
     PUBLISHED,
     ARCHIVED,
-    CANCELLED
+    CANCELLED,
+    ONGOING
 }

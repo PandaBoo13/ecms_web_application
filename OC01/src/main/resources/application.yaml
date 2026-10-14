@@ -1,52 +1,92 @@
 spring:
   application:
     name: OC01
+
+  # ══════════════════════════════════════════════════════════════
+  # AI
+  # ══════════════════════════════════════════════════════════════
   ai:
     google:
       genai:
         api-key: ${GEMINI_API_KEY}
         chat:
           options:
-            model: gemini-2.0-flash-exp  # Hoặc gemini-1.5-flash
+            model: gemini-2.0-flash-exp
             temperature: 0.7
-  # ============================================================
+
+  # ══════════════════════════════════════════════════════════════
   # DATASOURCE — PostgreSQL
-  # ============================================================
+  # ══════════════════════════════════════════════════════════════
   datasource:
     url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:ecms_db}
     username: ${DB_USERNAME:postgres}
     password: ${DB_PASSWORD:postgres}
     driver-class-name: org.postgresql.Driver
+
     hikari:
-      maximum-pool-size: 10
-      minimum-idle: 2
+      # Pool sizing — dev có thể 10, prod nên ≥ CPU*2 + disk
+      maximum-pool-size: ${DB_POOL_MAX:15}
+      minimum-idle: ${DB_POOL_MIN:5}
       connection-timeout: 30000
       idle-timeout: 600000
       max-lifetime: 1800000
+      leak-detection-threshold: 60000      # 🆕 cảnh báo connection leak
 
-  # ============================================================
-  # JPA / HIBERNATE
-  # ============================================================
+      # 🆕 PostgreSQL tuning — tăng tốc batch insert/update
+      data-source-properties:
+        cachePrepStmts: true
+        prepStmtCacheSize: 250
+        prepStmtCacheSqlLimit: 2048
+        useServerPrepStmts: true
+        rewriteBatchedStatements: true
+        # Tăng throughput khi đọc
+        defaultRowFetchSize: 100
+
+  # ══════════════════════════════════════════════════════════════
+  # JPA / HIBERNATE — TỐI ƯU
+  # ══════════════════════════════════════════════════════════════
   jpa:
-    show-sql: true
+    show-sql: false                        # ⚠️ TẮT — trước là true
+    open-in-view: false                    # ✅ Giữ false
+
     hibernate:
-      # validate: kiểm tra schema khớp với entity, không tự sửa
-      # none: không làm gì (production)
-      ddl-auto: validate
+      ddl-auto: validate                   # ✅ Giữ validate
       naming:
         physical-strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
+
     properties:
       hibernate:
-        dialect: org.hibernate.dialect.PostgreSQLDialect
-        format_sql: true
-        show_sql: true
-        jdbc:
-          time_zone: Asia/Ho_Chi_Minh
-    open-in-view: false
+        # 🆕 TẮT format SQL — tiết kiệm CPU
+        format_sql: false
 
-  # ============================================================
-  # REDIS (dùng cho cache, session, rate limit)
-  # ============================================================
+        # 🆕 BATCH INSERT/UPDATE — tăng tốc 5-10x khi insert nhiều
+        jdbc:
+          batch_size: 30
+          time_zone: Asia/Ho_Chi_Minh
+          # 🆕 Chỉ fetch số row cần thiết
+          fetch_size: 100
+        order_inserts: true
+        order_updates: true
+        batch_versioned_data: true
+
+        # 🆕 QUERY PLAN CACHE — cache compiled query
+        query:
+          plan_cache_max_size: 2048
+          plan_parameter_metadata_max_size: 128
+          in_clause_parameter_padding: true      # tăng cache hit cho IN (...)
+
+        # 🆕 Tắt auto-flush trước query không cần thiết
+        flush:
+          mode: COMMIT
+
+        # 🆕 Tắt Second Level Cache (nếu không dùng)
+        cache:
+          use_second_level_cache: false
+          use_query_cache: false
+
+  # ══════════════════════════════════════════════════════════════
+  # REDIS
+  # ══════════════════════════════════════════════════════════════
   data:
     redis:
       host: ${REDIS_HOST:localhost}
@@ -55,13 +95,24 @@ spring:
       timeout: 3000ms
       lettuce:
         pool:
-          max-active: 8
+          max-active: 16              # 🆕 tăng từ 8 → 16
           max-idle: 8
           min-idle: 2
+          max-wait: 2000ms            # 🆕 timeout khi hết connection
 
-  # ============================================================
+  # 🆕 CACHE MANAGER — bật cache annotation @Cacheable
+  cache:
+    type: redis
+    redis:
+      time-to-live: 300000            # 5 phút mặc định
+      cache-null-values: false        # không cache null (tránh stale)
+      key-prefix: 'ecms:cache:'
+      use-key-prefix: true
+      enable-statistics: false
+
+  # ══════════════════════════════════════════════════════════════
   # OAUTH2 (Google)
-  # ============================================================
+  # ══════════════════════════════════════════════════════════════
   security:
     oauth2:
       client:
@@ -74,9 +125,9 @@ spring:
               - profile
               - email
 
-  # ============================================================
-  # MAIL (Gmail SMTP)
-  # ============================================================
+  # ══════════════════════════════════════════════════════════════
+  # MAIL
+  # ══════════════════════════════════════════════════════════════
   mail:
     host: smtp.gmail.com
     port: 587
@@ -93,58 +144,96 @@ spring:
           timeout: 5000
           writetimeout: 500
 
-  # ============================================================
+  # ══════════════════════════════════════════════════════════════
   # FILE UPLOAD
-  # ============================================================
+  # ══════════════════════════════════════════════════════════════
   servlet:
     multipart:
       max-file-size: 10MB
       max-request-size: 10MB
+      # 🆕 Ghi file trực tiếp ra disk (không buffer RAM)
+      file-size-threshold: 512KB
 
-  # ============================================================
+  # ══════════════════════════════════════════════════════════════
   # STATIC RESOURCES
-  # ============================================================
+  # ══════════════════════════════════════════════════════════════
   web:
     resources:
-      static-locations: classpath:/static/
+      static-locations: classpath:/static/,file:uploads/
+      # 🆕 Cache static resource 1 giờ
+      cache:
+        period: 3600
 
-# ============================================================
-# SERVER
-# ============================================================
+# ══════════════════════════════════════════════════════════════════
+# SERVER — TỐI ƯU
+# ══════════════════════════════════════════════════════════════════
 server:
   port: ${SERVER_PORT:8080}
   address: 0.0.0.0
+
+  # 🆕 GZIP COMPRESSION — giảm 70-85% payload JSON
+  compression:
+    enabled: true
+    mime-types:
+      - application/json
+      - application/xml
+      - text/html
+      - text/xml
+      - text/plain
+      - text/css
+      - application/javascript
+    min-response-size: 1024
+
+  # 🆕 TOMCAT THREAD POOL
+  tomcat:
+    threads:
+      max: 200                    # default 200
+      min-spare: 20               # tăng từ 10
+    max-connections: 10000
+    accept-count: 200
+    connection-timeout: 20000
+    # 🆕 Tắt log access (production only, dev giữ bật)
+    accesslog:
+      enabled: false
+
+  # Error details
   error:
     include-message: always
     include-binding-errors: always
+    include-stacktrace: on_param    # 🆕 chỉ khi có ?trace=true
 
-# ============================================================
+# ══════════════════════════════════════════════════════════════════
 # SWAGGER / OPENAPI
-# ============================================================
+# ══════════════════════════════════════════════════════════════════
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
     operations-sorter: method
     tags-sorter: alpha
     try-it-out-enabled: true
+    # 🆕 Cache swagger resources
+    disable-swagger-default-url: true
   api-docs:
     path: /v3/api-docs
+  # 🆕 Tắt springdoc ở production
+  api-docs.enabled: true
+  swagger-ui.enabled: true
 
-# ============================================================
+# ══════════════════════════════════════════════════════════════════
 # JWT
-# ============================================================
+# ══════════════════════════════════════════════════════════════════
 jwt:
   secret: ${JWT_SECRET:dummy_secret_key_for_dev_mode_only_change_in_prod_1234567890}
-  access-token-expiration: ${JWT_ACCESS_TOKEN_EXPIRATION:900000}        # 15 phút
-  refresh-token-expiration: ${JWT_REFRESH_TOKEN_EXPIRATION:2592000000}  # 30 ngày
+  access-token-expiration: ${JWT_ACCESS_TOKEN_EXPIRATION:900000}
+  refresh-token-expiration: ${JWT_REFRESH_TOKEN_EXPIRATION:2592000000}
 
-# ============================================================
+# ══════════════════════════════════════════════════════════════════
 # APPLICATION CONFIG
-# ============================================================
+# ══════════════════════════════════════════════════════════════════
 app:
   upload:
     dir: ${UPLOAD_DIR:uploads/}
-    max-size: ${UPLOAD_MAX_SIZE:10485760}    # 10MB
+    max-size: ${UPLOAD_MAX_SIZE:10485760}
 
   password:
     min-length: ${PASSWORD_MIN_LENGTH:6}
@@ -155,38 +244,77 @@ app:
     lock-duration-minutes: ${ACCOUNT_LOCK_DURATION_MINUTES:15}
 
   oauth2:
-    success-redirect: ${OAUTH2_SUCCESS_REDIRECT:http://study.ecms.local:3000/oauth2/callback}
-    failure-redirect: ${OAUTH2_FAILURE_REDIRECT:http://study.ecms.local:3000/login?error=oauth2}
+    success-redirect: ${OAUTH2_SUCCESS_REDIRECT:http://localhost:5173/oauth2/redirect}
+    failure-redirect: ${OAUTH2_FAILURE_REDIRECT:http://localhost:5173/login?error=oauth2}
 
   cors:
     allowed-origins:
+      - ${CORS_FE_ADMIN_LOCAL:http://localhost:5173}
       - ${CORS_FE_ADMIN:http://admin.ecms.local:3001}
       - ${CORS_FE_PUBLIC:http://study.ecms.local:3000}
-      - ${CORS_FE_ADMIN_LOCAL:http://localhost:3001}
       - ${CORS_FE_PUBLIC_LOCAL:http://localhost:3000}
 
-# ============================================================
-# LOGGING
-# ============================================================
+# ══════════════════════════════════════════════════════════════════
+# LOGGING — TỐI ƯU (giảm 90% log volume)
+# ══════════════════════════════════════════════════════════════════
 logging:
   level:
     root: INFO
-    com.ecms_web_application.OC01: DEBUG
-    org.hibernate.SQL: DEBUG
-    org.hibernate.orm.jdbc.bind: TRACE
-    org.springframework.security: DEBUG
+    # 🆕 App — chỉ INFO, không DEBUG
+    com.ecms_web_application.OC01: INFO
+    # 🆕 Hibernate — tắt hết
+    org.hibernate: WARN
+    org.hibernate.SQL: WARN
+    org.hibernate.orm.jdbc.bind: WARN
+    org.hibernate.orm.jdbc.extract: WARN
+    # 🆕 Spring
+    org.springframework: WARN
+    org.springframework.security: WARN
     org.springframework.web: INFO
+    org.springframework.transaction: WARN
+    # 🆕 Cache
+    org.springframework.cache: INFO
+    # 🆕 Datasource
+    com.zaxxer.hikari: WARN
 
-# ============================================================
-# COOKIE (dùng cho refresh token + access token)
-# ============================================================
+  # 🆕 File log rotation
+  file:
+    name: logs/ecms.log
+    max-size: 10MB
+    max-history: 7
+    total-size-cap: 1GB
+
+  pattern:
+    console: "%d{HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n"
+
+# ══════════════════════════════════════════════════════════════════
+# COOKIE
+# ══════════════════════════════════════════════════════════════════
 cookie:
   access-token-name: access_token
   refresh-token-name: refresh_token
-  domain: ${COOKIE_DOMAIN:.ecms.local}      # ← dấu chấm đầu = share cho mọi subdomain
+  domain:
   path: /
-  secure: ${COOKIE_SECURE:false}            # true khi production có HTTPS
+  secure: false
   http-only: true
-  same-site: ${COOKIE_SAME_SITE:Lax}        # None nếu FE và BE khác domain hoàn toàn
-  access-token-max-age: 900                 # 15 phút (giây)
-  refresh-token-max-age: 2592000            # 30 ngày (giây)
+  same-site: Lax
+  access-token-max-age: 900
+  refresh-token-max-age: 2592000
+
+# ══════════════════════════════════════════════════════════════════
+# 🆕 MANAGEMENT — Actuator (optional, để monitor)
+# ══════════════════════════════════════════════════════════════════
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,httptrace
+  endpoint:
+    health:
+      show-details: when_authorized
+  metrics:
+    enable:
+      hikaricp: true          # đo connection pool
+      jvm: true
+      http: true

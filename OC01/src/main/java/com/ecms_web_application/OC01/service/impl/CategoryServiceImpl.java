@@ -41,7 +41,7 @@ public class CategoryServiceImpl implements CategoryService {
     @Transactional(readOnly = true)
     public Page<CategoryResponse> search(String search, Boolean isActive, Long parentId, Pageable pageable) {
         return categoryRepository
-                .searchCategories(isActive, parentId, emptyToNull(search), pageable)
+                .searchCategories(isActive, parentId, emptyToBlank(search), pageable)
                 .map(this::toResponse);
     }
 
@@ -315,5 +315,9 @@ public class CategoryServiceImpl implements CategoryService {
 
     private String emptyToNull(String s) {
         return (s == null || s.isBlank()) ? null : s.trim();
+    }
+
+    private String emptyToBlank(String s) {
+        return (s == null || s.isBlank()) ? "" : s.trim();
     }
 }
