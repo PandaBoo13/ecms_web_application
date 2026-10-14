@@ -226,13 +226,16 @@ public class AuthenticationServiceImpl implements AuthenticationService {
                 roleCode
         );
 
+        // 🆕 ROTATE: tạo refresh token mới, thay hash cũ (token cũ tự vô hiệu)
+        String newRefreshToken = jwtService.generateRefreshToken(account.getEmail());
+        session.setRefreshTokenHash(hashToken(newRefreshToken));
         session.setLastActiveAt(LocalDateTime.now());
         authSessionRepository.save(session);
 
-        log.info("Refresh token thành công: email={}", account.getEmail());
+        log.info("Refresh token thành công (rotated): email={}", account.getEmail());
 
         int ttlSeconds = jwtService.getAccessTokenExpirationSeconds();
-        return authMapper.toLoginResponse(newAccessToken, refreshToken, ttlSeconds);
+        return authMapper.toLoginResponse(newAccessToken, newRefreshToken, ttlSeconds);
     }
 
     // ============================================================

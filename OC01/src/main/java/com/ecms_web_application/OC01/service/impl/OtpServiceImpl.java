@@ -2,7 +2,6 @@ package com.ecms_web_application.OC01.service.impl;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import com.ecms_web_application.OC01.entity.enums.OtpPurpose;
@@ -16,7 +15,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 @Slf4j
 @Service
-@EnableScheduling
 @RequiredArgsConstructor
 public class OtpServiceImpl implements OtpService {
 

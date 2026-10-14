@@ -76,6 +76,8 @@ public class APIURL {
 
             // Instructor — xem chuyên môn (ngoài self)
             "/api/instructors/*/specializations",
+            "/api/instructors/*/specializations/**",
             "/api/instructors/category/*/specializations",
+            "/api/instructors/category/*/specializations/**",
     };
 }
