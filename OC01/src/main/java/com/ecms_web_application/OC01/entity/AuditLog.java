@@ -1,0 +1,57 @@
+package com.ecms_web_application.OC01.entity;
+
+import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.Setter;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+import java.time.LocalDateTime;
+import java.util.Map;
+
+@Setter
+@Getter
+@Entity
+@Table(name = "audit_log",
+        indexes = {
+                @Index(name = "idx_audit_actor", columnList = "actor_id"),
+                @Index(name = "idx_audit_entity", columnList = "entity_type,entity_id")
+        })
+public class AuditLog {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(name = "actor_id", nullable = false)
+    private Long actorId;
+
+    @Column(nullable = false, length = 50)
+    private String action;
+
+    @Column(name = "entity_type", nullable = false, length = 50)
+    private String entityType;
+
+    @Column(name = "entity_id")
+    private Long entityId;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "old_value", columnDefinition = "jsonb")
+    private Map<String, Object> oldValue;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "new_value", columnDefinition = "jsonb")
+    private Map<String, Object> newValue;
+
+    @Column(name = "ip_address", length = 45)
+    private String ipAddress;
+
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private LocalDateTime createdAt;
+
+    @PrePersist
+    void onCreate() {
+        if (createdAt == null) {
+            createdAt = LocalDateTime.now();
+        }
+    }
+}

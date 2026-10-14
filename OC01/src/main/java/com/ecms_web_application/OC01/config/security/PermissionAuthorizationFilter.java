@@ -2,7 +2,7 @@ package com.ecms_web_application.OC01.config.security;
 
 import com.ecms_web_application.OC01.config.APIURL;
 import com.ecms_web_application.OC01.config.SecurityUtils;
-import com.ecms_web_application.OC01.dto.response.RequestResponse;
+import com.ecms_web_application.OC01.exception.ExceptionResponse;
 import com.ecms_web_application.OC01.service.AccountPermissionService;
 import com.ecms_web_application.OC01.service.PermissionService;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -10,8 +10,8 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Lazy; // 1. Import @Lazy
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
@@ -22,19 +22,8 @@ import java.io.IOException;
 
 /**
  * Filter phân quyền — FAIL-CLOSED.
- *
- * Nguyên tắc 3 tầng:
- * - PUBLIC:    Ai cũng gọi được              → pass luôn
- * - USER:      Chỉ cần đăng nhập             → pass luôn (KHÔNG check DB)
- * - PROTECTED: Đăng nhập + có permission cụ thể
- *              → check mapping DB + account_permission
- * - ADMIN:     Role ADMIN                     → bypass (không check DB)
- * - Không khớp nhóm nào: 403 (fail-closed)
- *
- * Lưu ý: APIURL phân loại theo path, method không tham gia phân nhóm.
  */
 @Component
-@RequiredArgsConstructor
 @Slf4j
 public class PermissionAuthorizationFilter extends OncePerRequestFilter {
 
@@ -43,6 +32,16 @@ public class PermissionAuthorizationFilter extends OncePerRequestFilter {
     private final ObjectMapper objectMapper;
 
     private static final AntPathMatcher PATH_MATCHER = new AntPathMatcher();
+
+    // 2. Viết tường minh constructor và gắn @Lazy để tránh lỗi vòng lặp/khởi tạo sớm
+    public PermissionAuthorizationFilter(
+            @Lazy AccountPermissionService accountPermissionService,
+            @Lazy PermissionService permissionService,
+            ObjectMapper objectMapper) {
+        this.accountPermissionService = accountPermissionService;
+        this.permissionService = permissionService;
+        this.objectMapper = objectMapper;
+    }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
@@ -147,7 +146,7 @@ public class PermissionAuthorizationFilter extends OncePerRequestFilter {
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         response.setCharacterEncoding("UTF-8");
 
-        RequestResponse body = new RequestResponse(message);
+        ExceptionResponse body = new ExceptionResponse(message);
         response.getWriter().write(objectMapper.writeValueAsString(body));
     }
 }

@@ -35,7 +35,7 @@ public class PermissionServiceImpl implements PermissionService {
     @Transactional(readOnly = true)
     public Page<PermissionResponse> searchPermissions(String module, String search, Pageable pageable) {
         return permissionRepository
-                .searchPermissions(emptyToNull(module), emptyToNull(search), pageable)
+                .searchPermissions(emptyToBlank(module), emptyToBlank(search), pageable)
                 .map(this::toResponse);
     }
 
@@ -156,5 +156,9 @@ public class PermissionServiceImpl implements PermissionService {
 
     private String emptyToNull(String s) {
         return (s == null || s.isBlank()) ? null : s.trim();
+    }
+
+    private String emptyToBlank(String s) {
+        return (s == null || s.isBlank()) ? "" : s.trim();
     }
 }

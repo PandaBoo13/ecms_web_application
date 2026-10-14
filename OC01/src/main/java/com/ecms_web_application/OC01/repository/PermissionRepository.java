@@ -14,9 +14,6 @@ import java.util.Optional;
 @Repository
 public interface PermissionRepository extends IRepository<Permission, Long> {
 
-    // ============================================================
-    // Lookup cơ bản
-    // ============================================================
     Optional<Permission> findByMethodAndEndpointPattern(String method, String endpointPattern);
 
     boolean existsByMethodAndEndpointPattern(String method, String endpointPattern);
@@ -25,13 +22,10 @@ public interface PermissionRepository extends IRepository<Permission, Long> {
 
     List<Permission> findByMethod(String method);
 
-    // ============================================================
-    // Pagination + filter (admin UI)
-    // ============================================================
     @Query("""
         SELECT p FROM Permission p
-        WHERE (:module IS NULL OR p.module = :module)
-          AND (:search IS NULL
+        WHERE (:module = '' OR p.module = :module)
+          AND (:search = ''
                OR LOWER(p.endpointPattern) LIKE LOWER(CONCAT('%', :search, '%'))
                OR LOWER(p.description)     LIKE LOWER(CONCAT('%', :search, '%')))
         ORDER BY p.module ASC, p.endpointPattern ASC
@@ -42,9 +36,6 @@ public interface PermissionRepository extends IRepository<Permission, Long> {
             Pageable pageable
     );
 
-    // ============================================================
-    // Distinct modules (dropdown filter)
-    // ============================================================
     @Query("""
         SELECT DISTINCT p.module
         FROM Permission p

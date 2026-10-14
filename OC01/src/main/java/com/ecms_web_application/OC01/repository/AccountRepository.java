@@ -15,13 +15,9 @@ import java.util.Optional;
 @Repository
 public interface AccountRepository extends IRepository<Account, Long> {
 
-    // ============================================================
-    // Lookup cơ bản
-    // ============================================================
     Optional<Account> findByEmail(String email);
     boolean existsByEmail(String email);
 
-    // ⚠️ Đổi `String provider` → `AuthProvider provider` để type-safe
     Optional<Account> findByProviderAndProviderId(AuthProvider provider, String providerId);
 
     @Query("SELECT a FROM Account a " +
@@ -30,22 +26,15 @@ public interface AccountRepository extends IRepository<Account, Long> {
             "WHERE a.email = :email")
     Optional<Account> findByEmailWithRole(@Param("email") String email);
 
-    // ============================================================
-    // RBAC
-    // ============================================================
-
-    // --- Tìm theo role ---
     List<Account> findByRoleId(Long roleId);
     List<Account> findByRoleCode(String roleCode);
 
-    // --- Load chi tiết 1 account (kèm role + profile) ---
     @Query("SELECT a FROM Account a " +
             "LEFT JOIN FETCH a.role r " +
             "LEFT JOIN FETCH a.userProfile up " +
             "WHERE a.id = :id AND a.deletedAt IS NULL")
     Optional<Account> findByIdWithRoleAndProfile(@Param("id") Long id);
 
-    // --- Phân trang theo roleId ---
     @Query(
             value = "SELECT a FROM Account a " +
                     "LEFT JOIN FETCH a.role r " +
@@ -58,15 +47,19 @@ public interface AccountRepository extends IRepository<Account, Long> {
     )
     Page<Account> findByRoleIdPageable(@Param("roleId") Long roleId, Pageable pageable);
 
-    // --- Pagination + filter cho admin ---
+    // ══════════════════════════════════════════════════════════════
+    // FIX PostgreSQL lower(bytea):
+    // - String params: dùng `= ''` thay vì `IS NULL`
+    // - Service PHẢI truyền "" (empty string), không phải null
+    // ══════════════════════════════════════════════════════════════
     @Query(
             value = "SELECT a FROM Account a " +
                     "LEFT JOIN FETCH a.role r " +
                     "LEFT JOIN FETCH a.userProfile up " +
                     "WHERE a.deletedAt IS NULL " +
-                    "  AND (:roleCode IS NULL OR r.code = :roleCode) " +
+                    "  AND (:roleCode = '' OR r.code = :roleCode) " +
                     "  AND (:isActive IS NULL OR a.isActive = :isActive) " +
-                    "  AND (:search IS NULL " +
+                    "  AND (:search = '' " +
                     "       OR LOWER(a.email)       LIKE LOWER(CONCAT('%', :search, '%')) " +
                     "       OR LOWER(up.fullName)   LIKE LOWER(CONCAT('%', :search, '%')) " +
                     "       OR LOWER(up.phone)      LIKE LOWER(CONCAT('%', :search, '%'))) " +
@@ -75,9 +68,9 @@ public interface AccountRepository extends IRepository<Account, Long> {
                     "LEFT JOIN a.role r " +
                     "LEFT JOIN a.userProfile up " +
                     "WHERE a.deletedAt IS NULL " +
-                    "  AND (:roleCode IS NULL OR r.code = :roleCode) " +
+                    "  AND (:roleCode = '' OR r.code = :roleCode) " +
                     "  AND (:isActive IS NULL OR a.isActive = :isActive) " +
-                    "  AND (:search IS NULL " +
+                    "  AND (:search = '' " +
                     "       OR LOWER(a.email)       LIKE LOWER(CONCAT('%', :search, '%')) " +
                     "       OR LOWER(up.fullName)   LIKE LOWER(CONCAT('%', :search, '%')) " +
                     "       OR LOWER(up.phone)      LIKE LOWER(CONCAT('%', :search, '%')))"

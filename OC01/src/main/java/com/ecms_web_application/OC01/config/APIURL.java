@@ -33,6 +33,10 @@ public class APIURL {
 
             // Public browse (landing page không login)
             "/api/public/**",
+
+            // 🆕 Course browse cho guest
+            "/api/courses",
+            "/api/courses/**",
     };
 
     // ============================================================
@@ -54,6 +58,10 @@ public class APIURL {
 
             // File upload (mọi user đã login đều upload được)
             "/api/files/**",
+
+            // 🆕 Progress — user xem tiến độ của mình
+            "/api/progress",
+            "/api/progress/**",
     };
 
     // ============================================================
@@ -79,5 +87,30 @@ public class APIURL {
             "/api/instructors/*/specializations/**",
             "/api/instructors/category/*/specializations",
             "/api/instructors/category/*/specializations/**",
+
+            // 🆕 Course write + lifecycle
+            "/api/courses/*/submit-review",
+            "/api/courses/*/review",
+            "/api/courses/*/archive",
+            "/api/courses/*/cancel",
+            "/api/courses/*/copy",
+            "/api/courses/*/offline-info",
+            "/api/courses/*/hard",
+
+            // 🆕 Course nested (resource/session/question/quiz)
+            "/api/courses/*/resources",
+            "/api/courses/*/resources/**",
+            "/api/courses/*/sessions",
+            "/api/courses/*/sessions/**",
+            "/api/courses/*/questions",
+            "/api/courses/*/questions/**",
+            "/api/courses/*/quizzes",
+            "/api/courses/*/quizzes/**",
+
+            // 🆕 Audit log — chỉ ADMIN xem
+            "/api/audit-logs",
+            "/api/audit-logs/**",
+            "/api/rooms",
+            "/api/rooms/**",
     };
 }
