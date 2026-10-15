@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Space, Select, Tooltip, Popconfirm, Image, Typography } from 'antd';
 import {
@@ -17,6 +17,7 @@ import DataTable from '@/components/common/DataTable';
 import StatusTag from '@/components/common/StatusTag';
 import DateDisplay from '@/components/common/DateDisplay';
 import MoneyDisplay from '@/components/common/MoneyDisplay';
+import { useTranslation } from '@/hooks/useTranslation';
 
 import { courseApi } from '@/services/api/courses';
 import type { CourseResponse } from '@/services/types/course';
@@ -24,6 +25,7 @@ import type { CourseResponse } from '@/services/types/course';
 const { Text } = Typography;
 
 const CourseListPage = () => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
 
   // ══════════════════════════════════════════════════════════════
@@ -95,145 +97,131 @@ const CourseListPage = () => {
     }
   };
 
-  const handleSubmitReview = async (id: number) => {
-    try {
-      await courseApi.submitReview(id);
-      toast.success('Đã gửi duyệt');
-      fetchData();
-    } catch (err) {
-      const e = err as { message?: string };
-      toast.error(e?.message || 'Gửi duyệt thất bại');
-    }
-  };
+
 
   // ══════════════════════════════════════════════════════════════
   // COLUMNS
   // ══════════════════════════════════════════════════════════════
-  const columns: ColumnsType<CourseResponse> = [
-    {
-      title: 'ID',
-      dataIndex: 'id',
-      key: 'id',
-      width: 70,
-      align: 'center',
-    },
-    {
-      title: 'Khóa học',
-      key: 'course',
-      width: 340,
-      render: (_, record) => (
-        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-          <Image
-            src={record.thumbnailUrl || ''}
-            alt={record.title}
-            width={64}
-            height={40}
-            style={{ objectFit: 'cover', borderRadius: 4 }}
-            fallback="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjQiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCA2NCA0MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iNjQiIGhlaWdodD0iNDAiIGZpbGw9IiNmNWY1ZjUiLz48dGV4dCB4PSIzMiIgeT0iMjQiIGZvbnQtc2l6ZT0iMTAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZpbGw9IiM5OTkiPk5vIGltZzwvdGV4dD48L3N2Zz4="
-            preview={false}
-          />
-          <div style={{ minWidth: 0, flex: 1 }}>
-            <Text strong ellipsis style={{ display: 'block' }}>
-              {record.title}
-            </Text>
-            <Text type="secondary" style={{ fontSize: 12 }}>
-              {record.code}
-            </Text>
+  const columns: ColumnsType<CourseResponse> = useMemo(
+    () => [
+      {
+        title: 'ID',
+        dataIndex: 'id',
+        key: 'id',
+        width: 70,
+        align: 'center',
+      },
+      {
+        title: t('course.name'),
+        key: 'course',
+        width: 340,
+        render: (_, record) => (
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+            <Image
+              src={record.thumbnailUrl || ''}
+              alt={record.title}
+              width={64}
+              height={40}
+              style={{ objectFit: 'cover', borderRadius: 4 }}
+              fallback="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjQiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCA2NCA0MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iNjQiIGhlaWdodD0iNDAiIGZpbGw9IiNmNWY1ZjUiLz48dGV4dCB4PSIzMiIgeT0iMjQiIGZvbnQtc2l6ZT0iMTAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZpbGw9IiM5OTkiPk5vIGltZzwvdGV4dD48L3N2Zz4="
+              preview={false}
+            />
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <Text strong ellipsis style={{ display: 'block' }}>
+                {record.title}
+              </Text>
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                {record.code}
+              </Text>
+            </div>
           </div>
-        </div>
-      ),
-    },
-    {
-      title: 'Loại',
-      dataIndex: 'courseType',
-      key: 'courseType',
-      width: 100,
-      align: 'center',
-      render: (type: string) => <StatusTag status={type} />,
-    },
-    {
-      title: 'Trạng thái',
-      dataIndex: 'status',
-      key: 'status',
-      width: 130,
-      align: 'center',
-      render: (status: string) => <StatusTag status={status} />,
-    },
-    {
-      title: 'Học viên',
-      key: 'students',
-      width: 110,
-      align: 'center',
-      render: (_, record) => (
-        <span>
-          <Text strong>{record.currentStudents}</Text>
-          {record.maxStudents ? ` / ${record.maxStudents}` : ''}
-        </span>
-      ),
-    },
-    {
-      title: 'Giá',
-      dataIndex: 'price',
-      key: 'price',
-      width: 130,
-      align: 'right',
-      render: (price: number, record) => (
-        <MoneyDisplay value={record.isFree ? 0 : price} strong />
-      ),
-    },
-    {
-      title: 'Giảng viên',
-      dataIndex: 'teacherName',
-      key: 'teacherName',
-      width: 160,
-      ellipsis: true,
-      render: (v?: string) => v || <span>—</span>,
-    },
-    {
-      title: 'Ngày tạo',
-      dataIndex: 'createdAt',
-      key: 'createdAt',
-      width: 130,
-      render: (v?: string) => <DateDisplay value={v} />,
-    },
-    {
-      title: 'Thao tác',
-      key: 'action',
-      width: 160,
-      align: 'center',
-      fixed: 'right',
-      render: (_, record) => (
-        <Space size={4}>
-          <Tooltip title="Xem chi tiết">
-            <Button
-              type="text"
-              icon={<EyeOutlined />}
-              onClick={() => navigate(`/admin/courses/${record.id}`)}
-            />
-          </Tooltip>
-          <Tooltip title="Chỉnh sửa">
-            <Button
-              type="text"
-              icon={<EditOutlined />}
-              onClick={() => navigate(`/admin/courses/${record.id}`)}
-            />
-          </Tooltip>
-          <Popconfirm
-            title="Xóa khóa học"
-            description={`Bạn có chắc muốn xóa "${record.title}"?`}
-            okText="Xóa"
-            cancelText="Hủy"
-            okButtonProps={{ danger: true }}
-            onConfirm={() => handleDelete(record.id)}
-          >
-            <Tooltip title="Xóa">
-              <Button type="text" danger icon={<DeleteOutlined />} />
+        ),
+      },
+      {
+        title: t('common.status'),
+        dataIndex: 'status',
+        key: 'status',
+        width: 130,
+        align: 'center',
+        render: (status: string) => <StatusTag status={status} />,
+      },
+      {
+        title: t('student.title'),
+        key: 'students',
+        width: 110,
+        align: 'center',
+        render: (_, record) => (
+          <span>
+            <Text strong>{record.currentStudents}</Text>
+            {record.maxStudents ? ` / ${record.maxStudents}` : ''}
+          </span>
+        ),
+      },
+      {
+        title: t('course.price'),
+        dataIndex: 'price',
+        key: 'price',
+        width: 130,
+        align: 'right',
+        render: (price: number, record) => (
+          <MoneyDisplay value={record.isFree ? 0 : price} strong />
+        ),
+      },
+      {
+        title: t('status.INSTRUCTOR'),
+        dataIndex: 'teacherName',
+        key: 'teacherName',
+        width: 160,
+        ellipsis: true,
+        render: (v?: string) => v || <span>—</span>,
+      },
+      {
+        title: t('common.createdAt'),
+        dataIndex: 'createdAt',
+        key: 'createdAt',
+        width: 130,
+        render: (v?: string) => <DateDisplay value={v} />,
+      },
+      {
+        title: t('common.actions'),
+        key: 'action',
+        width: 160,
+        align: 'center',
+        fixed: 'right',
+        render: (_, record) => (
+          <Space size={4}>
+            <Tooltip title={t('common.details')}>
+              <Button
+                type="text"
+                icon={<EyeOutlined />}
+                onClick={() => navigate(`/admin/courses/${record.id}`)}
+              />
             </Tooltip>
-          </Popconfirm>
-        </Space>
-      ),
-    },
-  ];
+            <Tooltip title={t('common.edit')}>
+              <Button
+                type="text"
+                icon={<EditOutlined />}
+                onClick={() => navigate(`/admin/courses/${record.id}`)}
+              />
+            </Tooltip>
+            <Popconfirm
+              title={t('common.delete')}
+              description={`Delete "${record.title}"?`}
+              okText={t('common.delete')}
+              cancelText={t('common.cancel')}
+              okButtonProps={{ danger: true }}
+              onConfirm={() => handleDelete(record.id)}
+            >
+              <Tooltip title={t('common.delete')}>
+                <Button type="text" danger icon={<DeleteOutlined />} />
+              </Tooltip>
+            </Popconfirm>
+          </Space>
+        ),
+      },
+    ],
+    [t, navigate]
+  );
 
   // ══════════════════════════════════════════════════════════════
   // RENDER
@@ -241,19 +229,19 @@ const CourseListPage = () => {
   return (
     <PageContainer>
       <PageHeader
-        title="Quản lý khóa học"
-        subtitle={`Tổng ${total} khóa học trong hệ thống`}
+        title={t('course.title')}
+        subtitle={t('course.subtitle')}
         extra={
           <>
             <Button icon={<ReloadOutlined />} onClick={handleRefresh}>
-              Làm mới
+              {t('common.refresh')}
             </Button>
             <Button
               type="primary"
               icon={<PlusOutlined />}
               onClick={() => navigate('/instructor/courses/create')}
             >
-              Tạo khóa học
+              {t('course.create')}
             </Button>
           </>
         }
@@ -273,32 +261,32 @@ const CourseListPage = () => {
             setPageSize(ps);
           }}
           onSearch={(v) => setKeyword(v)}
-          searchPlaceholder="Tìm theo tiêu đề, mã khóa học..."
+          searchPlaceholder={t('course.searchPlaceholder')}
           extra={
             <Space>
               <Select
-                placeholder="Trạng thái"
+                placeholder={t('course.filterStatus')}
                 allowClear
                 style={{ width: 160 }}
                 value={statusFilter}
                 onChange={setStatusFilter}
                 options={[
-                  { value: 'DRAFT', label: 'Nháp' },
-                  { value: 'PENDING_REVIEW', label: 'Chờ duyệt' },
-                  { value: 'PUBLISHED', label: 'Đã xuất bản' },
-                  { value: 'ARCHIVED', label: 'Lưu trữ' },
-                  { value: 'CANCELLED', label: 'Đã hủy' },
+                  { value: 'DRAFT', label: t('status.DRAFT') },
+                  { value: 'PENDING_REVIEW', label: t('status.PENDING_REVIEW') },
+                  { value: 'PUBLISHED', label: t('status.PUBLISHED') },
+                  { value: 'ARCHIVED', label: t('status.ARCHIVED') },
+                  { value: 'CANCELLED', label: t('status.CANCELLED') },
                 ]}
               />
               <Select
-                placeholder="Loại"
+                placeholder={t('common.status')}
                 allowClear
                 style={{ width: 130 }}
                 value={typeFilter}
                 onChange={setTypeFilter}
                 options={[
-                  { value: 'ONLINE', label: 'Online' },
-                  { value: 'OFFLINE', label: 'Offline' },
+                  { value: 'ONLINE', label: t('status.ONLINE') },
+                  { value: 'OFFLINE', label: t('status.OFFLINE') },
                 ]}
               />
             </Space>

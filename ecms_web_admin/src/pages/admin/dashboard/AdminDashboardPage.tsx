@@ -10,6 +10,7 @@ import toast from 'react-hot-toast';
 import PageContainer from '@/components/common/PageContainer';
 import PageHeader from '@/components/common/PageHeader';
 import DateDisplay from '@/components/common/DateDisplay';
+import { useTranslation } from '@/hooks/useTranslation';
 
 import { adminUserApi, auditLogApi } from '@/services/api/admin';
 import { courseApi } from '@/services/api/courses';
@@ -26,6 +27,7 @@ interface Stats {
 }
 
 const AdminDashboardPage = () => {
+  const { t } = useTranslation();
   const [stats, setStats] = useState<Stats | null>(null);
   const [logs, setLogs] = useState<AuditLogResponse[]>([]);
   const [loading, setLoading] = useState(true);
@@ -76,11 +78,11 @@ const AdminDashboardPage = () => {
   return (
     <PageContainer>
       <PageHeader
-        title="Tổng quan hệ thống"
-        subtitle="Số liệu thống kê toàn bộ hệ thống ECMS"
+        title={t('dashboard.title')}
+        subtitle={t('dashboard.subtitle')}
         extra={
           <Button icon={<ReloadOutlined />} onClick={handleRefresh}>
-            Làm mới
+            {t('common.refresh')}
           </Button>
         }
       />
@@ -96,7 +98,7 @@ const AdminDashboardPage = () => {
             <Col xs={24} sm={12} lg={6}>
               <Card>
                 <Statistic
-                  title="Tổng người dùng"
+                  title={t('dashboard.totalUsers')}
                   value={stats?.totalUsers ?? 0}
                   prefix={<TeamOutlined />}
                   valueStyle={{ color: '#1677ff' }}
@@ -106,7 +108,7 @@ const AdminDashboardPage = () => {
             <Col xs={24} sm={12} lg={6}>
               <Card>
                 <Statistic
-                  title="Giảng viên"
+                  title={t('dashboard.totalInstructors')}
                   value={stats?.totalInstructors ?? 0}
                   prefix={<SolutionOutlined />}
                   valueStyle={{ color: '#52c41a' }}
@@ -116,7 +118,7 @@ const AdminDashboardPage = () => {
             <Col xs={24} sm={12} lg={6}>
               <Card>
                 <Statistic
-                  title="Học viên"
+                  title={t('dashboard.totalStudents')}
                   value={stats?.totalStudents ?? 0}
                   prefix={<UserOutlined />}
                   valueStyle={{ color: '#faad14' }}
@@ -126,7 +128,7 @@ const AdminDashboardPage = () => {
             <Col xs={24} sm={12} lg={6}>
               <Card>
                 <Statistic
-                  title="Khóa học"
+                  title={t('dashboard.totalCourses')}
                   value={stats?.totalCourses ?? 0}
                   prefix={<BookOutlined />}
                   valueStyle={{ color: '#eb2f96' }}
@@ -138,17 +140,17 @@ const AdminDashboardPage = () => {
           {/* ── Chi tiết + Audit log ── */}
           <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
             <Col xs={24} lg={12}>
-              <Card title="Phân bố người dùng" style={{ height: '100%' }}>
+              <Card title={t('dashboard.totalUsers')} style={{ height: '100%' }}>
                 <Row gutter={16}>
                   <Col span={12}>
                     <Statistic
-                      title="Quản trị viên"
+                      title={t('dashboard.totalAdmins')}
                       value={stats?.totalAdmins ?? 0}
                     />
                   </Col>
                   <Col span={12}>
                     <Statistic
-                      title="Giảng viên"
+                      title={t('dashboard.totalInstructors')}
                       value={stats?.totalInstructors ?? 0}
                     />
                   </Col>
@@ -156,13 +158,13 @@ const AdminDashboardPage = () => {
                 <Row gutter={16} style={{ marginTop: 16 }}>
                   <Col span={12}>
                     <Statistic
-                      title="Học viên"
+                      title={t('dashboard.totalStudents')}
                       value={stats?.totalStudents ?? 0}
                     />
                   </Col>
                   <Col span={12}>
                     <Statistic
-                      title="Khác"
+                      title={t('common.all')}
                       value={(stats?.totalUsers ?? 0)
                         - (stats?.totalAdmins ?? 0)
                         - (stats?.totalInstructors ?? 0)
@@ -177,14 +179,14 @@ const AdminDashboardPage = () => {
               <Card
                 title={
                   <span>
-                    <AuditOutlined /> Hoạt động gần đây
+                    <AuditOutlined /> {t('dashboard.recentActivity')}
                   </span>
                 }
                 style={{ height: '100%' }}
                 bodyStyle={{ maxHeight: 320, overflow: 'auto' }}
               >
                 {logs.length === 0 ? (
-                  <Empty description="Chưa có hoạt động" />
+                  <Empty description={t('dashboard.noActivity')} />
                 ) : (
                   <List
                     size="small"

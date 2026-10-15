@@ -140,4 +140,27 @@ export const API_ENDPOINT = {
   // FILES
   // ══════════════════════════════════════════════════════════════
   FILES_UPLOAD: '/api/files/upload',
+
+  // ══════════════════════════════════════════════════════════════
+  // LEADS
+  // ══════════════════════════════════════════════════════════════
+  LEADS: '/api/leads',
+  LEAD_DETAIL: (id: number) => `/api/leads/${id}`,
+  LEAD_FULL_DETAIL: (id: number) => `/api/leads/${id}/detail`,
+  LEAD_ASSIGN: (id: number) => `/api/leads/${id}/assign`,
+  LEAD_INTERACTIONS: (id: number) => `/api/leads/${id}/interactions`,
+  LEAD_PLACEMENT_TESTS: (id: number) => `/api/leads/${id}/placement-tests`,
+
+  // ══════════════════════════════════════════════════════════════
+  // STUDENTS
+  // ══════════════════════════════════════════════════════════════
+  STUDENTS: '/api/students',
+  STUDENT_DETAIL: (id: number) => `/api/students/${id}`,
+  STUDENT_FULL_DETAIL: (id: number) => `/api/students/${id}/detail`,
+  STUDENT_BY_CODE: (code: string) => `/api/students/code/${code}`,
+  STUDENT_CONVERT_LEAD: '/api/students/convert-lead',
+  STUDENT_STATUS: (id: number) => `/api/students/${id}/status`,
+  STUDENT_GUARDIANS: (id: number) => `/api/students/${id}/guardians`,
+  STUDENT_GUARDIAN_DETAIL: (id: number, guardianId: number) => `/api/students/${id}/guardians/${guardianId}`,
+  STUDENT_ACADEMIC_HISTORIES: (id: number) => `/api/students/${id}/academic-histories`,
 } as const;

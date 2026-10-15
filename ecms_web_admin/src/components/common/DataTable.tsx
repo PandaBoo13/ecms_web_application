@@ -3,6 +3,7 @@ import type { ColumnsType, TablePaginationConfig } from 'antd/es/table';
 import type { ReactNode } from 'react';
 import SearchInput from './SearchInput';
 import EmptyState from '../feedback/EmptyState';
+import { useTranslation } from '@/hooks/useTranslation';
 
 interface Props<T> {
   columns: ColumnsType<T>;
@@ -34,11 +35,13 @@ function DataTable<T extends object>({
   pageSize = 20,
   onPageChange,
   onSearch,
-  searchPlaceholder = 'Tìm kiếm...',
+  searchPlaceholder,
   extra,
   title,
   showSearch = true,
 }: Props<T>) {
+  const { t } = useTranslation();
+
   const pagination: TablePaginationConfig | false =
     total !== undefined
       ? {
@@ -46,7 +49,7 @@ function DataTable<T extends object>({
           pageSize,
           total,
           showSizeChanger: true,
-          showTotal: (t, range) => `${range[0]}-${range[1]} của ${t}`,
+          showTotal: (totalCount, range) => `${range[0]}-${range[1]} ${t('common.paginationOf')} ${totalCount}`,
           onChange: (p, ps) => onPageChange?.(p - 1, ps),
           pageSizeOptions: ['10', '20', '50', '100'],
         }

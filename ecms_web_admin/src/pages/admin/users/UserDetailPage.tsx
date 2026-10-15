@@ -5,7 +5,7 @@ import {
   Typography, Spin, Result, List, Empty,
 } from 'antd';
 import {
-  UserOutlined, ArrowLeftOutlined, SwapOutlined, SaveOutlined,
+  UserOutlined, ArrowLeftOutlined, SaveOutlined,
 } from '@ant-design/icons';
 import toast from 'react-hot-toast';
 

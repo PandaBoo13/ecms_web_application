@@ -35,4 +35,4 @@ lerna-debug.log*
 *.ntvs*
 *.njsproj
 *.sln
-*.sw?
+*.sw?OC01/env
