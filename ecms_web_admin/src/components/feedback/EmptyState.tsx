@@ -1,5 +1,6 @@
 import { Empty } from 'antd';
 import type { ReactNode } from 'react';
+import { useTranslation } from '@/hooks/useTranslation';
 
 interface Props {
   title?: string;
@@ -9,24 +10,28 @@ interface Props {
 }
 
 const EmptyState = ({
-  title = 'Chưa có dữ liệu',
+  title,
   description,
   action,
-}: Props) => (
-  <div
-    style={{
-      padding: '48px 24px',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center',
-    }}
-  >
-    <Empty
+}: Props) => {
+  const { t } = useTranslation();
+  const displayTitle = title || t('common.noData');
+
+  return (
+    <div
+      style={{
+        padding: '48px 24px',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <Empty
       description={
         <div style={{ textAlign: 'center' }}>
           <div style={{ fontSize: 16, fontWeight: 500, color: '#262626', marginBottom: 4 }}>
-            {title}
+            {displayTitle}
           </div>
           {description && (
             <div style={{ fontSize: 14, color: '#8c8c8c' }}>{description}</div>
@@ -37,6 +42,7 @@ const EmptyState = ({
       {action}
     </Empty>
   </div>
-);
+  );
+};
 
 export default EmptyState;

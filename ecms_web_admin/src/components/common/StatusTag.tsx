@@ -1,4 +1,5 @@
 import { Tag } from 'antd';
+import { useTranslation } from '@/hooks/useTranslation';
 
 type StatusType = 'course' | 'session' | 'question' | 'resource' | 'role' | 'custom';
 
@@ -8,45 +9,46 @@ interface Props {
   showIcon?: boolean;
 }
 
-const STATUS_MAP: Record<string, { color: string; label: string }> = {
-  // ═══ Course status ═══
-  DRAFT: { color: 'default', label: 'Nháp' },
-  PENDING_REVIEW: { color: 'orange', label: 'Chờ duyệt' },
-  PUBLISHED: { color: 'green', label: 'Đã xuất bản' },
-  ARCHIVED: { color: 'purple', label: 'Lưu trữ' },
-  CANCELLED: { color: 'red', label: 'Đã hủy' },
-
-  // ═══ Class status ═══
-  PLANNED: { color: 'blue', label: 'Kế hoạch' },
-  OPEN: { color: 'cyan', label: 'Đang mở' },
-  ONGOING: { color: 'processing', label: 'Đang diễn ra' },
-  FINISHED: { color: 'green', label: 'Kết thúc' },
-
-  // ═══ Session status ═══
-  SCHEDULED: { color: 'blue', label: 'Đã lên lịch' },
-  DONE: { color: 'green', label: 'Hoàn thành' },
-  RESCHEDULED: { color: 'orange', label: 'Đổi lịch' },
-
-  // ═══ Question / Resource status ═══
-  ACTIVE: { color: 'green', label: 'Hoạt động' },
-  INACTIVE: { color: 'default', label: 'Không hoạt động' },
-  HIDDEN: { color: 'default', label: 'Ẩn' },
-
-  // ═══ Role ═══
-  ADMIN: { color: 'red', label: 'Quản trị viên' },
-  INSTRUCTOR: { color: 'blue', label: 'Giảng viên' },
-  STUDENT: { color: 'green', label: 'Học viên' },
-
-  // ═══ Course type ═══
-  ONLINE: { color: 'cyan', label: 'Online' },
-  OFFLINE: { color: 'gold', label: 'Offline' },
+const STATUS_COLOR_MAP: Record<string, string> = {
+  // Lead
+  NEW: 'blue',
+  CONSULTED: 'green',
+  // Course
+  DRAFT: 'default',
+  PENDING_REVIEW: 'orange',
+  PUBLISHED: 'green',
+  ARCHIVED: 'purple',
+  CANCELLED: 'red',
+  // Class
+  PLANNED: 'blue',
+  OPEN: 'cyan',
+  ONGOING: 'processing',
+  FINISHED: 'green',
+  // Session
+  SCHEDULED: 'blue',
+  DONE: 'green',
+  RESCHEDULED: 'orange',
+  // Active/Inactive
+  ACTIVE: 'green',
+  INACTIVE: 'default',
+  HIDDEN: 'default',
+  // Roles
+  ADMIN: 'red',
+  INSTRUCTOR: 'blue',
+  STUDENT: 'green',
+  // Types
+  ONLINE: 'cyan',
+  OFFLINE: 'gold',
 };
 
 const StatusTag = ({ status, showIcon = false }: Props) => {
-  const config = STATUS_MAP[status] || { color: 'default', label: status };
+  const { t } = useTranslation();
+  const color = STATUS_COLOR_MAP[status] || 'default';
+  const label = t(`status.${status}`, status);
+
   return (
-    <Tag color={config.color} icon={showIcon ? undefined : undefined}>
-      {config.label}
+    <Tag color={color} icon={showIcon ? undefined : undefined}>
+      {label}
     </Tag>
   );
 };

@@ -1,6 +1,7 @@
 import { Layout, Button, Space, Badge } from 'antd';
 import { MenuFoldOutlined, MenuUnfoldOutlined, BellOutlined } from '@ant-design/icons';
 import UserDropdown from './UserDropdown';
+import LanguageDropdown from './LanguageDropdown';
 import { useUIStore } from '@/stores/uiStore';
 
 const { Header: AntHeader } = Layout;
@@ -30,7 +31,8 @@ const Header = () => {
         style={{ fontSize: 16, width: 48, height: 48 }}
       />
 
-      <Space size={16}>
+      <Space size={16} align="center">
+        <LanguageDropdown />
         <Badge count={0} size="small">
           <Button type="text" icon={<BellOutlined style={{ fontSize: 18 }} />} />
         </Badge>

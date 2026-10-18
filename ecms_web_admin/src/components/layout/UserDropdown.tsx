@@ -6,19 +6,21 @@ import {
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/hooks/useAuth';
+import { useTranslation } from '@/hooks/useTranslation';
 import { ROLE_LABEL } from '@/constants/roles';
 
 const UserDropdown = () => {
   const { user, logout, isAdmin } = useAuth();
+  const { t } = useTranslation();
   const navigate = useNavigate();
 
   const handleLogout = async () => {
     try {
       await logout();
-      toast.success('Đã đăng xuất');
+      toast.success(t('common.logout'));
       navigate('/login', { replace: true });
     } catch {
-      toast.error('Đăng xuất thất bại');
+      toast.error('Logout failed');
     }
   };
 
@@ -28,14 +30,14 @@ const UserDropdown = () => {
     {
       key: 'profile',
       icon: <UserOutlined />,
-      label: 'Hồ sơ cá nhân',
+      label: t('common.profile'),
       onClick: () => navigate(profilePath),
     },
     { type: 'divider' as const },
     {
       key: 'logout',
       icon: <LogoutOutlined />,
-      label: 'Đăng xuất',
+      label: t('common.logout'),
       danger: true,
       onClick: handleLogout,
     },

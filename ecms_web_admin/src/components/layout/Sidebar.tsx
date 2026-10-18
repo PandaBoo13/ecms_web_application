@@ -1,4 +1,5 @@
 import { Layout, Menu } from 'antd';
+import type { MenuProps } from 'antd';
 import {
   DashboardOutlined,
   BookOutlined,
@@ -7,13 +8,17 @@ import {
   SettingOutlined,
   UserOutlined,
   ProfileOutlined,
+  UserAddOutlined,
 } from '@ant-design/icons';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { ADMIN_MENU, INSTRUCTOR_MENU } from '@/constants/routes';
 import type { MenuItem } from '@/constants/routes';
+import { useTranslation } from '@/hooks/useTranslation';
 
 const { Sider } = Layout;
+
+type AntdMenuItem = NonNullable<MenuProps['items']>[number];
 
 const ICON_MAP: Record<string, React.ReactNode> = {
   DashboardOutlined: <DashboardOutlined />,
@@ -23,14 +28,30 @@ const ICON_MAP: Record<string, React.ReactNode> = {
   SettingOutlined: <SettingOutlined />,
   UserOutlined: <UserOutlined />,
   ProfileOutlined: <ProfileOutlined />,
+  UserAddOutlined: <UserAddOutlined />,
 };
 
-const renderItem = (item: MenuItem): { key: string; label: string; icon?: React.ReactNode; children?: ReturnType<typeof renderItem>[] } => ({
-  key: item.key,
-  label: item.label,
-  icon: item.icon ? ICON_MAP[item.icon as string] : undefined,
-  children: item.children?.map(renderItem),
-});
+const MENU_KEY_TRANSLATION_MAP: Record<string, string> = {
+  '/admin/dashboard': 'menu.dashboard',
+  'leads': 'menu.leads',
+  '/admin/leads': 'menu.leadList',
+  'students': 'menu.students',
+  '/admin/students': 'menu.studentList',
+  'courses': 'menu.courses',
+  '/admin/courses': 'menu.courseList',
+  'users': 'menu.users',
+  '/admin/users': 'menu.userList',
+  'system': 'menu.system',
+  '/admin/roles': 'menu.roles',
+  '/admin/audit-logs': 'menu.auditLogs',
+  'reports': 'menu.reports',
+  '/admin/reports': 'menu.generalReports',
+  '/instructor/dashboard': 'menu.dashboard',
+  '/instructor/courses': 'menu.myCourses',
+  '/instructor/students': 'menu.students',
+  '/instructor/assignments': 'menu.assignments',
+  '/instructor/profile': 'common.profile',
+};
 
 interface Props {
   collapsed: boolean;
@@ -38,8 +59,16 @@ interface Props {
 
 const Sidebar = ({ collapsed }: Props) => {
   const { isAdmin } = useAuth();
+  const { t } = useTranslation();
   const location = useLocation();
   const navigate = useNavigate();
+
+  const renderItem = (item: MenuItem): AntdMenuItem => ({
+    key: item.key,
+    label: MENU_KEY_TRANSLATION_MAP[item.key] ? t(MENU_KEY_TRANSLATION_MAP[item.key]) : item.label,
+    icon: item.icon ? ICON_MAP[item.icon as string] : undefined,
+    children: item.children?.map(renderItem),
+  });
 
   const menu = isAdmin() ? ADMIN_MENU : INSTRUCTOR_MENU;
   const items = menu.map(renderItem);

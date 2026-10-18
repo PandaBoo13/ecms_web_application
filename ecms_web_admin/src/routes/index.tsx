@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate, Outlet } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import ProtectedRoute, { ADMIN_ROLES, INSTRUCTOR_ROLES } from './ProtectedRoute';
 
 // ─── Layouts ───
@@ -24,6 +24,8 @@ import RoleManagePage from '@/pages/admin/system/RoleManagePage';
 import SystemLogPage from '@/pages/admin/system/SystemLogPage';
 import ReportsPage from '@/pages/admin/reports/ReportsPage';
 import SettingsPage from '@/pages/admin/settings/SettingsPage';
+import LeadListPage from '@/pages/admin/leads/LeadListPage';
+import StudentListPage from '@/pages/admin/students/StudentListPage';
 
 // ─── Instructor pages ───
 import InstructorDashboardPage from '@/pages/instructor/dashboard/InstructorDashboardPage';
@@ -56,6 +58,9 @@ export default function AppRouter() {
           <Route path="/admin/users" element={<UserListPage />} />
           <Route path="/admin/users/create" element={<UserCreatePage />} />
           <Route path="/admin/users/:id" element={<UserDetailPage />} />
+
+          <Route path="/admin/leads" element={<LeadListPage />} />
+          <Route path="/admin/students" element={<StudentListPage />} />
 
           <Route path="/admin/courses" element={<CourseListPage />} />
           <Route path="/admin/courses/:id" element={<CourseDetailPage />} />

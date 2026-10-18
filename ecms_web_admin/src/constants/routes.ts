@@ -14,6 +14,22 @@ export const ADMIN_MENU: MenuItem[] = [
     path: '/admin/dashboard',
   },
   {
+    key: 'leads',
+    label: 'Tuyển sinh (Lead)',
+    icon: 'UserAddOutlined',
+    children: [
+      { key: '/admin/leads', label: 'Danh sách Lead', path: '/admin/leads' },
+    ],
+  },
+  {
+    key: 'students',
+    label: 'Học viên',
+    icon: 'TeamOutlined',
+    children: [
+      { key: '/admin/students', label: 'Danh sách học viên', path: '/admin/students' },
+    ],
+  },
+  {
     key: 'courses',
     label: 'Khóa học',
     icon: 'BookOutlined',
@@ -83,6 +99,8 @@ export const INSTRUCTOR_MENU: MenuItem[] = [
 
 export const ROUTE_TITLE: Record<string, string> = {
   '/admin/dashboard': 'Tổng quan',
+  '/admin/leads': 'Quản lý Lead (Tuyển sinh)',
+  '/admin/students': 'Quản lý học viên',
   '/admin/users': 'Quản lý tài khoản',
   '/admin/courses': 'Quản lý khóa học',
   '/admin/roles': 'Phân quyền',

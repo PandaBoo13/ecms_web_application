@@ -112,5 +112,13 @@ public class APIURL {
             "/api/audit-logs/**",
             "/api/rooms",
             "/api/rooms/**",
+
+            // Lead
+            "/api/leads",
+            "/api/leads/**",
+
+            // Student
+            "/api/students",
+            "/api/students/**",
     };
 }

@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 
 interface Props {
   title: string;
-  subtitle?: string;
+  subtitle?: ReactNode;
   extra?: ReactNode;
   backButton?: boolean;
   backTo?: string;
