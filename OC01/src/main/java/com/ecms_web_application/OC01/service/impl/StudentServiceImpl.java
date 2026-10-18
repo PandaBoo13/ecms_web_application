@@ -2,6 +2,7 @@ package com.ecms_web_application.OC01.service.impl;
 
 import com.ecms_web_application.OC01.config.SecurityUtils;
 import com.ecms_web_application.OC01.dto.request.GuardianRequest;
+import com.ecms_web_application.OC01.dto.request.StudentAccountLockRequest;
 import com.ecms_web_application.OC01.dto.request.StudentConvertFromLeadRequest;
 import com.ecms_web_application.OC01.dto.request.StudentCreateRequest;
 import com.ecms_web_application.OC01.dto.request.StudentStatusChangeRequest;
@@ -11,12 +12,15 @@ import com.ecms_web_application.OC01.dto.response.GuardianResponse;
 import com.ecms_web_application.OC01.dto.response.StudentDetailResponse;
 import com.ecms_web_application.OC01.dto.response.StudentResponse;
 import com.ecms_web_application.OC01.entity.AcademicHistory;
+import com.ecms_web_application.OC01.entity.Account;
 import com.ecms_web_application.OC01.entity.Guardian;
 import com.ecms_web_application.OC01.entity.Lead;
 import com.ecms_web_application.OC01.entity.Student;
 import com.ecms_web_application.OC01.entity.StudentStatusLog;
 import com.ecms_web_application.OC01.exception.ErrorHandler;
 import com.ecms_web_application.OC01.repository.AcademicHistoryRepository;
+import com.ecms_web_application.OC01.repository.AccountRepository;
+import com.ecms_web_application.OC01.repository.AuthSessionRepository;
 import com.ecms_web_application.OC01.repository.GuardianRepository;
 import com.ecms_web_application.OC01.repository.LeadRepository;
 import com.ecms_web_application.OC01.repository.StudentRepository;
@@ -46,6 +50,8 @@ public class StudentServiceImpl implements StudentService {
     private final GuardianRepository guardianRepository;
     private final AcademicHistoryRepository academicHistoryRepository;
     private final StudentStatusLogRepository statusLogRepository;
+    private final AccountRepository accountRepository;
+    private final AuthSessionRepository authSessionRepository;
 
     @Override
     @Transactional(readOnly = true)
@@ -263,6 +269,51 @@ public class StudentServiceImpl implements StudentService {
 
     @Override
     @Transactional
+    public StudentResponse lockAccount(Long id, StudentAccountLockRequest request) {
+        Student student = findStudentById(id);
+        Account account = null;
+        if (student.getUserId() != null) {
+            account = accountRepository.findById(student.getUserId()).orElse(null);
+        }
+        if (account == null && student.getEmail() != null) {
+            account = accountRepository.findByEmail(student.getEmail()).orElse(null);
+            if (account != null && student.getUserId() == null) {
+                student.setUserId(account.getId());
+                studentRepository.save(student);
+            }
+        }
+
+        if (account == null) {
+            throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Học viên này chưa có tài khoản đăng nhập trên hệ thống");
+        }
+
+        boolean isLocked = Boolean.TRUE.equals(request.getIsLocked());
+        account.setIsLocked(isLocked);
+        if (isLocked) {
+            account.setLockedUntil(null);
+            authSessionRepository.revokeAllByAccountId(
+                    account.getId(),
+                    LocalDateTime.now(),
+                    "Admin khóa tài khoản: " + (request.getReason() != null ? request.getReason() : "")
+            );
+            log.info("Khóa tài khoản học viên: studentId={}, accountId={}, reason={}", id, account.getId(), request.getReason());
+        } else {
+            account.setLockedUntil(null);
+            account.setFailedLoginCount(0);
+            log.info("Mở khóa tài khoản học viên: studentId={}, accountId={}", id, account.getId());
+        }
+        accountRepository.save(account);
+
+        String actionDesc = isLocked ? "Khóa tài khoản: " : "Mở khóa tài khoản: ";
+        recordStatusLog(student.getId(), student.getStatus(), student.getStatus(),
+                actionDesc + (request.getReason() != null ? request.getReason() : "Bởi Admin"),
+                SecurityUtils.getCurrentAccountId());
+
+        return toResponse(student);
+    }
+
+    @Override
+    @Transactional
     public GuardianResponse addGuardian(Long studentId, GuardianRequest request) {
         findStudentById(studentId);
 
@@ -372,6 +423,24 @@ public class StudentServiceImpl implements StudentService {
         response.setStatus(student.getStatus());
         response.setCreatedAt(student.getCreatedAt());
         response.setUpdatedAt(student.getUpdatedAt());
+
+        Account account = null;
+        if (student.getUserId() != null) {
+            account = accountRepository.findById(student.getUserId()).orElse(null);
+        }
+        if (account == null && student.getEmail() != null) {
+            account = accountRepository.findByEmail(student.getEmail()).orElse(null);
+        }
+        if (account != null) {
+            response.setHasAccount(true);
+            response.setIsAccountLocked(Boolean.TRUE.equals(account.getIsLocked()));
+            if (student.getUserId() == null) {
+                response.setUserId(account.getId());
+            }
+        } else {
+            response.setHasAccount(false);
+            response.setIsAccountLocked(false);
+        }
     }
 
     private StudentResponse toResponse(Student student) {

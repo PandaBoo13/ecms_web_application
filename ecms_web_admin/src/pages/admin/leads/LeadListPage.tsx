@@ -340,23 +340,30 @@ const LeadListPage = () => {
         title: t('lead.code'),
         dataIndex: 'id',
         width: 90,
-        render: (id: number) => (
-          <span
+        render: (id: number, record: Lead) => (
+          <Tag
+            color="default"
             style={{
               fontFamily: 'monospace',
               fontWeight: 700,
-              fontSize: 13,
-              color: '#64748b',
+              fontSize: 12,
+              borderRadius: 6,
+              padding: '2px 8px',
+              cursor: 'pointer',
+              background: '#f8fafc',
+              borderColor: '#e2e8f0',
+              color: '#475569',
             }}
+            onClick={() => handleOpenDetail(record)}
           >
-            #{id}
-          </span>
+            #{String(id).padStart(4, '0')}
+          </Tag>
         ),
       },
       {
         title: t('lead.customer'),
         key: 'customer',
-        width: 250,
+        width: 260,
         render: (_, record: Lead) => (
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <UserAvatar name={record.fullName} size={36} />
@@ -368,24 +375,32 @@ const LeadListPage = () => {
                   color: '#0f172a',
                   cursor: 'pointer',
                   lineHeight: 1.3,
+                  transition: 'color 0.15s ease',
                 }}
-                className="hover:text-blue-600 transition-colors"
+                onMouseEnter={(e) => (e.currentTarget.style.color = '#1677ff')}
+                onMouseLeave={(e) => (e.currentTarget.style.color = '#0f172a')}
                 onClick={() => handleOpenDetail(record)}
               >
                 {record.fullName}
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 2 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 3 }}>
                 {record.phone && (
-                  <Text type="secondary" style={{ fontSize: 12 }}>
-                    <PhoneOutlined style={{ marginRight: 3, color: '#94a3b8' }} />
+                  <a
+                    href={`tel:${record.phone}`}
+                    style={{ fontSize: 12, color: '#64748b', display: 'inline-flex', alignItems: 'center', gap: 3 }}
+                  >
+                    <PhoneOutlined style={{ color: '#94a3b8' }} />
                     {record.phone}
-                  </Text>
+                  </a>
                 )}
                 {record.email && (
-                  <Text type="secondary" style={{ fontSize: 12 }}>
-                    <MailOutlined style={{ marginRight: 3, color: '#94a3b8' }} />
+                  <a
+                    href={`mailto:${record.email}`}
+                    style={{ fontSize: 12, color: '#64748b', display: 'inline-flex', alignItems: 'center', gap: 3 }}
+                  >
+                    <MailOutlined style={{ color: '#94a3b8' }} />
                     {record.email}
-                  </Text>
+                  </a>
                 )}
               </div>
             </div>
@@ -401,9 +416,9 @@ const LeadListPage = () => {
             <Tag
               icon={<BookOutlined />}
               color="processing"
-              style={{ borderRadius: 6, fontWeight: 500 }}
+              style={{ borderRadius: 6, fontWeight: 500, padding: '2px 8px' }}
             >
-              #{courseId}
+              Course #{courseId}
             </Tag>
           ) : (
             <Text type="secondary" style={{ fontSize: 13 }}>
@@ -427,9 +442,15 @@ const LeadListPage = () => {
           ) : (
             <Tag
               color="warning"
-              icon={<ClockCircleOutlined />}
-              style={{ borderRadius: 12, padding: '2px 10px', fontWeight: 500 }}
+              style={{
+                borderRadius: 12,
+                padding: '2px 10px',
+                fontWeight: 500,
+                display: 'inline-flex',
+                alignItems: 'center',
+              }}
             >
+              <span className="pulse-dot-amber" />
               {t('lead.unassigned')}
             </Tag>
           ),
@@ -459,7 +480,7 @@ const LeadListPage = () => {
                 fontSize: 12,
                 color: '#94a3b8',
                 padding: '2px 8px',
-                background: '#f1f5f9',
+                background: '#f8fafc',
                 borderRadius: 10,
                 border: '1px dashed #cbd5e1',
               }}
@@ -480,12 +501,12 @@ const LeadListPage = () => {
         fixed: 'right',
         width: 200,
         render: (_, record: Lead) => (
-          <Space size={2}>
+          <Space size={3}>
             <Tooltip title={t('lead.tooltip.view')}>
               <Button
                 type="text"
                 shape="circle"
-                className="action-btn-circle"
+                className="action-btn-circle view"
                 icon={<EyeOutlined style={{ color: '#1677ff', fontSize: 15 }} />}
                 onClick={() => handleOpenDetail(record)}
               />
@@ -495,7 +516,7 @@ const LeadListPage = () => {
               <Button
                 type="text"
                 shape="circle"
-                className="action-btn-circle"
+                className="action-btn-circle assign"
                 icon={<UserSwitchOutlined style={{ color: '#722ed1', fontSize: 15 }} />}
                 onClick={() => {
                   setSelectedLead(record);
@@ -509,7 +530,7 @@ const LeadListPage = () => {
               <Button
                 type="text"
                 shape="circle"
-                className="action-btn-circle"
+                className="action-btn-circle interact"
                 icon={<CommentOutlined style={{ color: '#fa8c16', fontSize: 15 }} />}
                 onClick={() => {
                   setSelectedLead(record);
@@ -523,7 +544,7 @@ const LeadListPage = () => {
               <Button
                 type="text"
                 shape="circle"
-                className="action-btn-circle"
+                className="action-btn-circle test"
                 icon={<FormOutlined style={{ color: '#08979c', fontSize: 15 }} />}
                 onClick={() => {
                   setSelectedLead(record);
@@ -539,13 +560,13 @@ const LeadListPage = () => {
                   type="primary"
                   size="small"
                   shape="round"
+                  className="btn-success-gradient"
                   icon={<CheckCircleOutlined />}
                   style={{
-                    background: 'linear-gradient(135deg, #52c41a 0%, #389e0d 100%)',
-                    border: 'none',
                     fontSize: 12,
-                    fontWeight: 500,
-                    boxShadow: '0 2px 4px rgba(82, 196, 26, 0.25)',
+                    fontWeight: 600,
+                    padding: '0 10px',
+                    height: 26,
                   }}
                   onClick={() => {
                     setSelectedLead(record);
@@ -571,7 +592,7 @@ const LeadListPage = () => {
                   type="text"
                   danger
                   shape="circle"
-                  className="action-btn-circle"
+                  className="action-btn-circle delete"
                   icon={<CloseCircleOutlined style={{ fontSize: 15 }} />}
                 />
               </Tooltip>
@@ -580,7 +601,7 @@ const LeadListPage = () => {
         ),
       },
     ],
-    [t]
+    [t, handleOpenDetail]
   );
 
   const hasActiveFilters = Boolean(keyword || statusFilter || inQueueFilter !== undefined);
@@ -590,12 +611,28 @@ const LeadListPage = () => {
       <PageHeader
         title={t('lead.title')}
         subtitle={t('lead.subtitle')}
+        badge={
+          <Tag
+            color="blue"
+            style={{
+              borderRadius: 12,
+              fontWeight: 600,
+              fontSize: 12,
+              padding: '2px 10px',
+              border: 'none',
+              background: '#eff6ff',
+              color: '#2563eb',
+            }}
+          >
+            CRM & Admissions
+          </Tag>
+        }
         extra={
           <Space>
             <Button
               icon={<ReloadOutlined spin={loading} />}
               onClick={handleRefresh}
-              style={{ borderRadius: 6 }}
+              style={{ borderRadius: 8, height: 38, fontWeight: 500 }}
             >
               {t('common.refresh')}
             </Button>
@@ -603,11 +640,12 @@ const LeadListPage = () => {
               type="primary"
               icon={<PlusOutlined />}
               onClick={() => setCreateModalVisible(true)}
+              className="btn-primary-gradient"
               style={{
-                borderRadius: 6,
-                background: 'linear-gradient(135deg, #1677ff 0%, #0958d9 100%)',
+                borderRadius: 8,
+                height: 38,
+                fontWeight: 500,
                 border: 'none',
-                boxShadow: '0 2px 6px rgba(22, 119, 255, 0.3)',
               }}
             >
               {t('lead.create')}
@@ -623,7 +661,7 @@ const LeadListPage = () => {
             title={t('lead.total')}
             value={stats.total}
             icon={<TeamOutlined />}
-            color="#1677ff"
+            color="#2563eb"
             bgColor="#eff6ff"
             active={!statusFilter && inQueueFilter === undefined}
             onClick={() => {
@@ -690,10 +728,13 @@ const LeadListPage = () => {
       <Card
         bordered={false}
         style={{
-          borderRadius: 12,
-          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
+          borderRadius: 14,
+          border: '1px solid #e2e8f0',
+          boxShadow: '0 4px 16px -2px rgba(15, 23, 42, 0.04)',
           background: '#ffffff',
+          overflow: 'hidden',
         }}
+        bodyStyle={{ padding: 18 }}
       >
         <DataTable
           columns={columns}
@@ -713,7 +754,7 @@ const LeadListPage = () => {
               <Select
                 placeholder={t('lead.filter.status')}
                 allowClear
-                style={{ width: 170 }}
+                style={{ width: 170, height: 38 }}
                 value={statusFilter}
                 onChange={setStatusFilter}
               >
@@ -728,7 +769,7 @@ const LeadListPage = () => {
               <Select
                 placeholder={t('lead.filter.queue')}
                 allowClear
-                style={{ width: 190 }}
+                style={{ width: 190, height: 38 }}
                 value={inQueueFilter}
                 onChange={setInQueueFilter}
               >
@@ -744,7 +785,7 @@ const LeadListPage = () => {
                 <Button
                   icon={<ClearOutlined />}
                   onClick={handleResetFilters}
-                  style={{ borderRadius: 6 }}
+                  style={{ borderRadius: 8, height: 38 }}
                 >
                   {t('common.clearFilter')}
                 </Button>
@@ -757,9 +798,28 @@ const LeadListPage = () => {
       {/* ── Modal Tiếp nhận Lead ── */}
       <Modal
         title={
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <TeamOutlined style={{ color: '#1677ff' }} />
-            <span>{t('lead.modal.createTitle')}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 8,
+                background: '#eff6ff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <TeamOutlined style={{ color: '#2563eb', fontSize: 18 }} />
+            </div>
+            <div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: '#0f172a' }}>
+                {t('lead.modal.createTitle')}
+              </div>
+              <div style={{ fontSize: 12, color: '#64748b', fontWeight: 400 }}>
+                Nhập thông tin khách hàng tiềm năng mới vào hệ thống
+              </div>
+            </div>
           </div>
         }
         open={createModalVisible}
@@ -767,6 +827,8 @@ const LeadListPage = () => {
         onOk={() => createForm.submit()}
         okText={t('common.save')}
         cancelText={t('common.cancel')}
+        okButtonProps={{ className: 'btn-primary-gradient', style: { borderRadius: 8, height: 38 } }}
+        cancelButtonProps={{ style: { borderRadius: 8, height: 38 } }}
         destroyOnClose
       >
         <Divider style={{ margin: '12px 0 20px' }} />
@@ -776,38 +838,54 @@ const LeadListPage = () => {
             label={t('lead.modal.fullName')}
             rules={[{ required: true, message: 'Vui lòng nhập họ và tên' }]}
           >
-            <Input prefix={<UserOutlined style={{ color: '#94a3b8' }} />} placeholder="Nguyễn Văn A" />
+            <Input
+              prefix={<UserOutlined style={{ color: '#94a3b8' }} />}
+              placeholder="Nguyễn Văn A"
+              style={{ height: 38, borderRadius: 8 }}
+            />
           </Form.Item>
           <Form.Item
             name="phone"
             label={t('lead.modal.phone')}
             rules={[{ required: true, message: 'Vui lòng nhập số điện thoại' }]}
           >
-            <Input prefix={<PhoneOutlined style={{ color: '#94a3b8' }} />} placeholder="0901234567" />
+            <Input
+              prefix={<PhoneOutlined style={{ color: '#94a3b8' }} />}
+              placeholder="0901234567"
+              style={{ height: 38, borderRadius: 8 }}
+            />
           </Form.Item>
           <Form.Item
             name="email"
             label={t('lead.modal.email')}
             rules={[{ type: 'email', message: 'Email không hợp lệ' }]}
           >
-            <Input prefix={<MailOutlined style={{ color: '#94a3b8' }} />} placeholder="khachhang@example.com" />
+            <Input
+              prefix={<MailOutlined style={{ color: '#94a3b8' }} />}
+              placeholder="khachhang@example.com"
+              style={{ height: 38, borderRadius: 8 }}
+            />
           </Form.Item>
           <Form.Item name="courseId" label={t('lead.modal.courseId')}>
             <InputNumber
               prefix={<BookOutlined style={{ color: '#94a3b8' }} />}
-              style={{ width: '100%' }}
+              style={{ width: '100%', height: 38, borderRadius: 8 }}
               placeholder="VD: 1, 2, 3..."
             />
           </Form.Item>
           <Form.Item name="assignedConsultantId" label={t('lead.modal.consultantId')}>
             <InputNumber
               prefix={<UserOutlined style={{ color: '#94a3b8' }} />}
-              style={{ width: '100%' }}
+              style={{ width: '100%', height: 38, borderRadius: 8 }}
               placeholder="Bỏ trống nếu đưa vào Hàng đợi (Queue)"
             />
           </Form.Item>
           <Form.Item name="note" label={t('lead.modal.notes')}>
-            <TextArea rows={3} placeholder="Nhu cầu học tiếng Anh, lịch rảnh buổi tối, mục tiêu thi chứng chỉ..." />
+            <TextArea
+              rows={3}
+              placeholder="Nhu cầu học tiếng Anh, lịch rảnh buổi tối, mục tiêu thi chứng chỉ..."
+              style={{ borderRadius: 8 }}
+            />
           </Form.Item>
         </Form>
       </Modal>
@@ -815,9 +893,28 @@ const LeadListPage = () => {
       {/* ── Modal Phân công TVV ── */}
       <Modal
         title={
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <UserSwitchOutlined style={{ color: '#722ed1' }} />
-            <span>{t('lead.modal.assignTitle')} #{selectedLead?.id}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 8,
+                background: '#f5f3ff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <UserSwitchOutlined style={{ color: '#7c3aed', fontSize: 18 }} />
+            </div>
+            <div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: '#0f172a' }}>
+                {t('lead.modal.assignTitle')} #{selectedLead?.id}
+              </div>
+              <div style={{ fontSize: 12, color: '#64748b', fontWeight: 400 }}>
+                Chỉ định chuyên viên tuyển sinh phụ trách tư vấn khách hàng
+              </div>
+            </div>
           </div>
         }
         open={assignModalVisible}
@@ -825,6 +922,8 @@ const LeadListPage = () => {
         onOk={() => assignForm.submit()}
         okText={t('common.confirm')}
         cancelText={t('common.cancel')}
+        okButtonProps={{ className: 'btn-primary-gradient', style: { borderRadius: 8, height: 38 } }}
+        cancelButtonProps={{ style: { borderRadius: 8, height: 38 } }}
         destroyOnClose
       >
         <Divider style={{ margin: '12px 0 20px' }} />
@@ -836,12 +935,15 @@ const LeadListPage = () => {
           >
             <InputNumber
               prefix={<UserOutlined style={{ color: '#94a3b8' }} />}
-              style={{ width: '100%' }}
+              style={{ width: '100%', height: 38, borderRadius: 8 }}
               placeholder="Nhập ID tài khoản TVV (VD: 2)"
             />
           </Form.Item>
           <Form.Item name="reason" label={t('lead.modal.assignReason')}>
-            <Input placeholder="Phân công theo lượt, TVV cũ nghỉ phép..." />
+            <Input
+              placeholder="Phân công theo lượt, TVV cũ nghỉ phép..."
+              style={{ height: 38, borderRadius: 8 }}
+            />
           </Form.Item>
         </Form>
       </Modal>
@@ -849,9 +951,28 @@ const LeadListPage = () => {
       {/* ── Modal Ghi nhận tương tác ── */}
       <Modal
         title={
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <CommentOutlined style={{ color: '#fa8c16' }} />
-            <span>{t('lead.modal.interactTitle')}: {selectedLead?.fullName}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 8,
+                background: '#fffbeb',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <CommentOutlined style={{ color: '#d97706', fontSize: 18 }} />
+            </div>
+            <div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: '#0f172a' }}>
+                {t('lead.modal.interactTitle')}: {selectedLead?.fullName}
+              </div>
+              <div style={{ fontSize: 12, color: '#64748b', fontWeight: 400 }}>
+                Ghi nhận chi tiết kết quả cuộc gọi, tin nhắn hoặc gặp mặt
+              </div>
+            </div>
           </div>
         }
         open={interactionModalVisible}
@@ -859,6 +980,8 @@ const LeadListPage = () => {
         onOk={() => interactionForm.submit()}
         okText={t('common.save')}
         cancelText={t('common.cancel')}
+        okButtonProps={{ className: 'btn-primary-gradient', style: { borderRadius: 8, height: 38 } }}
+        cancelButtonProps={{ style: { borderRadius: 8, height: 38 } }}
         destroyOnClose
       >
         <Divider style={{ margin: '12px 0 20px' }} />
@@ -869,7 +992,7 @@ const LeadListPage = () => {
             initialValue="CALL"
             rules={[{ required: true }]}
           >
-            <Select>
+            <Select style={{ height: 38 }}>
               <Option value="CALL">
                 <Space>
                   <PhoneOutlined style={{ color: '#1677ff' }} />
@@ -904,7 +1027,7 @@ const LeadListPage = () => {
             initialValue="INTERESTED"
             rules={[{ required: true }]}
           >
-            <Select>
+            <Select style={{ height: 38 }}>
               <Option value="INTERESTED">
                 <Tag color="green">Quan tâm (INTERESTED)</Tag>
               </Option>
@@ -926,7 +1049,7 @@ const LeadListPage = () => {
               label={t('lead.modal.rejectReason')}
               rules={[{ required: true, message: 'Bắt buộc chọn lý do từ chối' }]}
             >
-              <Select placeholder="Chọn lý do chuẩn hóa">
+              <Select placeholder="Chọn lý do chuẩn hóa" style={{ height: 38 }}>
                 <Option value="TUITION_HIGH">Học phí cao hơn ngân sách</Option>
                 <Option value="SCHEDULE_MISMATCH">Không phù hợp lịch học</Option>
                 <Option value="CHOSE_ANOTHER_CENTER">Đã chọn trung tâm khác</Option>
@@ -937,7 +1060,11 @@ const LeadListPage = () => {
           )}
 
           <Form.Item name="notes" label={t('lead.modal.notes')}>
-            <TextArea rows={3} placeholder="Khách hàng quan tâm khóa học nào, băn khoăn gì, hẹn lịch kiểm tra..." />
+            <TextArea
+              rows={3}
+              placeholder="Khách hàng quan tâm khóa học nào, băn khoăn gì, hẹn lịch kiểm tra..."
+              style={{ borderRadius: 8 }}
+            />
           </Form.Item>
         </Form>
       </Modal>
@@ -945,9 +1072,28 @@ const LeadListPage = () => {
       {/* ── Modal Đánh giá đầu vào ── */}
       <Modal
         title={
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <FormOutlined style={{ color: '#08979c' }} />
-            <span>{t('lead.modal.testTitle')} - Lead: {selectedLead?.fullName}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 8,
+                background: '#f0fdf4',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <FormOutlined style={{ color: '#059669', fontSize: 18 }} />
+            </div>
+            <div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: '#0f172a' }}>
+                {t('lead.modal.testTitle')} - Lead: {selectedLead?.fullName}
+              </div>
+              <div style={{ fontSize: 12, color: '#64748b', fontWeight: 400 }}>
+                Ghi nhận điểm số và trình độ khuyến nghị sau kiểm tra đầu vào
+              </div>
+            </div>
           </div>
         }
         open={placementTestModalVisible}
@@ -955,6 +1101,8 @@ const LeadListPage = () => {
         onOk={() => placementTestForm.submit()}
         okText={t('common.save')}
         cancelText={t('common.cancel')}
+        okButtonProps={{ className: 'btn-primary-gradient', style: { borderRadius: 8, height: 38 } }}
+        cancelButtonProps={{ style: { borderRadius: 8, height: 38 } }}
         destroyOnClose
       >
         <Divider style={{ margin: '12px 0 20px' }} />
@@ -965,7 +1113,7 @@ const LeadListPage = () => {
             initialValue="COMPLETED"
             rules={[{ required: true }]}
           >
-            <Select>
+            <Select style={{ height: 38 }}>
               <Option value="COMPLETED">
                 <Tag color="green">Đã hoàn thành bài test</Tag>
               </Option>
@@ -988,16 +1136,28 @@ const LeadListPage = () => {
                 label={t('lead.modal.testScore')}
                 rules={[{ required: true, message: 'Vui lòng nhập điểm số' }]}
               >
-                <InputNumber min={0} max={100} style={{ width: '100%' }} placeholder="Thang điểm 10 hoặc 100" />
+                <InputNumber
+                  min={0}
+                  max={100}
+                  style={{ width: '100%', height: 38, borderRadius: 8 }}
+                  placeholder="Thang điểm 10 hoặc 100"
+                />
               </Form.Item>
               <Form.Item name="recommendedLevel" label={t('lead.modal.testLevel')}>
-                <Input placeholder="VD: B1, Intermediate, N3, IELTS 5.5..." />
+                <Input
+                  placeholder="VD: B1, Intermediate, N3, IELTS 5.5..."
+                  style={{ height: 38, borderRadius: 8 }}
+                />
               </Form.Item>
             </>
           )}
 
           <Form.Item name="notes" label={t('lead.modal.notes')}>
-            <TextArea rows={2} placeholder="Kỹ năng nghe tốt, cần củng cố ngữ pháp..." />
+            <TextArea
+              rows={2}
+              placeholder="Kỹ năng nghe tốt, cần củng cố ngữ pháp..."
+              style={{ borderRadius: 8 }}
+            />
           </Form.Item>
         </Form>
       </Modal>
@@ -1005,9 +1165,28 @@ const LeadListPage = () => {
       {/* ── Modal Chuyển đổi thành Học viên (Idempotent) ── */}
       <Modal
         title={
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <CheckCircleOutlined style={{ color: '#52c41a' }} />
-            <span>{t('lead.modal.convertTitle')} #{selectedLead?.id}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 8,
+                background: '#ecfdf5',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <CheckCircleOutlined style={{ color: '#059669', fontSize: 18 }} />
+            </div>
+            <div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: '#0f172a' }}>
+                {t('lead.modal.convertTitle')} #{selectedLead?.id}
+              </div>
+              <div style={{ fontSize: 12, color: '#64748b', fontWeight: 400 }}>
+                Chuyển đổi khách hàng tiềm năng thành học viên chính thức
+              </div>
+            </div>
           </div>
         }
         open={convertModalVisible}
@@ -1015,6 +1194,8 @@ const LeadListPage = () => {
         onOk={() => convertForm.submit()}
         okText={t('common.confirm')}
         cancelText={t('common.cancel')}
+        okButtonProps={{ className: 'btn-success-gradient', style: { borderRadius: 8, height: 38, border: 'none' } }}
+        cancelButtonProps={{ style: { borderRadius: 8, height: 38 } }}
         destroyOnClose
       >
         <Divider style={{ margin: '12px 0 16px' }} />
@@ -1023,26 +1204,30 @@ const LeadListPage = () => {
           description={t('lead.modal.convertAlertDesc')}
           type="info"
           showIcon
-          style={{ marginBottom: 16 }}
+          style={{ marginBottom: 16, borderRadius: 8 }}
         />
 
         <Form form={convertForm} layout="vertical" onFinish={handleConvertToStudent}>
           <Form.Item name="courseId" label={t('lead.modal.courseId')}>
             <InputNumber
               prefix={<BookOutlined style={{ color: '#94a3b8' }} />}
-              style={{ width: '100%' }}
+              style={{ width: '100%', height: 38, borderRadius: 8 }}
               placeholder="VD: 1"
             />
           </Form.Item>
           <Form.Item name="classId" label={t('lead.modal.enrollClass')}>
             <InputNumber
               prefix={<TeamOutlined style={{ color: '#94a3b8' }} />}
-              style={{ width: '100%' }}
+              style={{ width: '100%', height: 38, borderRadius: 8 }}
               placeholder="VD: 101"
             />
           </Form.Item>
           <Form.Item name="note" label={t('lead.modal.depositNote')}>
-            <TextArea rows={2} placeholder="Đã hoàn tất thanh toán cọc 500k tại phòng tuyển sinh..." />
+            <TextArea
+              rows={2}
+              placeholder="Đã hoàn tất thanh toán cọc 500k tại phòng tuyển sinh..."
+              style={{ borderRadius: 8 }}
+            />
           </Form.Item>
         </Form>
       </Modal>
@@ -1050,14 +1235,24 @@ const LeadListPage = () => {
       {/* ── Drawer Chi tiết Lead & Lịch sử tương tác ── */}
       <Drawer
         title={
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <UserAvatar name={selectedLead?.fullName} size={42} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <UserAvatar name={selectedLead?.fullName} size={46} />
             <div>
-              <div style={{ fontSize: 16, fontWeight: 700, color: '#0f172a' }}>
+              <div style={{ fontSize: 17, fontWeight: 700, color: '#0f172a', letterSpacing: '-0.01em' }}>
                 {selectedLead?.fullName}
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 2 }}>
-                <span style={{ fontSize: 12, color: '#64748b' }}>{t('lead.code')}: #{selectedLead?.id}</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 3 }}>
+                <Tag
+                  color="blue"
+                  style={{
+                    fontFamily: 'monospace',
+                    fontWeight: 600,
+                    fontSize: 12,
+                    borderRadius: 4,
+                  }}
+                >
+                  #{selectedLead?.id}
+                </Tag>
                 <StatusTag status={selectedLead?.status || 'NEW'} />
               </div>
             </div>
@@ -1075,6 +1270,7 @@ const LeadListPage = () => {
                 interactionForm.resetFields();
                 setInteractionModalVisible(true);
               }}
+              style={{ borderRadius: 8 }}
             >
               {t('lead.interactBtn')}
             </Button>
@@ -1084,6 +1280,7 @@ const LeadListPage = () => {
                 placementTestForm.resetFields();
                 setPlacementTestModalVisible(true);
               }}
+              style={{ borderRadius: 8 }}
             >
               {t('lead.testBtn')}
             </Button>
@@ -1108,7 +1305,17 @@ const LeadListPage = () => {
                 ),
                 children: (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                    <Card size="small" title={t('lead.drawer.contactInfo')} bordered={false} style={{ background: '#f8fafc' }}>
+                    <Card
+                      size="small"
+                      title={t('lead.drawer.contactInfo')}
+                      bordered={false}
+                      style={{
+                        background: '#ffffff',
+                        border: '1px solid #f1f5f9',
+                        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.03)',
+                        borderRadius: 10,
+                      }}
+                    >
                       <Descriptions column={{ xs: 1, sm: 2 }} size="small">
                         <Descriptions.Item label={<Space><UserOutlined /> {t('lead.customer')}</Space>}>
                           <strong>{leadDetail.fullName}</strong>
@@ -1123,7 +1330,13 @@ const LeadListPage = () => {
                           )}
                         </Descriptions.Item>
                         <Descriptions.Item label={<Space><MailOutlined /> {t('lead.email')}</Space>}>
-                          {leadDetail.email || '—'}
+                          {leadDetail.email ? (
+                            <a href={`mailto:${leadDetail.email}`} style={{ color: '#1677ff' }}>
+                              {leadDetail.email}
+                            </a>
+                          ) : (
+                            '—'
+                          )}
                         </Descriptions.Item>
                         <Descriptions.Item label={<Space><ClockCircleOutlined /> {t('common.status')}</Space>}>
                           <StatusTag status={leadDetail.status} />
@@ -1131,7 +1344,17 @@ const LeadListPage = () => {
                       </Descriptions>
                     </Card>
 
-                    <Card size="small" title={t('lead.drawer.needAndAssignment')} bordered={false} style={{ background: '#f8fafc' }}>
+                    <Card
+                      size="small"
+                      title={t('lead.drawer.needAndAssignment')}
+                      bordered={false}
+                      style={{
+                        background: '#ffffff',
+                        border: '1px solid #f1f5f9',
+                        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.03)',
+                        borderRadius: 10,
+                      }}
+                    >
                       <Descriptions column={{ xs: 1, sm: 2 }} size="small">
                         <Descriptions.Item label={<Space><BookOutlined /> {t('lead.courseInterest')}</Space>}>
                           {leadDetail.courseId ? (
@@ -1163,7 +1386,17 @@ const LeadListPage = () => {
                     </Card>
 
                     {leadDetail.note && (
-                      <Card size="small" title={t('lead.modal.notes')} bordered={false} style={{ background: '#f8fafc' }}>
+                      <Card
+                        size="small"
+                        title={t('lead.modal.notes')}
+                        bordered={false}
+                        style={{
+                          background: '#ffffff',
+                          border: '1px solid #f1f5f9',
+                          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.03)',
+                          borderRadius: 10,
+                        }}
+                      >
                         <div style={{ color: '#334155', fontStyle: 'italic' }}>
                           "{leadDetail.note}"
                         </div>
@@ -1195,10 +1428,11 @@ const LeadListPage = () => {
                               size="small"
                               bordered={false}
                               style={{
-                                background: '#f8fafc',
-                                borderRadius: 8,
+                                background: '#ffffff',
+                                borderRadius: 10,
                                 marginBottom: 12,
-                                border: '1px solid #e2e8f0',
+                                border: '1px solid #f1f5f9',
+                                boxShadow: '0 1px 3px rgba(0, 0, 0, 0.03)',
                               }}
                             >
                               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -1229,7 +1463,7 @@ const LeadListPage = () => {
                                   message={`Lý do từ chối: ${it.rejectReason}`}
                                   type="error"
                                   showIcon
-                                  style={{ marginTop: 8, padding: '4px 8px', fontSize: 12 }}
+                                  style={{ marginTop: 8, padding: '4px 8px', fontSize: 12, borderRadius: 6 }}
                                 />
                               )}
 
@@ -1273,10 +1507,11 @@ const LeadListPage = () => {
                               size="small"
                               bordered={false}
                               style={{
-                                background: '#f8fafc',
-                                borderRadius: 8,
+                                background: '#ffffff',
+                                borderRadius: 10,
                                 marginBottom: 12,
-                                border: '1px solid #e2e8f0',
+                                border: '1px solid #f1f5f9',
+                                boxShadow: '0 1px 3px rgba(0, 0, 0, 0.03)',
                               }}
                             >
                               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

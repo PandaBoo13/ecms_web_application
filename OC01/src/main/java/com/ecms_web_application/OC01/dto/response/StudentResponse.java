@@ -20,6 +20,8 @@ public class StudentResponse {
     private LocalDate dateOfBirth;
     private String address;
     private String status;
+    private Boolean hasAccount;
+    private Boolean isAccountLocked;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

@@ -9,6 +9,7 @@ import type {
   StudentUpdatePayload,
   StudentConvertFromLeadPayload,
   StudentStatusChangePayload,
+  StudentAccountLockPayload,
   Guardian,
   GuardianPayload,
   AcademicHistory,
@@ -81,6 +82,17 @@ export const studentApi = {
   ): Promise<Student> => {
     const { data } = await api.patch<RequestResponse<Student>>(
       API_ENDPOINT.STUDENT_STATUS(id),
+      payload
+    );
+    return data.data;
+  },
+
+  lockAccount: async (
+    id: number,
+    payload: StudentAccountLockPayload
+  ): Promise<Student> => {
+    const { data } = await api.patch<RequestResponse<Student>>(
+      API_ENDPOINT.STUDENT_LOCK_ACCOUNT(id),
       payload
     );
     return data.data;

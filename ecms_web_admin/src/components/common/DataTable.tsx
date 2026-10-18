@@ -76,6 +76,7 @@ function DataTable<T extends object>({
       </div>
 
       <Table<T>
+        className="modern-table"
         columns={columns}
         dataSource={dataSource}
         loading={loading}

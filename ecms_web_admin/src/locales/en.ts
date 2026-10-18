@@ -214,6 +214,26 @@ export const en: Record<keyof typeof vi, string> = {
   'student.drawer.updatedBy': 'Updated by',
   'student.drawer.reason': 'Reason',
 
+  // Lock / Unlock Student Account
+  'student.account': 'Login Account',
+  'student.accountStatus': 'Account Status',
+  'student.accountLinked': 'Account Linked',
+  'student.accountUnlinked': 'No Account Linked',
+  'student.accountActive': 'Normal (Login Allowed)',
+  'student.accountLocked': 'Locked (Login Blocked)',
+  'student.lockAccount': 'Lock Account',
+  'student.unlockAccount': 'Unlock Account',
+  'student.tooltip.lockAccount': 'Lock student login account',
+  'student.tooltip.unlockAccount': 'Unlock student login account',
+  'student.modal.lockTitle': 'Lock Student Account',
+  'student.modal.unlockTitle': 'Unlock Student Account',
+  'student.modal.lockReason': 'Lock Reason (Optional)',
+  'student.modal.unlockReason': 'Unlock Reason (Optional)',
+  'student.modal.lockReasonPlaceholder': 'Enter reason for locking account...',
+  'student.modal.unlockReasonPlaceholder': 'Enter reason for unlocking account...',
+  'student.modal.lockWarning': 'When locked, all active student sessions will be terminated and they will not be able to log in to the learning portal.',
+  'student.modal.unlockNotice': 'When unlocked, the student will be permitted to log in normally.',
+
   // ── User Module ──
   'user.title': 'User & Account Management',
   'user.subtitle': 'Manage system user accounts, access levels, and role privileges',

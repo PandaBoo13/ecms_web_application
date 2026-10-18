@@ -130,6 +130,7 @@ export const API_ENDPOINT = {
   RBAC_ACCOUNT_PERMISSION_CHECK_RESOURCE: (id: number) =>
     `/api/rbac/accounts/${id}/permissions/check-resource`,
   RBAC_ACCOUNTS_TEACHERS: '/api/rbac/accounts/teachers',
+  RBAC_ACCOUNT_LOCK: (id: number) => `/api/rbac/accounts/${id}/lock`,
 
   // ══════════════════════════════════════════════════════════════
   // AUDIT
@@ -160,6 +161,7 @@ export const API_ENDPOINT = {
   STUDENT_BY_CODE: (code: string) => `/api/students/code/${code}`,
   STUDENT_CONVERT_LEAD: '/api/students/convert-lead',
   STUDENT_STATUS: (id: number) => `/api/students/${id}/status`,
+  STUDENT_LOCK_ACCOUNT: (id: number) => `/api/students/${id}/lock-account`,
   STUDENT_GUARDIANS: (id: number) => `/api/students/${id}/guardians`,
   STUDENT_GUARDIAN_DETAIL: (id: number, guardianId: number) => `/api/students/${id}/guardians/${guardianId}`,
   STUDENT_ACADEMIC_HISTORIES: (id: number) => `/api/students/${id}/academic-histories`,

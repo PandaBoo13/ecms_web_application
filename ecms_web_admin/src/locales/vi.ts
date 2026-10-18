@@ -212,6 +212,26 @@ export const vi = {
   'student.drawer.updatedBy': 'Người cập nhật',
   'student.drawer.reason': 'Lý do',
 
+  // Khóa / Mở khóa tài khoản học viên
+  'student.account': 'Tài khoản đăng nhập',
+  'student.accountStatus': 'Trạng thái tài khoản',
+  'student.accountLinked': 'Đã cấp tài khoản',
+  'student.accountUnlinked': 'Chưa liên kết tài khoản',
+  'student.accountActive': 'Bình thường (Cho phép đăng nhập)',
+  'student.accountLocked': 'Đã bị khóa (Chặn đăng nhập)',
+  'student.lockAccount': 'Khóa tài khoản',
+  'student.unlockAccount': 'Mở khóa tài khoản',
+  'student.tooltip.lockAccount': 'Khóa tài khoản đăng nhập của học viên',
+  'student.tooltip.unlockAccount': 'Mở khóa tài khoản đăng nhập của học viên',
+  'student.modal.lockTitle': 'Khóa tài khoản học viên',
+  'student.modal.unlockTitle': 'Mở khóa tài khoản học viên',
+  'student.modal.lockReason': 'Lý do khóa tài khoản (Tùy chọn)',
+  'student.modal.unlockReason': 'Lý do mở khóa tài khoản (Tùy chọn)',
+  'student.modal.lockReasonPlaceholder': 'Nhập lý do khóa tài khoản...',
+  'student.modal.unlockReasonPlaceholder': 'Nhập lý do mở khóa tài khoản...',
+  'student.modal.lockWarning': 'Khi bị khóa, học viên sẽ bị ngắt toàn bộ phiên đăng nhập hiện tại và không thể truy cập cổng học viên.',
+  'student.modal.unlockNotice': 'Khi mở khóa, học viên sẽ được phép đăng nhập lại bình thường vào hệ thống.',
+
   // ── User Module ──
   'user.title': 'Quản lý Người dùng & Tài khoản',
   'user.subtitle': 'Danh sách tài khoản hệ thống, phân quyền và quản lý truy cập',
