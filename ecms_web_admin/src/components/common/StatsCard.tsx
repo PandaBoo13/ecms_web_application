@@ -1,7 +1,5 @@
 import React from 'react';
-import { Card, Typography, Tooltip, Tag } from 'antd';
-
-const { Text } = Typography;
+import { Card, Tooltip, Tag } from 'antd';
 
 export interface StatsCardProps {
   title: string;
@@ -70,78 +68,47 @@ const StatsCard: React.FC<StatsCardProps> = ({
         />
       )}
 
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-            <Text
-              style={{
-                fontSize: 13,
-                fontWeight: 600,
-                color: active ? color : '#64748b',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                letterSpacing: '0.01em',
-              }}
+      <div className="flex items-center justify-between">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1.5">
+            <span
+              className="text-[13px] font-semibold tracking-wide whitespace-nowrap overflow-hidden text-ellipsis"
+              style={{ color: active ? color : '#64748b' }}
             >
               {title}
-            </Text>
+            </span>
             {tagText && (
               <Tag
                 color={tagColor}
-                style={{
-                  margin: 0,
-                  fontSize: 11,
-                  padding: '1px 8px',
-                  borderRadius: 20,
-                  fontWeight: 600,
-                  border: 'none',
-                }}
+                className="!m-0 !text-[11px] !px-2 !py-0.5 !rounded-full !font-semibold !border-0"
               >
                 {tagText}
               </Tag>
             )}
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+          <div className="flex items-baseline gap-1.5">
             <span
-              style={{
-                fontSize: 26,
-                fontWeight: 700,
-                color: active ? color : '#0f172a',
-                lineHeight: 1.15,
-                letterSpacing: '-0.02em',
-                fontVariantNumeric: 'tabular-nums',
-                fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-              }}
+              className="text-[26px] font-bold leading-tight tracking-tight tabular-nums font-sans"
+              style={{ color: active ? color : '#0f172a' }}
             >
               {typeof value === 'number' ? value.toLocaleString('vi-VN') : value}
             </span>
             {suffix && (
-              <Text type="secondary" style={{ fontSize: 13, fontWeight: 500 }}>
+              <span className="text-[13px] font-medium text-slate-400">
                 {suffix}
-              </Text>
+              </span>
             )}
           </div>
         </div>
 
         <div
+          className="w-[46px] h-[46px] rounded-xl flex items-center justify-center text-[22px] shrink-0 ml-3.5 transition-transform duration-200 stat-icon-wrapper"
           style={{
-            width: 46,
-            height: 46,
-            borderRadius: 12,
             backgroundColor: bgColor,
             color: color,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: 22,
-            flexShrink: 0,
-            marginLeft: 14,
             boxShadow: `0 4px 12px ${color}18`,
-            transition: 'transform 0.25s ease',
           }}
-          className="stat-icon-wrapper"
         >
           {icon}
         </div>

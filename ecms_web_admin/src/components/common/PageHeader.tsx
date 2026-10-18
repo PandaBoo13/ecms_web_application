@@ -21,47 +21,25 @@ const PageHeader = ({ title, subtitle, extra, backButton, backTo, badge }: Props
   };
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 20,
-        gap: 16,
-        flexWrap: 'wrap',
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+    <div className="flex justify-between items-center mb-5 gap-4 flex-wrap">
+      <div className="flex items-center gap-3">
         {backButton && (
           <Button
             type="text"
             icon={<ArrowLeftOutlined />}
             onClick={handleBack}
-            style={{
-              borderRadius: 8,
-              border: '1px solid #e2e8f0',
-              background: '#ffffff',
-            }}
+            className="!rounded-lg !border !border-slate-200 !bg-white hover:!bg-slate-50 transition-colors"
           />
         )}
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <h1
-              style={{
-                fontSize: 22,
-                fontWeight: 700,
-                margin: 0,
-                color: '#0f172a',
-                lineHeight: 1.25,
-                letterSpacing: '-0.02em',
-              }}
-            >
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-[22px] font-bold m-0 text-slate-900 leading-tight tracking-tight">
               {title}
             </h1>
             {badge}
           </div>
           {subtitle && (
-            <p style={{ margin: '4px 0 0 0', color: '#64748b', fontSize: 13, lineHeight: 1.4 }}>
+            <p className="mt-1 mb-0 text-slate-500 text-[13px] leading-snug">
               {subtitle}
             </p>
           )}

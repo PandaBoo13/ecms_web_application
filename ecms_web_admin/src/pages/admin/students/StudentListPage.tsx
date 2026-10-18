@@ -360,19 +360,12 @@ const StudentListPage = () => {
         key: 'student',
         width: 250,
         render: (_, record: Student) => (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div className="flex items-center gap-2.5">
             <UserAvatar name={record.fullName} size={38} />
-            <div style={{ minWidth: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
                 <span
-                  style={{
-                    fontWeight: 600,
-                    fontSize: 14,
-                    color: '#0f172a',
-                    cursor: 'pointer',
-                    lineHeight: 1.3,
-                    transition: 'color 0.2s',
-                  }}
+                  className="font-semibold text-sm text-slate-900 cursor-pointer leading-snug hover:text-blue-600 transition-colors"
                   onClick={() => handleOpenDetail(record)}
                 >
                   {record.fullName}
@@ -381,41 +374,32 @@ const StudentListPage = () => {
                   <Tooltip title={t('student.accountLocked')}>
                     <Tag
                       color="error"
-                      style={{
-                        borderRadius: 10,
-                        padding: '0 6px',
-                        fontSize: 11,
-                        margin: 0,
-                        lineHeight: '18px',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 2,
-                      }}
+                      className="!rounded-full !px-1.5 !text-[11px] !m-0 !leading-[18px] !inline-flex !items-center !gap-1"
                     >
-                      <LockOutlined style={{ fontSize: 10 }} />
+                      <LockOutlined className="text-[10px]" />
                       <span>{t('user.locked')}</span>
                     </Tag>
                   </Tooltip>
                 )}
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 3 }}>
+              <div className="flex items-center gap-2.5 mt-1">
                 {record.phone && (
                   <a
                     href={`tel:${record.phone}`}
-                    style={{ fontSize: 12, color: '#64748b', display: 'inline-flex', alignItems: 'center', gap: 3 }}
+                    className="text-xs text-slate-500 hover:text-blue-600 inline-flex items-center gap-1 transition-colors"
                     onClick={(e) => e.stopPropagation()}
                   >
-                    <PhoneOutlined style={{ fontSize: 11, color: '#94a3b8' }} />
+                    <PhoneOutlined className="text-[11px] text-slate-400" />
                     <span>{record.phone}</span>
                   </a>
                 )}
                 {record.email && (
                   <a
                     href={`mailto:${record.email}`}
-                    style={{ fontSize: 12, color: '#64748b', display: 'inline-flex', alignItems: 'center', gap: 3 }}
+                    className="text-xs text-slate-500 hover:text-blue-600 inline-flex items-center gap-1 transition-colors"
                     onClick={(e) => e.stopPropagation()}
                   >
-                    <MailOutlined style={{ fontSize: 11, color: '#94a3b8' }} />
+                    <MailOutlined className="text-[11px] text-slate-400" />
                     <span>{record.email}</span>
                   </a>
                 )}
@@ -430,8 +414,8 @@ const StudentListPage = () => {
         width: 130,
         render: (dob?: string) =>
           dob ? (
-            <Space size={4} style={{ color: '#475569', fontSize: 13 }}>
-              <CalendarOutlined style={{ color: '#94a3b8', fontSize: 12 }} />
+            <Space size={4} className="text-slate-600 text-[13px]">
+              <CalendarOutlined className="text-slate-400 text-xs" />
               <span>{dob}</span>
             </Space>
           ) : (
@@ -453,28 +437,14 @@ const StudentListPage = () => {
             <Tag
               color="cyan"
               icon={<LinkOutlined />}
-              style={{
-                borderRadius: 12,
-                padding: '2px 9px',
-                fontWeight: 500,
-                border: 'none',
-                background: '#ecfeff',
-                color: '#0e7490',
-              }}
+              className="!rounded-full !px-2.5 !py-0.5 !font-medium !border-0 !bg-cyan-50 !text-cyan-700"
             >
               {t('student.fromLead')} #{leadId}
             </Tag>
           ) : (
             <Tag
               color="default"
-              style={{
-                borderRadius: 12,
-                padding: '2px 9px',
-                fontWeight: 500,
-                border: 'none',
-                background: '#f1f5f9',
-                color: '#475569',
-              }}
+              className="!rounded-full !px-2.5 !py-0.5 !font-medium !border-0 !bg-slate-100 !text-slate-600"
             >
               {t('student.direct')}
             </Tag>
@@ -529,12 +499,7 @@ const StudentListPage = () => {
                 <Button
                   type="text"
                   shape="circle"
-                  className="action-btn-circle"
-                  style={{
-                    color: '#16a34a',
-                    background: '#dcfce7',
-                    border: '1px solid #bbf7d0',
-                  }}
+                  className="action-btn-circle !text-emerald-600 !bg-emerald-50 !border !border-emerald-200 hover:!bg-emerald-100 transition-colors"
                   icon={<UnlockOutlined style={{ fontSize: 15 }} />}
                   onClick={() => {
                     setSelectedStudent(record);
@@ -549,12 +514,7 @@ const StudentListPage = () => {
                 <Button
                   type="text"
                   shape="circle"
-                  className="action-btn-circle"
-                  style={{
-                    color: '#d97706',
-                    background: '#fef3c7',
-                    border: '1px solid #fde68a',
-                  }}
+                  className="action-btn-circle !text-amber-600 !bg-amber-50 !border !border-amber-200 hover:!bg-amber-100 transition-colors"
                   icon={<LockOutlined style={{ fontSize: 15 }} />}
                   onClick={() => {
                     setSelectedStudent(record);
@@ -718,13 +678,7 @@ const StudentListPage = () => {
       {/* ── Table & Filters ── */}
       <Card
         bordered={false}
-        style={{
-          borderRadius: 14,
-          border: '1px solid #e2e8f0',
-          boxShadow: '0 4px 16px -2px rgba(15, 23, 42, 0.04)',
-          background: '#ffffff',
-          overflow: 'hidden',
-        }}
+        className="!rounded-2xl !border !border-slate-200 !shadow-[0_4px_16px_-2px_rgba(15,23,42,0.04)] !bg-white overflow-hidden"
         bodyStyle={{ padding: 18 }}
       >
         <DataTable
@@ -761,7 +715,7 @@ const StudentListPage = () => {
                 <Button
                   icon={<ClearOutlined />}
                   onClick={handleResetFilters}
-                  style={{ borderRadius: 8, height: 38 }}
+                  className="!rounded-lg !h-[38px] !border-slate-200 hover:!border-slate-300"
                 >
                   {t('common.clearFilter')}
                 </Button>
@@ -774,25 +728,15 @@ const StudentListPage = () => {
       {/* ── Modal Thêm học viên ── */}
       <Modal
         title={
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div
-              style={{
-                width: 36,
-                height: 36,
-                borderRadius: 8,
-                background: '#eff6ff',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <UserOutlined style={{ color: '#2563eb', fontSize: 18 }} />
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center">
+              <UserOutlined className="text-blue-600 text-lg" />
             </div>
             <div>
-              <div style={{ fontSize: 16, fontWeight: 700, color: '#0f172a' }}>
+              <div className="text-base font-bold text-slate-900">
                 {t('student.modal.createTitle')}
               </div>
-              <div style={{ fontSize: 12, color: '#64748b', fontWeight: 400 }}>
+              <div className="text-xs text-slate-500 font-normal">
                 Tạo hồ sơ học viên mới trong hệ thống đào tạo
               </div>
             </div>
@@ -803,8 +747,8 @@ const StudentListPage = () => {
         onOk={() => createForm.submit()}
         okText={t('student.create')}
         cancelText={t('common.cancel')}
-        okButtonProps={{ className: 'btn-primary-gradient', style: { borderRadius: 8, height: 38, border: 'none' } }}
-        cancelButtonProps={{ style: { borderRadius: 8, height: 38 } }}
+        okButtonProps={{ className: 'btn-primary-gradient !rounded-lg !h-[38px] !border-0' }}
+        cancelButtonProps={{ className: '!rounded-lg !h-[38px]' }}
         destroyOnClose
       >
         <Divider style={{ margin: '12px 0 16px' }} />
@@ -813,7 +757,7 @@ const StudentListPage = () => {
           description={t('student.modal.codeRuleDesc')}
           type="info"
           showIcon
-          style={{ marginBottom: 16, borderRadius: 8 }}
+          className="!mb-4 !rounded-lg"
         />
 
         <Form form={createForm} layout="vertical" onFinish={handleCreateStudent}>
@@ -823,37 +767,37 @@ const StudentListPage = () => {
             rules={[{ required: true, message: 'Vui lòng nhập họ và tên' }]}
           >
             <Input
-              prefix={<UserOutlined style={{ color: '#94a3b8' }} />}
+              prefix={<UserOutlined className="text-slate-400" />}
               placeholder={t('student.modal.namePlaceholder')}
-              style={{ height: 38, borderRadius: 8 }}
+              className="!h-[38px] !rounded-lg"
             />
           </Form.Item>
           <Form.Item name="phone" label={t('student.phone')}>
             <Input
-              prefix={<PhoneOutlined style={{ color: '#94a3b8' }} />}
+              prefix={<PhoneOutlined className="text-slate-400" />}
               placeholder={t('student.modal.phonePlaceholder')}
-              style={{ height: 38, borderRadius: 8 }}
+              className="!h-[38px] !rounded-lg"
             />
           </Form.Item>
           <Form.Item name="email" label={t('student.email')} rules={[{ type: 'email' }]}>
             <Input
-              prefix={<MailOutlined style={{ color: '#94a3b8' }} />}
+              prefix={<MailOutlined className="text-slate-400" />}
               placeholder={t('student.modal.emailPlaceholder')}
-              style={{ height: 38, borderRadius: 8 }}
+              className="!h-[38px] !rounded-lg"
             />
           </Form.Item>
           <Form.Item name="dateOfBirth" label={t('student.modal.dob')}>
             <Input
-              prefix={<CalendarOutlined style={{ color: '#94a3b8' }} />}
+              prefix={<CalendarOutlined className="text-slate-400" />}
               placeholder="2005-08-20"
-              style={{ height: 38, borderRadius: 8 }}
+              className="!h-[38px] !rounded-lg"
             />
           </Form.Item>
           <Form.Item name="address" label={t('student.modal.address')}>
             <TextArea
               rows={2}
               placeholder={t('student.modal.addressPlaceholder')}
-              style={{ borderRadius: 8 }}
+              className="!rounded-lg"
             />
           </Form.Item>
         </Form>
@@ -862,25 +806,15 @@ const StudentListPage = () => {
       {/* ── Modal Sửa học viên ── */}
       <Modal
         title={
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div
-              style={{
-                width: 36,
-                height: 36,
-                borderRadius: 8,
-                background: '#fffbeb',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <EditOutlined style={{ color: '#d97706', fontSize: 18 }} />
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-lg bg-amber-50 flex items-center justify-center">
+              <EditOutlined className="text-amber-600 text-lg" />
             </div>
             <div>
-              <div style={{ fontSize: 16, fontWeight: 700, color: '#0f172a' }}>
+              <div className="text-base font-bold text-slate-900">
                 {t('student.modal.editTitle')}: {selectedStudent?.studentCode}
               </div>
-              <div style={{ fontSize: 12, color: '#64748b', fontWeight: 400 }}>
+              <div className="text-xs text-slate-500 font-normal">
                 Cập nhật thông tin định danh và liên hệ của học viên
               </div>
             </div>
@@ -915,19 +849,19 @@ const StudentListPage = () => {
           </Form.Item>
           <Form.Item name="email" label={t('student.email')} rules={[{ type: 'email' }]}>
             <Input
-              prefix={<MailOutlined style={{ color: '#94a3b8' }} />}
-              style={{ height: 38, borderRadius: 8 }}
+              prefix={<MailOutlined className="text-slate-400" />}
+              className="!h-[38px] !rounded-lg"
             />
           </Form.Item>
           <Form.Item name="dateOfBirth" label={t('student.modal.dob')}>
             <Input
-              prefix={<CalendarOutlined style={{ color: '#94a3b8' }} />}
+              prefix={<CalendarOutlined className="text-slate-400" />}
               placeholder="YYYY-MM-DD"
-              style={{ height: 38, borderRadius: 8 }}
+              className="!h-[38px] !rounded-lg"
             />
           </Form.Item>
           <Form.Item name="address" label={t('student.modal.address')}>
-            <TextArea rows={2} style={{ borderRadius: 8 }} />
+            <TextArea rows={2} className="!rounded-lg" />
           </Form.Item>
         </Form>
       </Modal>
@@ -935,25 +869,15 @@ const StudentListPage = () => {
       {/* ── Modal Đổi trạng thái ── */}
       <Modal
         title={
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div
-              style={{
-                width: 36,
-                height: 36,
-                borderRadius: 8,
-                background: '#ecfdf5',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <SyncOutlined style={{ color: '#059669', fontSize: 18 }} />
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-lg bg-emerald-50 flex items-center justify-center">
+              <SyncOutlined className="text-emerald-600 text-lg" />
             </div>
             <div>
-              <div style={{ fontSize: 16, fontWeight: 700, color: '#0f172a' }}>
+              <div className="text-base font-bold text-slate-900">
                 {t('student.modal.statusTitle')}: {selectedStudent?.studentCode}
               </div>
-              <div style={{ fontSize: 12, color: '#64748b', fontWeight: 400 }}>
+              <div className="text-xs text-slate-500 font-normal">
                 Chuyển đổi trạng thái học tập hoặc bảo lưu của học viên
               </div>
             </div>
@@ -964,8 +888,8 @@ const StudentListPage = () => {
         onOk={() => statusForm.submit()}
         okText={t('common.save')}
         cancelText={t('common.cancel')}
-        okButtonProps={{ className: 'btn-primary-gradient', style: { borderRadius: 8, height: 38, border: 'none' } }}
-        cancelButtonProps={{ style: { borderRadius: 8, height: 38 } }}
+        okButtonProps={{ className: 'btn-primary-gradient !rounded-lg !h-[38px] !border-0' }}
+        cancelButtonProps={{ className: '!rounded-lg !h-[38px]' }}
         destroyOnClose
       >
         <Divider style={{ margin: '12px 0 20px' }} />
@@ -975,7 +899,7 @@ const StudentListPage = () => {
             label={t('student.modal.statusNew')}
             rules={[{ required: true, message: 'Vui lòng chọn trạng thái' }]}
           >
-            <Select style={{ height: 38 }}>
+            <Select className="!h-[38px] !rounded-lg">
               <Option value="ACTIVE">
                 <Tag color="success">{t('student.filter.active')}</Tag>
               </Option>
@@ -992,7 +916,7 @@ const StudentListPage = () => {
             <TextArea
               rows={3}
               placeholder={t('student.modal.reasonPlaceholder')}
-              style={{ borderRadius: 8 }}
+              className="!rounded-lg"
             />
           </Form.Item>
         </Form>
@@ -1001,25 +925,15 @@ const StudentListPage = () => {
       {/* ── Modal Thêm Người giám hộ ── */}
       <Modal
         title={
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div
-              style={{
-                width: 36,
-                height: 36,
-                borderRadius: 8,
-                background: '#f5f3ff',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <UsergroupAddOutlined style={{ color: '#7c3aed', fontSize: 18 }} />
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-lg bg-purple-50 flex items-center justify-center">
+              <UsergroupAddOutlined className="text-purple-600 text-lg" />
             </div>
             <div>
-              <div style={{ fontSize: 16, fontWeight: 700, color: '#0f172a' }}>
+              <div className="text-base font-bold text-slate-900">
                 {t('student.modal.guardianTitle')}: {selectedStudent?.studentCode}
               </div>
-              <div style={{ fontSize: 12, color: '#64748b', fontWeight: 400 }}>
+              <div className="text-xs text-slate-500 font-normal">
                 Thêm thông tin phụ huynh hoặc người bảo hộ học viên
               </div>
             </div>
@@ -1030,8 +944,8 @@ const StudentListPage = () => {
         onOk={() => guardianForm.submit()}
         okText={t('student.addGuardian')}
         cancelText={t('common.cancel')}
-        okButtonProps={{ className: 'btn-primary-gradient', style: { borderRadius: 8, height: 38, border: 'none' } }}
-        cancelButtonProps={{ style: { borderRadius: 8, height: 38 } }}
+        okButtonProps={{ className: 'btn-primary-gradient !rounded-lg !h-[38px] !border-0' }}
+        cancelButtonProps={{ className: '!rounded-lg !h-[38px]' }}
         destroyOnClose
       >
         <Divider style={{ margin: '12px 0 20px' }} />
@@ -1042,9 +956,9 @@ const StudentListPage = () => {
             rules={[{ required: true, message: 'Vui lòng nhập họ tên' }]}
           >
             <Input
-              prefix={<UserOutlined style={{ color: '#94a3b8' }} />}
+              prefix={<UserOutlined className="text-slate-400" />}
               placeholder="Nguyễn Văn B"
-              style={{ height: 38, borderRadius: 8 }}
+              className="!h-[38px] !rounded-lg"
             />
           </Form.Item>
           <Form.Item
@@ -1052,7 +966,7 @@ const StudentListPage = () => {
             label={t('student.modal.guardianRelation')}
             rules={[{ required: true, message: 'Vui lòng chọn hoặc nhập quan hệ' }]}
           >
-            <Select placeholder={t('student.modal.guardianRelation')} style={{ height: 38 }}>
+            <Select placeholder={t('student.modal.guardianRelation')} className="!h-[38px]">
               <Option value="Cha">Cha</Option>
               <Option value="Mẹ">Mẹ</Option>
               <Option value="Anh/Chị">Anh/Chị</Option>
@@ -1066,16 +980,16 @@ const StudentListPage = () => {
             rules={[{ required: true, message: 'Vui lòng nhập số điện thoại' }]}
           >
             <Input
-              prefix={<PhoneOutlined style={{ color: '#94a3b8' }} />}
+              prefix={<PhoneOutlined className="text-slate-400" />}
               placeholder="0909888999"
-              style={{ height: 38, borderRadius: 8 }}
+              className="!h-[38px] !rounded-lg"
             />
           </Form.Item>
           <Form.Item name="email" label={t('student.modal.guardianEmail')} rules={[{ type: 'email' }]}>
             <Input
-              prefix={<MailOutlined style={{ color: '#94a3b8' }} />}
+              prefix={<MailOutlined className="text-slate-400" />}
               placeholder="phuhuynh@example.com"
-              style={{ height: 38, borderRadius: 8 }}
+              className="!h-[38px] !rounded-lg"
             />
           </Form.Item>
         </Form>
@@ -1084,29 +998,23 @@ const StudentListPage = () => {
       {/* ── Modal Khóa / Mở khóa tài khoản học viên ── */}
       <Modal
         title={
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div className="flex items-center gap-2.5">
             <div
-              style={{
-                width: 36,
-                height: 36,
-                borderRadius: 8,
-                background: isLockingAction ? '#fef2f2' : '#f0fdf4',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
+              className={`w-9 h-9 rounded-lg flex items-center justify-center ${
+                isLockingAction ? 'bg-rose-50 text-rose-500' : 'bg-emerald-50 text-emerald-600'
+              }`}
             >
               {isLockingAction ? (
-                <LockOutlined style={{ color: '#ef4444', fontSize: 18 }} />
+                <LockOutlined className="text-lg" />
               ) : (
-                <UnlockOutlined style={{ color: '#16a34a', fontSize: 18 }} />
+                <UnlockOutlined className="text-lg" />
               )}
             </div>
             <div>
-              <div style={{ fontSize: 16, fontWeight: 700, color: '#0f172a' }}>
+              <div className="text-base font-bold text-slate-900">
                 {isLockingAction ? t('student.modal.lockTitle') : t('student.modal.unlockTitle')}: {selectedStudent?.studentCode}
               </div>
-              <div style={{ fontSize: 12, color: '#64748b', fontWeight: 400 }}>
+              <div className="text-xs text-slate-500 font-normal">
                 {selectedStudent?.fullName} ({selectedStudent?.email || 'Chưa có email'})
               </div>
             </div>
@@ -1120,22 +1028,18 @@ const StudentListPage = () => {
         cancelText={t('common.cancel')}
         okButtonProps={{
           danger: isLockingAction,
-          style: {
-            borderRadius: 8,
-            height: 38,
-            ...(isLockingAction
-              ? {}
-              : { background: '#16a34a', borderColor: '#16a34a', color: '#fff' }),
-          },
+          className: `!rounded-lg !h-[38px] ${
+            !isLockingAction ? '!bg-emerald-600 !border-emerald-600 !text-white hover:!bg-emerald-700' : ''
+          }`,
         }}
-        cancelButtonProps={{ style: { borderRadius: 8, height: 38 } }}
+        cancelButtonProps={{ className: '!rounded-lg !h-[38px]' }}
         destroyOnClose
       >
         <Divider style={{ margin: '12px 0 16px' }} />
         <Alert
           type={isLockingAction ? 'warning' : 'info'}
           showIcon
-          style={{ marginBottom: 16, borderRadius: 8 }}
+          className="!mb-4 !rounded-lg"
           message={
             isLockingAction
               ? t('student.modal.lockWarning')
@@ -1154,7 +1058,7 @@ const StudentListPage = () => {
                   ? t('student.modal.lockReasonPlaceholder')
                   : t('student.modal.unlockReasonPlaceholder')
               }
-              style={{ borderRadius: 8 }}
+              className="!rounded-lg"
             />
           </Form.Item>
         </Form>
@@ -1163,20 +1067,16 @@ const StudentListPage = () => {
       {/* ── Drawer Chi tiết Học viên ── */}
       <Drawer
         title={
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div className="flex items-center gap-3.5">
             <UserAvatar name={selectedStudent?.fullName} size={46} />
             <div>
-              <div style={{ fontSize: 17, fontWeight: 700, color: '#0f172a', letterSpacing: '-0.01em' }}>
+              <div className="text-[17px] font-bold text-slate-900 tracking-tight">
                 {selectedStudent?.fullName}
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 3 }}>
+              <div className="flex items-center gap-2 mt-1">
                 <Tag
                   color="blue"
-                  style={{
-                    fontFamily: 'monospace',
-                    fontWeight: 700,
-                    borderRadius: 4,
-                  }}
+                  className="!font-mono !font-bold !rounded"
                 >
                   {selectedStudent?.studentCode}
                 </Tag>
@@ -1199,14 +1099,7 @@ const StudentListPage = () => {
             {studentDetail && (
               studentDetail.isAccountLocked ? (
                 <Button
-                  style={{
-                    borderRadius: 8,
-                    height: 36,
-                    fontWeight: 500,
-                    borderColor: '#16a34a',
-                    color: '#16a34a',
-                    background: '#f0fdf4',
-                  }}
+                  className="!rounded-lg !h-9 !font-medium !border-emerald-500 !text-emerald-600 !bg-emerald-50 hover:!bg-emerald-100"
                   icon={<UnlockOutlined />}
                   onClick={() => {
                     setSelectedStudent(studentDetail);
@@ -1220,12 +1113,7 @@ const StudentListPage = () => {
               ) : (
                 <Button
                   danger
-                  style={{
-                    borderRadius: 8,
-                    height: 36,
-                    fontWeight: 500,
-                    background: '#fef2f2',
-                  }}
+                  className="!rounded-lg !h-9 !font-medium !bg-rose-50"
                   icon={<LockOutlined />}
                   onClick={() => {
                     setSelectedStudent(studentDetail);

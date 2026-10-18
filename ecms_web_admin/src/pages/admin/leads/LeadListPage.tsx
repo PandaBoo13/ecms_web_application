@@ -367,38 +367,29 @@ const LeadListPage = () => {
         render: (_, record: Lead) => (
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <UserAvatar name={record.fullName} size={36} />
-            <div style={{ minWidth: 0 }}>
+            <div className="min-w-0">
               <div
-                style={{
-                  fontWeight: 600,
-                  fontSize: 14,
-                  color: '#0f172a',
-                  cursor: 'pointer',
-                  lineHeight: 1.3,
-                  transition: 'color 0.15s ease',
-                }}
-                onMouseEnter={(e) => (e.currentTarget.style.color = '#1677ff')}
-                onMouseLeave={(e) => (e.currentTarget.style.color = '#0f172a')}
+                className="font-semibold text-sm text-slate-900 cursor-pointer leading-snug hover:text-blue-600 transition-colors"
                 onClick={() => handleOpenDetail(record)}
               >
                 {record.fullName}
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 3 }}>
+              <div className="flex items-center gap-2.5 mt-1">
                 {record.phone && (
                   <a
                     href={`tel:${record.phone}`}
-                    style={{ fontSize: 12, color: '#64748b', display: 'inline-flex', alignItems: 'center', gap: 3 }}
+                    className="text-xs text-slate-500 hover:text-blue-600 inline-flex items-center gap-1 transition-colors"
                   >
-                    <PhoneOutlined style={{ color: '#94a3b8' }} />
+                    <PhoneOutlined className="text-[11px] text-slate-400" />
                     {record.phone}
                   </a>
                 )}
                 {record.email && (
                   <a
                     href={`mailto:${record.email}`}
-                    style={{ fontSize: 12, color: '#64748b', display: 'inline-flex', alignItems: 'center', gap: 3 }}
+                    className="text-xs text-slate-500 hover:text-blue-600 inline-flex items-center gap-1 transition-colors"
                   >
-                    <MailOutlined style={{ color: '#94a3b8' }} />
+                    <MailOutlined className="text-[11px] text-slate-400" />
                     {record.email}
                   </a>
                 )}
@@ -727,13 +718,7 @@ const LeadListPage = () => {
       {/* ── Table & Filters ── */}
       <Card
         bordered={false}
-        style={{
-          borderRadius: 14,
-          border: '1px solid #e2e8f0',
-          boxShadow: '0 4px 16px -2px rgba(15, 23, 42, 0.04)',
-          background: '#ffffff',
-          overflow: 'hidden',
-        }}
+        className="!rounded-2xl !border !border-slate-200 !shadow-[0_4px_16px_-2px_rgba(15,23,42,0.04)] !bg-white overflow-hidden"
         bodyStyle={{ padding: 18 }}
       >
         <DataTable

@@ -63,9 +63,9 @@ const UserAvatar = ({
   if (!showName) return avatar;
 
   return (
-    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+    <div className="inline-flex items-center gap-2">
       {avatar}
-      <span style={{ fontWeight: 500, color: '#1e293b' }}>{name || '—'}</span>
+      <span className="font-medium text-slate-800">{name || '—'}</span>
     </div>
   );
 };
