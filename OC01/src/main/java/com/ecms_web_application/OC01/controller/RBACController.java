@@ -1,6 +1,7 @@
 package com.ecms_web_application.OC01.controller;
 
 import com.ecms_web_application.OC01.config.security.PermissionSyncer;
+import com.ecms_web_application.OC01.dto.request.AccountLockRequest;
 import com.ecms_web_application.OC01.dto.request.rbac.*;
 import com.ecms_web_application.OC01.dto.response.RequestResponse;
 import com.ecms_web_application.OC01.dto.response.rbac.*;
@@ -17,6 +18,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 
@@ -411,6 +413,19 @@ public class RBACController {
     public ResponseEntity<RequestResponse> getTeacherAccounts() {
         List<AccountResponse> data = accountRoleService.getTeacherAccounts();
         return ResponseEntity.ok(new RequestResponse(data, "Lấy danh sách teacher thành công"));
+    }
+
+    /** PATCH /api/rbac/accounts/{accountId}/lock — Khóa / Mở khóa tài khoản */
+    @PatchMapping("/accounts/{accountId}/lock")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<RequestResponse> lockAccount(
+            @PathVariable Long accountId,
+            @Valid @RequestBody AccountLockRequest request) {
+        accountRoleService.lockAccount(accountId, request);
+        String msg = Boolean.TRUE.equals(request.getIsLocked())
+                ? "Khóa tài khoản thành công"
+                : "Mở khóa tài khoản thành công";
+        return ResponseEntity.ok(new RequestResponse(msg));
     }
 
     /**

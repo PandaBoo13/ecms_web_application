@@ -1,6 +1,7 @@
 package com.ecms_web_application.OC01.service;
 
 import com.ecms_web_application.OC01.dto.request.GuardianRequest;
+import com.ecms_web_application.OC01.dto.request.StudentAccountLockRequest;
 import com.ecms_web_application.OC01.dto.request.StudentConvertFromLeadRequest;
 import com.ecms_web_application.OC01.dto.request.StudentCreateRequest;
 import com.ecms_web_application.OC01.dto.request.StudentStatusChangeRequest;
@@ -31,6 +32,8 @@ public interface StudentService {
     StudentResponse update(Long id, StudentUpdateRequest request);
 
     StudentResponse updateStatus(Long id, StudentStatusChangeRequest request);
+
+    StudentResponse lockAccount(Long id, StudentAccountLockRequest request);
 
     GuardianResponse addGuardian(Long studentId, GuardianRequest request);
 

@@ -2,6 +2,7 @@ package com.ecms_web_application.OC01.service;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import com.ecms_web_application.OC01.dto.request.AccountLockRequest;
 import com.ecms_web_application.OC01.dto.request.rbac.AssignRoleRequest;
 import com.ecms_web_application.OC01.dto.response.rbac.AccountResponse;
 import com.ecms_web_application.OC01.dto.response.rbac.AccountRoleResponse;
@@ -28,4 +29,6 @@ public interface AccountRoleService {
     AccountResponse getAccountById(Long accountId);
 
     List<AccountResponse> getTeacherAccounts();
+
+    void lockAccount(Long accountId, AccountLockRequest request);
 }

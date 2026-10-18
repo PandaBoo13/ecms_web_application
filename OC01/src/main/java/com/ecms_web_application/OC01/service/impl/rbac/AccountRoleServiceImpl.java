@@ -8,6 +8,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.ecms_web_application.OC01.config.security.PermissionManager;
+import com.ecms_web_application.OC01.dto.request.AccountLockRequest;
 import com.ecms_web_application.OC01.dto.request.rbac.AssignRoleRequest;
 import com.ecms_web_application.OC01.dto.response.rbac.AccountResponse;
 import com.ecms_web_application.OC01.dto.response.rbac.AccountRoleResponse;
@@ -15,9 +16,11 @@ import com.ecms_web_application.OC01.entity.Account;
 import com.ecms_web_application.OC01.entity.Role;
 import com.ecms_web_application.OC01.exception.ErrorHandler;
 import com.ecms_web_application.OC01.repository.AccountRepository;
+import com.ecms_web_application.OC01.repository.AuthSessionRepository;
 import com.ecms_web_application.OC01.repository.RoleRepository;
 import com.ecms_web_application.OC01.service.AccountRoleService;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
@@ -28,6 +31,7 @@ public class AccountRoleServiceImpl implements AccountRoleService {
     private final AccountRepository accountRepository;
     private final RoleRepository roleRepository;
     private final PermissionManager permissionManager;
+    private final AuthSessionRepository authSessionRepository;
 
     private static final String INSTRUCTOR_ROLE_CODE = "INSTRUCTOR";
 
@@ -132,6 +136,28 @@ public class AccountRoleServiceImpl implements AccountRoleService {
         res.setCreatedAt(a.getCreatedAt());
         res.setUpdatedAt(a.getUpdatedAt());
         return res;
+    }
+
+    @Override
+    @Transactional
+    public void lockAccount(Long accountId, AccountLockRequest request) {
+        Account account = getAccountOrThrow(accountId);
+        boolean isLocked = Boolean.TRUE.equals(request.getIsLocked());
+        account.setIsLocked(isLocked);
+        if (isLocked) {
+            account.setLockedUntil(null);
+            authSessionRepository.revokeAllByAccountId(
+                    account.getId(),
+                    LocalDateTime.now(),
+                    "Admin khóa tài khoản: " + (request.getReason() != null ? request.getReason() : "")
+            );
+            log.info("Khóa tài khoản accountId={}, email={}, reason={}", accountId, account.getEmail(), request.getReason());
+        } else {
+            account.setLockedUntil(null);
+            account.setFailedLoginCount(0);
+            log.info("Mở khóa tài khoản accountId={}, email={}", accountId, account.getEmail());
+        }
+        accountRepository.save(account);
     }
 
     /** FIX: trả "" thay vì null cho String params */

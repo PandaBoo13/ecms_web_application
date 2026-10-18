@@ -11,8 +11,15 @@ export interface Student {
   dateOfBirth?: string;
   address?: string;
   status: StudentStatus;
+  hasAccount?: boolean;
+  isAccountLocked?: boolean;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface StudentAccountLockPayload {
+  isLocked: boolean;
+  reason?: string;
 }
 
 export interface Guardian {

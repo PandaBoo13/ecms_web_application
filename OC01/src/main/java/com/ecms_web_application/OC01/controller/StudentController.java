@@ -1,6 +1,7 @@
 package com.ecms_web_application.OC01.controller;
 
 import com.ecms_web_application.OC01.dto.request.GuardianRequest;
+import com.ecms_web_application.OC01.dto.request.StudentAccountLockRequest;
 import com.ecms_web_application.OC01.dto.request.StudentConvertFromLeadRequest;
 import com.ecms_web_application.OC01.dto.request.StudentCreateRequest;
 import com.ecms_web_application.OC01.dto.request.StudentStatusChangeRequest;
@@ -130,6 +131,22 @@ public class StudentController {
     ) {
         StudentResponse data = studentService.updateStatus(id, request);
         return ResponseEntity.ok(new RequestResponse(data, "Cập nhật trạng thái học viên thành công"));
+    }
+
+    /**
+     * PATCH /api/students/{id}/lock-account — Khóa / Mở khóa tài khoản đăng nhập của học viên
+     */
+    @PatchMapping("/{id}/lock-account")
+    @PreAuthorize("hasAnyRole('ADMIN', 'INSTRUCTOR')")
+    public ResponseEntity<RequestResponse> lockAccount(
+            @PathVariable Long id,
+            @Valid @RequestBody StudentAccountLockRequest request
+    ) {
+        StudentResponse data = studentService.lockAccount(id, request);
+        String msg = Boolean.TRUE.equals(request.getIsLocked())
+                ? "Khóa tài khoản học viên thành công"
+                : "Mở khóa tài khoản học viên thành công";
+        return ResponseEntity.ok(new RequestResponse(data, msg));
     }
 
     /**

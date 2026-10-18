@@ -41,6 +41,8 @@ import {
   FileTextOutlined,
   TeamOutlined,
   LinkOutlined,
+  LockOutlined,
+  UnlockOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import toast from 'react-hot-toast';
@@ -100,6 +102,9 @@ const StudentListPage = () => {
   const [updateModalVisible, setUpdateModalVisible] = useState(false);
   const [statusModalVisible, setStatusModalVisible] = useState(false);
   const [guardianModalVisible, setGuardianModalVisible] = useState(false);
+  const [accountLockModalVisible, setAccountLockModalVisible] = useState(false);
+  const [isLockingAction, setIsLockingAction] = useState<boolean>(true);
+  const [lockLoading, setLockLoading] = useState(false);
   const [detailDrawerVisible, setDetailDrawerVisible] = useState(false);
 
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
@@ -110,6 +115,7 @@ const StudentListPage = () => {
   const [updateForm] = Form.useForm();
   const [statusForm] = Form.useForm();
   const [guardianForm] = Form.useForm();
+  const [accountLockForm] = Form.useForm();
 
   // ══════════════════════════════════════════════════════════════
   // FETCH STATS
@@ -287,6 +293,37 @@ const StudentListPage = () => {
     }
   };
 
+  const handleLockAccount = async (values: { reason?: string }) => {
+    if (!selectedStudent) return;
+    setLockLoading(true);
+    try {
+      await studentApi.lockAccount(selectedStudent.id, {
+        isLocked: isLockingAction,
+        reason: values.reason?.trim() || undefined,
+      });
+      toast.success(
+        isLockingAction
+          ? 'Đã khóa tài khoản học viên và vô hiệu hóa các phiên đăng nhập'
+          : 'Đã mở khóa tài khoản học viên thành công'
+      );
+      setAccountLockModalVisible(false);
+      accountLockForm.resetFields();
+      fetchData();
+      fetchStats();
+      if (detailDrawerVisible) {
+        loadStudentDetail(selectedStudent.id);
+      }
+    } catch (err) {
+      const e = err as { message?: string };
+      toast.error(
+        e?.message ||
+          (isLockingAction ? 'Khóa tài khoản thất bại' : 'Mở khóa thất bại')
+      );
+    } finally {
+      setLockLoading(false);
+    }
+  };
+
   // ══════════════════════════════════════════════════════════════
   // COLUMNS
   // ══════════════════════════════════════════════════════════════
@@ -304,8 +341,13 @@ const StudentListPage = () => {
               fontWeight: 700,
               fontSize: 13,
               borderRadius: 6,
-              padding: '2px 8px',
+              padding: '3px 8px',
               cursor: 'pointer',
+              border: '1px solid #bfdbfe',
+              background: '#eff6ff',
+              color: '#1d4ed8',
+              letterSpacing: '0.02em',
+              transition: 'all 0.2s',
             }}
             onClick={() => handleOpenDetail(record)}
           >
@@ -319,32 +361,63 @@ const StudentListPage = () => {
         width: 250,
         render: (_, record: Student) => (
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <UserAvatar name={record.fullName} size={36} />
+            <UserAvatar name={record.fullName} size={38} />
             <div style={{ minWidth: 0 }}>
-              <div
-                style={{
-                  fontWeight: 600,
-                  fontSize: 14,
-                  color: '#0f172a',
-                  cursor: 'pointer',
-                  lineHeight: 1.3,
-                }}
-                onClick={() => handleOpenDetail(record)}
-              >
-                {record.fullName}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span
+                  style={{
+                    fontWeight: 600,
+                    fontSize: 14,
+                    color: '#0f172a',
+                    cursor: 'pointer',
+                    lineHeight: 1.3,
+                    transition: 'color 0.2s',
+                  }}
+                  onClick={() => handleOpenDetail(record)}
+                >
+                  {record.fullName}
+                </span>
+                {record.isAccountLocked && (
+                  <Tooltip title={t('student.accountLocked')}>
+                    <Tag
+                      color="error"
+                      style={{
+                        borderRadius: 10,
+                        padding: '0 6px',
+                        fontSize: 11,
+                        margin: 0,
+                        lineHeight: '18px',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 2,
+                      }}
+                    >
+                      <LockOutlined style={{ fontSize: 10 }} />
+                      <span>{t('user.locked')}</span>
+                    </Tag>
+                  </Tooltip>
+                )}
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 2 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 3 }}>
                 {record.phone && (
-                  <Text type="secondary" style={{ fontSize: 12 }}>
-                    <PhoneOutlined style={{ marginRight: 3, color: '#94a3b8' }} />
-                    {record.phone}
-                  </Text>
+                  <a
+                    href={`tel:${record.phone}`}
+                    style={{ fontSize: 12, color: '#64748b', display: 'inline-flex', alignItems: 'center', gap: 3 }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <PhoneOutlined style={{ fontSize: 11, color: '#94a3b8' }} />
+                    <span>{record.phone}</span>
+                  </a>
                 )}
                 {record.email && (
-                  <Text type="secondary" style={{ fontSize: 12 }}>
-                    <MailOutlined style={{ marginRight: 3, color: '#94a3b8' }} />
-                    {record.email}
-                  </Text>
+                  <a
+                    href={`mailto:${record.email}`}
+                    style={{ fontSize: 12, color: '#64748b', display: 'inline-flex', alignItems: 'center', gap: 3 }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <MailOutlined style={{ fontSize: 11, color: '#94a3b8' }} />
+                    <span>{record.email}</span>
+                  </a>
                 )}
               </div>
             </div>
@@ -357,7 +430,7 @@ const StudentListPage = () => {
         width: 130,
         render: (dob?: string) =>
           dob ? (
-            <Space size={4}>
+            <Space size={4} style={{ color: '#475569', fontSize: 13 }}>
               <CalendarOutlined style={{ color: '#94a3b8', fontSize: 12 }} />
               <span>{dob}</span>
             </Space>
@@ -369,18 +442,7 @@ const StudentListPage = () => {
         title: t('common.status'),
         dataIndex: 'status',
         width: 140,
-        render: (status: StudentStatus) => (
-          <Tag
-            color={status === 'ACTIVE' ? 'success' : 'default'}
-            style={{
-              borderRadius: 12,
-              padding: '2px 10px',
-              fontWeight: 500,
-            }}
-          >
-            {status === 'ACTIVE' ? t('status.ACTIVE') : t('status.INACTIVE')}
-          </Tag>
-        ),
+        render: (status: StudentStatus) => <StatusTag status={status} />,
       },
       {
         title: t('student.origin'),
@@ -391,12 +453,29 @@ const StudentListPage = () => {
             <Tag
               color="cyan"
               icon={<LinkOutlined />}
-              style={{ borderRadius: 12, padding: '2px 8px' }}
+              style={{
+                borderRadius: 12,
+                padding: '2px 9px',
+                fontWeight: 500,
+                border: 'none',
+                background: '#ecfeff',
+                color: '#0e7490',
+              }}
             >
               {t('student.fromLead')} #{leadId}
             </Tag>
           ) : (
-            <Tag color="default" style={{ borderRadius: 12, padding: '2px 8px' }}>
+            <Tag
+              color="default"
+              style={{
+                borderRadius: 12,
+                padding: '2px 9px',
+                fontWeight: 500,
+                border: 'none',
+                background: '#f1f5f9',
+                color: '#475569',
+              }}
+            >
               {t('student.direct')}
             </Tag>
           ),
@@ -411,15 +490,15 @@ const StudentListPage = () => {
         title: t('common.actions'),
         key: 'actions',
         fixed: 'right',
-        width: 180,
+        width: 230,
         render: (_, record: Student) => (
-          <Space size={2}>
+          <Space size={4}>
             <Tooltip title={t('student.tooltip.view')}>
               <Button
                 type="text"
                 shape="circle"
-                className="action-btn-circle"
-                icon={<EyeOutlined style={{ color: '#1677ff', fontSize: 15 }} />}
+                className="action-btn-circle view"
+                icon={<EyeOutlined style={{ fontSize: 15 }} />}
                 onClick={() => handleOpenDetail(record)}
               />
             </Tooltip>
@@ -428,8 +507,8 @@ const StudentListPage = () => {
               <Button
                 type="text"
                 shape="circle"
-                className="action-btn-circle"
-                icon={<EditOutlined style={{ color: '#fa8c16', fontSize: 15 }} />}
+                className="action-btn-circle edit"
+                icon={<EditOutlined style={{ fontSize: 15 }} />}
                 onClick={() => {
                   setSelectedStudent(record);
                   updateForm.setFieldsValue({
@@ -444,12 +523,55 @@ const StudentListPage = () => {
               />
             </Tooltip>
 
+            {/* Khóa / Mở khóa tài khoản học viên */}
+            {record.isAccountLocked ? (
+              <Tooltip title={t('student.tooltip.unlockAccount')}>
+                <Button
+                  type="text"
+                  shape="circle"
+                  className="action-btn-circle"
+                  style={{
+                    color: '#16a34a',
+                    background: '#dcfce7',
+                    border: '1px solid #bbf7d0',
+                  }}
+                  icon={<UnlockOutlined style={{ fontSize: 15 }} />}
+                  onClick={() => {
+                    setSelectedStudent(record);
+                    setIsLockingAction(false);
+                    accountLockForm.resetFields();
+                    setAccountLockModalVisible(true);
+                  }}
+                />
+              </Tooltip>
+            ) : (
+              <Tooltip title={t('student.tooltip.lockAccount')}>
+                <Button
+                  type="text"
+                  shape="circle"
+                  className="action-btn-circle"
+                  style={{
+                    color: '#d97706',
+                    background: '#fef3c7',
+                    border: '1px solid #fde68a',
+                  }}
+                  icon={<LockOutlined style={{ fontSize: 15 }} />}
+                  onClick={() => {
+                    setSelectedStudent(record);
+                    setIsLockingAction(true);
+                    accountLockForm.resetFields();
+                    setAccountLockModalVisible(true);
+                  }}
+                />
+              </Tooltip>
+            )}
+
             <Tooltip title={t('student.tooltip.changeStatus')}>
               <Button
                 type="text"
                 shape="circle"
-                className="action-btn-circle"
-                icon={<SyncOutlined style={{ color: '#52c41a', fontSize: 15 }} />}
+                className="action-btn-circle assign"
+                icon={<SyncOutlined style={{ fontSize: 15 }} />}
                 onClick={() => {
                   setSelectedStudent(record);
                   statusForm.setFieldsValue({
@@ -464,8 +586,8 @@ const StudentListPage = () => {
               <Button
                 type="text"
                 shape="circle"
-                className="action-btn-circle"
-                icon={<UsergroupAddOutlined style={{ color: '#722ed1', fontSize: 15 }} />}
+                className="action-btn-circle interact"
+                icon={<UsergroupAddOutlined style={{ fontSize: 15 }} />}
                 onClick={() => {
                   setSelectedStudent(record);
                   guardianForm.resetFields();
@@ -487,7 +609,7 @@ const StudentListPage = () => {
                   type="text"
                   danger
                   shape="circle"
-                  className="action-btn-circle"
+                  className="action-btn-circle delete"
                   icon={<DeleteOutlined style={{ fontSize: 15 }} />}
                 />
               </Tooltip>
@@ -496,7 +618,7 @@ const StudentListPage = () => {
         ),
       },
     ],
-    [t, updateForm, statusForm, guardianForm]
+    [t, updateForm, statusForm, guardianForm, accountLockForm]
   );
 
   const hasActiveFilters = Boolean(keyword || statusFilter);
@@ -506,12 +628,28 @@ const StudentListPage = () => {
       <PageHeader
         title={t('student.title')}
         subtitle={t('student.subtitle')}
+        badge={
+          <Tag
+            color="purple"
+            style={{
+              borderRadius: 12,
+              fontWeight: 600,
+              fontSize: 12,
+              padding: '2px 10px',
+              border: 'none',
+              background: '#f5f3ff',
+              color: '#7c3aed',
+            }}
+          >
+            Academics & Students
+          </Tag>
+        }
         extra={
           <Space>
             <Button
               icon={<ReloadOutlined spin={loading} />}
               onClick={handleRefresh}
-              style={{ borderRadius: 6 }}
+              style={{ borderRadius: 8, height: 38, fontWeight: 500 }}
             >
               {t('common.refresh')}
             </Button>
@@ -519,11 +657,12 @@ const StudentListPage = () => {
               type="primary"
               icon={<PlusOutlined />}
               onClick={() => setCreateModalVisible(true)}
+              className="btn-primary-gradient"
               style={{
-                borderRadius: 6,
-                background: 'linear-gradient(135deg, #1677ff 0%, #0958d9 100%)',
+                borderRadius: 8,
+                height: 38,
+                fontWeight: 500,
                 border: 'none',
-                boxShadow: '0 2px 6px rgba(22, 119, 255, 0.3)',
               }}
             >
               {t('student.create')}
@@ -539,7 +678,7 @@ const StudentListPage = () => {
             title={t('student.total')}
             value={stats.total}
             icon={<UserOutlined />}
-            color="#1677ff"
+            color="#2563eb"
             bgColor="#eff6ff"
             active={!statusFilter}
             onClick={() => setStatusFilter(undefined)}
@@ -580,10 +719,13 @@ const StudentListPage = () => {
       <Card
         bordered={false}
         style={{
-          borderRadius: 12,
-          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
+          borderRadius: 14,
+          border: '1px solid #e2e8f0',
+          boxShadow: '0 4px 16px -2px rgba(15, 23, 42, 0.04)',
           background: '#ffffff',
+          overflow: 'hidden',
         }}
+        bodyStyle={{ padding: 18 }}
       >
         <DataTable
           columns={columns}
@@ -603,7 +745,7 @@ const StudentListPage = () => {
               <Select
                 placeholder={t('student.filter.status')}
                 allowClear
-                style={{ width: 180 }}
+                style={{ width: 180, height: 38 }}
                 value={statusFilter}
                 onChange={setStatusFilter}
               >
@@ -619,7 +761,7 @@ const StudentListPage = () => {
                 <Button
                   icon={<ClearOutlined />}
                   onClick={handleResetFilters}
-                  style={{ borderRadius: 6 }}
+                  style={{ borderRadius: 8, height: 38 }}
                 >
                   {t('common.clearFilter')}
                 </Button>
@@ -632,9 +774,28 @@ const StudentListPage = () => {
       {/* ── Modal Thêm học viên ── */}
       <Modal
         title={
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <UserOutlined style={{ color: '#1677ff' }} />
-            <span>{t('student.modal.createTitle')}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 8,
+                background: '#eff6ff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <UserOutlined style={{ color: '#2563eb', fontSize: 18 }} />
+            </div>
+            <div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: '#0f172a' }}>
+                {t('student.modal.createTitle')}
+              </div>
+              <div style={{ fontSize: 12, color: '#64748b', fontWeight: 400 }}>
+                Tạo hồ sơ học viên mới trong hệ thống đào tạo
+              </div>
+            </div>
           </div>
         }
         open={createModalVisible}
@@ -642,6 +803,8 @@ const StudentListPage = () => {
         onOk={() => createForm.submit()}
         okText={t('student.create')}
         cancelText={t('common.cancel')}
+        okButtonProps={{ className: 'btn-primary-gradient', style: { borderRadius: 8, height: 38, border: 'none' } }}
+        cancelButtonProps={{ style: { borderRadius: 8, height: 38 } }}
         destroyOnClose
       >
         <Divider style={{ margin: '12px 0 16px' }} />
@@ -650,7 +813,7 @@ const StudentListPage = () => {
           description={t('student.modal.codeRuleDesc')}
           type="info"
           showIcon
-          style={{ marginBottom: 16 }}
+          style={{ marginBottom: 16, borderRadius: 8 }}
         />
 
         <Form form={createForm} layout="vertical" onFinish={handleCreateStudent}>
@@ -659,19 +822,39 @@ const StudentListPage = () => {
             label={t('student.fullName')}
             rules={[{ required: true, message: 'Vui lòng nhập họ và tên' }]}
           >
-            <Input prefix={<UserOutlined style={{ color: '#94a3b8' }} />} placeholder={t('student.modal.namePlaceholder')} />
+            <Input
+              prefix={<UserOutlined style={{ color: '#94a3b8' }} />}
+              placeholder={t('student.modal.namePlaceholder')}
+              style={{ height: 38, borderRadius: 8 }}
+            />
           </Form.Item>
           <Form.Item name="phone" label={t('student.phone')}>
-            <Input prefix={<PhoneOutlined style={{ color: '#94a3b8' }} />} placeholder={t('student.modal.phonePlaceholder')} />
+            <Input
+              prefix={<PhoneOutlined style={{ color: '#94a3b8' }} />}
+              placeholder={t('student.modal.phonePlaceholder')}
+              style={{ height: 38, borderRadius: 8 }}
+            />
           </Form.Item>
           <Form.Item name="email" label={t('student.email')} rules={[{ type: 'email' }]}>
-            <Input prefix={<MailOutlined style={{ color: '#94a3b8' }} />} placeholder={t('student.modal.emailPlaceholder')} />
+            <Input
+              prefix={<MailOutlined style={{ color: '#94a3b8' }} />}
+              placeholder={t('student.modal.emailPlaceholder')}
+              style={{ height: 38, borderRadius: 8 }}
+            />
           </Form.Item>
           <Form.Item name="dateOfBirth" label={t('student.modal.dob')}>
-            <Input prefix={<CalendarOutlined style={{ color: '#94a3b8' }} />} placeholder="2005-08-20" />
+            <Input
+              prefix={<CalendarOutlined style={{ color: '#94a3b8' }} />}
+              placeholder="2005-08-20"
+              style={{ height: 38, borderRadius: 8 }}
+            />
           </Form.Item>
           <Form.Item name="address" label={t('student.modal.address')}>
-            <TextArea rows={2} placeholder={t('student.modal.addressPlaceholder')} />
+            <TextArea
+              rows={2}
+              placeholder={t('student.modal.addressPlaceholder')}
+              style={{ borderRadius: 8 }}
+            />
           </Form.Item>
         </Form>
       </Modal>
@@ -679,9 +862,28 @@ const StudentListPage = () => {
       {/* ── Modal Sửa học viên ── */}
       <Modal
         title={
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <EditOutlined style={{ color: '#fa8c16' }} />
-            <span>{t('student.modal.editTitle')}: {selectedStudent?.studentCode}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 8,
+                background: '#fffbeb',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <EditOutlined style={{ color: '#d97706', fontSize: 18 }} />
+            </div>
+            <div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: '#0f172a' }}>
+                {t('student.modal.editTitle')}: {selectedStudent?.studentCode}
+              </div>
+              <div style={{ fontSize: 12, color: '#64748b', fontWeight: 400 }}>
+                Cập nhật thông tin định danh và liên hệ của học viên
+              </div>
+            </div>
           </div>
         }
         open={updateModalVisible}
@@ -689,6 +891,8 @@ const StudentListPage = () => {
         onOk={() => updateForm.submit()}
         okText={t('common.save')}
         cancelText={t('common.cancel')}
+        okButtonProps={{ className: 'btn-primary-gradient', style: { borderRadius: 8, height: 38, border: 'none' } }}
+        cancelButtonProps={{ style: { borderRadius: 8, height: 38 } }}
         destroyOnClose
       >
         <Divider style={{ margin: '12px 0 20px' }} />
@@ -698,19 +902,32 @@ const StudentListPage = () => {
             label={t('student.fullName')}
             rules={[{ required: true, message: 'Vui lòng nhập họ tên' }]}
           >
-            <Input prefix={<UserOutlined style={{ color: '#94a3b8' }} />} />
+            <Input
+              prefix={<UserOutlined style={{ color: '#94a3b8' }} />}
+              style={{ height: 38, borderRadius: 8 }}
+            />
           </Form.Item>
           <Form.Item name="phone" label={t('student.phone')}>
-            <Input prefix={<PhoneOutlined style={{ color: '#94a3b8' }} />} />
+            <Input
+              prefix={<PhoneOutlined style={{ color: '#94a3b8' }} />}
+              style={{ height: 38, borderRadius: 8 }}
+            />
           </Form.Item>
           <Form.Item name="email" label={t('student.email')} rules={[{ type: 'email' }]}>
-            <Input prefix={<MailOutlined style={{ color: '#94a3b8' }} />} />
+            <Input
+              prefix={<MailOutlined style={{ color: '#94a3b8' }} />}
+              style={{ height: 38, borderRadius: 8 }}
+            />
           </Form.Item>
           <Form.Item name="dateOfBirth" label={t('student.modal.dob')}>
-            <Input prefix={<CalendarOutlined style={{ color: '#94a3b8' }} />} placeholder="YYYY-MM-DD" />
+            <Input
+              prefix={<CalendarOutlined style={{ color: '#94a3b8' }} />}
+              placeholder="YYYY-MM-DD"
+              style={{ height: 38, borderRadius: 8 }}
+            />
           </Form.Item>
           <Form.Item name="address" label={t('student.modal.address')}>
-            <TextArea rows={2} />
+            <TextArea rows={2} style={{ borderRadius: 8 }} />
           </Form.Item>
         </Form>
       </Modal>
@@ -718,9 +935,28 @@ const StudentListPage = () => {
       {/* ── Modal Đổi trạng thái ── */}
       <Modal
         title={
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <SyncOutlined style={{ color: '#52c41a' }} />
-            <span>{t('student.modal.statusTitle')}: {selectedStudent?.studentCode}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 8,
+                background: '#ecfdf5',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <SyncOutlined style={{ color: '#059669', fontSize: 18 }} />
+            </div>
+            <div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: '#0f172a' }}>
+                {t('student.modal.statusTitle')}: {selectedStudent?.studentCode}
+              </div>
+              <div style={{ fontSize: 12, color: '#64748b', fontWeight: 400 }}>
+                Chuyển đổi trạng thái học tập hoặc bảo lưu của học viên
+              </div>
+            </div>
           </div>
         }
         open={statusModalVisible}
@@ -728,6 +964,8 @@ const StudentListPage = () => {
         onOk={() => statusForm.submit()}
         okText={t('common.save')}
         cancelText={t('common.cancel')}
+        okButtonProps={{ className: 'btn-primary-gradient', style: { borderRadius: 8, height: 38, border: 'none' } }}
+        cancelButtonProps={{ style: { borderRadius: 8, height: 38 } }}
         destroyOnClose
       >
         <Divider style={{ margin: '12px 0 20px' }} />
@@ -737,7 +975,7 @@ const StudentListPage = () => {
             label={t('student.modal.statusNew')}
             rules={[{ required: true, message: 'Vui lòng chọn trạng thái' }]}
           >
-            <Select>
+            <Select style={{ height: 38 }}>
               <Option value="ACTIVE">
                 <Tag color="success">{t('student.filter.active')}</Tag>
               </Option>
@@ -751,7 +989,11 @@ const StudentListPage = () => {
             label={t('student.modal.statusReason')}
             rules={[{ required: true, message: 'Bắt buộc nhập lý do thay đổi trạng thái' }]}
           >
-            <TextArea rows={3} placeholder={t('student.modal.reasonPlaceholder')} />
+            <TextArea
+              rows={3}
+              placeholder={t('student.modal.reasonPlaceholder')}
+              style={{ borderRadius: 8 }}
+            />
           </Form.Item>
         </Form>
       </Modal>
@@ -759,9 +1001,28 @@ const StudentListPage = () => {
       {/* ── Modal Thêm Người giám hộ ── */}
       <Modal
         title={
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <UsergroupAddOutlined style={{ color: '#722ed1' }} />
-            <span>{t('student.modal.guardianTitle')}: {selectedStudent?.studentCode}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 8,
+                background: '#f5f3ff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <UsergroupAddOutlined style={{ color: '#7c3aed', fontSize: 18 }} />
+            </div>
+            <div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: '#0f172a' }}>
+                {t('student.modal.guardianTitle')}: {selectedStudent?.studentCode}
+              </div>
+              <div style={{ fontSize: 12, color: '#64748b', fontWeight: 400 }}>
+                Thêm thông tin phụ huynh hoặc người bảo hộ học viên
+              </div>
+            </div>
           </div>
         }
         open={guardianModalVisible}
@@ -769,6 +1030,8 @@ const StudentListPage = () => {
         onOk={() => guardianForm.submit()}
         okText={t('student.addGuardian')}
         cancelText={t('common.cancel')}
+        okButtonProps={{ className: 'btn-primary-gradient', style: { borderRadius: 8, height: 38, border: 'none' } }}
+        cancelButtonProps={{ style: { borderRadius: 8, height: 38 } }}
         destroyOnClose
       >
         <Divider style={{ margin: '12px 0 20px' }} />
@@ -778,14 +1041,18 @@ const StudentListPage = () => {
             label={t('student.modal.guardianName')}
             rules={[{ required: true, message: 'Vui lòng nhập họ tên' }]}
           >
-            <Input prefix={<UserOutlined style={{ color: '#94a3b8' }} />} placeholder="Nguyễn Văn B" />
+            <Input
+              prefix={<UserOutlined style={{ color: '#94a3b8' }} />}
+              placeholder="Nguyễn Văn B"
+              style={{ height: 38, borderRadius: 8 }}
+            />
           </Form.Item>
           <Form.Item
             name="relationship"
             label={t('student.modal.guardianRelation')}
             rules={[{ required: true, message: 'Vui lòng chọn hoặc nhập quan hệ' }]}
           >
-            <Select placeholder={t('student.modal.guardianRelation')}>
+            <Select placeholder={t('student.modal.guardianRelation')} style={{ height: 38 }}>
               <Option value="Cha">Cha</Option>
               <Option value="Mẹ">Mẹ</Option>
               <Option value="Anh/Chị">Anh/Chị</Option>
@@ -798,10 +1065,97 @@ const StudentListPage = () => {
             label={t('student.modal.guardianPhone')}
             rules={[{ required: true, message: 'Vui lòng nhập số điện thoại' }]}
           >
-            <Input prefix={<PhoneOutlined style={{ color: '#94a3b8' }} />} placeholder="0909888999" />
+            <Input
+              prefix={<PhoneOutlined style={{ color: '#94a3b8' }} />}
+              placeholder="0909888999"
+              style={{ height: 38, borderRadius: 8 }}
+            />
           </Form.Item>
           <Form.Item name="email" label={t('student.modal.guardianEmail')} rules={[{ type: 'email' }]}>
-            <Input prefix={<MailOutlined style={{ color: '#94a3b8' }} />} placeholder="phuhuynh@example.com" />
+            <Input
+              prefix={<MailOutlined style={{ color: '#94a3b8' }} />}
+              placeholder="phuhuynh@example.com"
+              style={{ height: 38, borderRadius: 8 }}
+            />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* ── Modal Khóa / Mở khóa tài khoản học viên ── */}
+      <Modal
+        title={
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 8,
+                background: isLockingAction ? '#fef2f2' : '#f0fdf4',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              {isLockingAction ? (
+                <LockOutlined style={{ color: '#ef4444', fontSize: 18 }} />
+              ) : (
+                <UnlockOutlined style={{ color: '#16a34a', fontSize: 18 }} />
+              )}
+            </div>
+            <div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: '#0f172a' }}>
+                {isLockingAction ? t('student.modal.lockTitle') : t('student.modal.unlockTitle')}: {selectedStudent?.studentCode}
+              </div>
+              <div style={{ fontSize: 12, color: '#64748b', fontWeight: 400 }}>
+                {selectedStudent?.fullName} ({selectedStudent?.email || 'Chưa có email'})
+              </div>
+            </div>
+          </div>
+        }
+        open={accountLockModalVisible}
+        onCancel={() => setAccountLockModalVisible(false)}
+        onOk={() => accountLockForm.submit()}
+        confirmLoading={lockLoading}
+        okText={isLockingAction ? t('student.lockAccount') : t('student.unlockAccount')}
+        cancelText={t('common.cancel')}
+        okButtonProps={{
+          danger: isLockingAction,
+          style: {
+            borderRadius: 8,
+            height: 38,
+            ...(isLockingAction
+              ? {}
+              : { background: '#16a34a', borderColor: '#16a34a', color: '#fff' }),
+          },
+        }}
+        cancelButtonProps={{ style: { borderRadius: 8, height: 38 } }}
+        destroyOnClose
+      >
+        <Divider style={{ margin: '12px 0 16px' }} />
+        <Alert
+          type={isLockingAction ? 'warning' : 'info'}
+          showIcon
+          style={{ marginBottom: 16, borderRadius: 8 }}
+          message={
+            isLockingAction
+              ? t('student.modal.lockWarning')
+              : t('student.modal.unlockNotice')
+          }
+        />
+        <Form form={accountLockForm} layout="vertical" onFinish={handleLockAccount}>
+          <Form.Item
+            name="reason"
+            label={isLockingAction ? t('student.modal.lockReason') : t('student.modal.unlockReason')}
+          >
+            <TextArea
+              rows={3}
+              placeholder={
+                isLockingAction
+                  ? t('student.modal.lockReasonPlaceholder')
+                  : t('student.modal.unlockReasonPlaceholder')
+              }
+              style={{ borderRadius: 8 }}
+            />
           </Form.Item>
         </Form>
       </Modal>
@@ -809,13 +1163,13 @@ const StudentListPage = () => {
       {/* ── Drawer Chi tiết Học viên ── */}
       <Drawer
         title={
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <UserAvatar name={selectedStudent?.fullName} size={42} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <UserAvatar name={selectedStudent?.fullName} size={46} />
             <div>
-              <div style={{ fontSize: 16, fontWeight: 700, color: '#0f172a' }}>
+              <div style={{ fontSize: 17, fontWeight: 700, color: '#0f172a', letterSpacing: '-0.01em' }}>
                 {selectedStudent?.fullName}
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 2 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 3 }}>
                 <Tag
                   color="blue"
                   style={{
@@ -827,6 +1181,11 @@ const StudentListPage = () => {
                   {selectedStudent?.studentCode}
                 </Tag>
                 <StatusTag status={selectedStudent?.status || 'ACTIVE'} />
+                {selectedStudent?.isAccountLocked && (
+                  <Tag color="error" icon={<LockOutlined />}>
+                    {t('user.locked')}
+                  </Tag>
+                )}
               </div>
             </div>
           </div>
@@ -837,6 +1196,48 @@ const StudentListPage = () => {
         onClose={() => setDetailDrawerVisible(false)}
         extra={
           <Space>
+            {studentDetail && (
+              studentDetail.isAccountLocked ? (
+                <Button
+                  style={{
+                    borderRadius: 8,
+                    height: 36,
+                    fontWeight: 500,
+                    borderColor: '#16a34a',
+                    color: '#16a34a',
+                    background: '#f0fdf4',
+                  }}
+                  icon={<UnlockOutlined />}
+                  onClick={() => {
+                    setSelectedStudent(studentDetail);
+                    setIsLockingAction(false);
+                    accountLockForm.resetFields();
+                    setAccountLockModalVisible(true);
+                  }}
+                >
+                  {t('student.unlockAccount')}
+                </Button>
+              ) : (
+                <Button
+                  danger
+                  style={{
+                    borderRadius: 8,
+                    height: 36,
+                    fontWeight: 500,
+                    background: '#fef2f2',
+                  }}
+                  icon={<LockOutlined />}
+                  onClick={() => {
+                    setSelectedStudent(studentDetail);
+                    setIsLockingAction(true);
+                    accountLockForm.resetFields();
+                    setAccountLockModalVisible(true);
+                  }}
+                >
+                  {t('student.lockAccount')}
+                </Button>
+              )
+            )}
             <Button
               type="primary"
               icon={<UsergroupAddOutlined />}
@@ -844,9 +1245,11 @@ const StudentListPage = () => {
                 guardianForm.resetFields();
                 setGuardianModalVisible(true);
               }}
+              className="btn-primary-gradient"
               style={{
-                borderRadius: 6,
-                background: 'linear-gradient(135deg, #1677ff 0%, #0958d9 100%)',
+                borderRadius: 8,
+                height: 36,
+                fontWeight: 500,
                 border: 'none',
               }}
             >
@@ -873,7 +1276,17 @@ const StudentListPage = () => {
                 ),
                 children: (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                    <Card size="small" title={t('student.drawer.basicInfo')} bordered={false} style={{ background: '#f8fafc' }}>
+                    <Card
+                      size="small"
+                      title={t('student.drawer.basicInfo')}
+                      bordered={false}
+                      style={{
+                        background: '#ffffff',
+                        border: '1px solid #f1f5f9',
+                        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.03)',
+                        borderRadius: 10,
+                      }}
+                    >
                       <Descriptions column={{ xs: 1, sm: 2 }} size="small">
                         <Descriptions.Item label={t('student.code')}>
                           <Tag
@@ -903,7 +1316,15 @@ const StudentListPage = () => {
                             '—'
                           )}
                         </Descriptions.Item>
-                        <Descriptions.Item label={t('student.email')}>{studentDetail.email || '—'}</Descriptions.Item>
+                        <Descriptions.Item label={t('student.email')}>
+                          {studentDetail.email ? (
+                            <a href={`mailto:${studentDetail.email}`} style={{ color: '#1677ff' }}>
+                              {studentDetail.email}
+                            </a>
+                          ) : (
+                            '—'
+                          )}
+                        </Descriptions.Item>
                         <Descriptions.Item label={t('student.dob')}>{studentDetail.dateOfBirth || '—'}</Descriptions.Item>
                         <Descriptions.Item label={t('student.origin')}>
                           {studentDetail.leadId ? (
@@ -915,10 +1336,35 @@ const StudentListPage = () => {
                         <Descriptions.Item label={t('student.enrollDate')}>
                           <DateDisplay value={studentDetail.createdAt} format="long" />
                         </Descriptions.Item>
+                        <Descriptions.Item label={t('student.accountStatus')}>
+                          {studentDetail.hasAccount ? (
+                            studentDetail.isAccountLocked ? (
+                              <Tag color="error" icon={<LockOutlined />}>
+                                {t('student.accountLocked')}
+                              </Tag>
+                            ) : (
+                              <Tag color="success" icon={<CheckCircleOutlined />}>
+                                {t('student.accountActive')}
+                              </Tag>
+                            )
+                          ) : (
+                            <Tag color="default">{t('student.accountUnlinked')}</Tag>
+                          )}
+                        </Descriptions.Item>
                       </Descriptions>
                     </Card>
 
-                    <Card size="small" title={t('student.drawer.address')} bordered={false} style={{ background: '#f8fafc' }}>
+                    <Card
+                      size="small"
+                      title={t('student.drawer.address')}
+                      bordered={false}
+                      style={{
+                        background: '#ffffff',
+                        border: '1px solid #f1f5f9',
+                        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.03)',
+                        borderRadius: 10,
+                      }}
+                    >
                       <Space>
                         <HomeOutlined style={{ color: '#94a3b8' }} />
                         <span>{studentDetail.address || '—'}</span>
@@ -948,14 +1394,15 @@ const StudentListPage = () => {
                               size="small"
                               bordered={false}
                               style={{
-                                background: '#f8fafc',
-                                borderRadius: 8,
-                                border: '1px solid #e2e8f0',
+                                background: '#ffffff',
+                                borderRadius: 10,
+                                border: '1px solid #f1f5f9',
+                                boxShadow: '0 1px 3px rgba(0, 0, 0, 0.03)',
                               }}
                             >
                               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                 <Space>
-                                  <UserAvatar name={g.fullName} size={32} />
+                                  <UserAvatar name={g.fullName} size={34} />
                                   <div>
                                     <div style={{ fontWeight: 600, color: '#0f172a' }}>{g.fullName}</div>
                                     <Tag color="blue" style={{ fontSize: 11, borderRadius: 4, marginTop: 2 }}>
@@ -977,14 +1424,16 @@ const StudentListPage = () => {
                               <div style={{ display: 'flex', gap: 16, fontSize: 13 }}>
                                 <Space size={4}>
                                   <PhoneOutlined style={{ color: '#94a3b8' }} />
-                                  <a href={`tel:${g.phone}`} style={{ color: '#1677ff' }}>
+                                  <a href={`tel:${g.phone}`} style={{ color: '#1677ff', fontWeight: 500 }}>
                                     {g.phone}
                                   </a>
                                 </Space>
                                 {g.email && (
                                   <Space size={4}>
                                     <MailOutlined style={{ color: '#94a3b8' }} />
-                                    <span>{g.email}</span>
+                                    <a href={`mailto:${g.email}`} style={{ color: '#1677ff' }}>
+                                      {g.email}
+                                    </a>
                                   </Space>
                                 )}
                               </div>
@@ -1019,10 +1468,11 @@ const StudentListPage = () => {
                               size="small"
                               bordered={false}
                               style={{
-                                background: '#f8fafc',
-                                borderRadius: 8,
+                                background: '#ffffff',
+                                borderRadius: 10,
                                 marginBottom: 12,
-                                border: '1px solid #e2e8f0',
+                                border: '1px solid #f1f5f9',
+                                boxShadow: '0 1px 3px rgba(0, 0, 0, 0.03)',
                               }}
                             >
                               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
