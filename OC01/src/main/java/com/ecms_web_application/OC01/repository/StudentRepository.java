@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -46,4 +47,19 @@ public interface StudentRepository extends IRepository<Student, Long> {
             @Param("search") String search,
             Pageable pageable
     );
+
+    // ==================== NOTIFICATION SUPPORT ====================
+
+    /**
+     * Lấy danh sách accountId của các học viên đã có tài khoản
+     * thuộc 1 khóa học (qua academic_histories).
+     */
+    @Query(value = """
+        SELECT DISTINCT s.user_id
+        FROM academic_histories ah
+        JOIN students s ON s.id = ah.student_id
+        WHERE ah.course_id = :courseId
+          AND s.user_id IS NOT NULL
+    """, nativeQuery = true)
+    List<Long> findAccountIdsByCourseId(@Param("courseId") Long courseId);
 }

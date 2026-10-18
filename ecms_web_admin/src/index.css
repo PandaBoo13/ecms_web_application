@@ -1,7 +1,48 @@
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
+/* ══════════════════════════════════════════════════════════════
+   TAILWIND CSS v4
+   - Chỉ nạp `theme` + `utilities`, KHÔNG nạp `preflight` để giữ
+     nguyên style gốc của antd & các module khác (reset đã có
+     trong antd/dist/reset.css + `* { margin:0; padding:0 }` bên dưới).
+   - Thêm utility mới bằng class Tailwind ngay trong JSX.
+   ══════════════════════════════════════════════════════════════ */
+@layer theme, base, components, utilities;
+@import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/utilities.css' layer(utilities);
+
+/* ── Design tokens bổ sung (dùng được: bg-brand, text-brand, ...) ── */
+@theme {
+  --color-brand: #49bbbd;
+  --color-brand-600: #3da4a6;
+  --color-brand-700: #2f8e90;
+  --color-brand-50: #eefbfb;
+  --color-brand-100: #d9f4f5;
+
+  /* animate-chat-in — dùng cho panel chat */
+  --animate-chat-in: chat-in 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+
+  @keyframes chat-in {
+    from {
+      opacity: 0;
+      transform: translateY(10px) scale(0.985);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   RESET GỐC — đặt trong `@layer base` để các utility của Tailwind
+   (nằm ở layer `utilities`) vẫn ghi đè được margin/padding.
+   Nếu để ngoài layer, `* { padding: 0 }` sẽ thắng cả px-3/pl-8.
+   ══════════════════════════════════════════════════════════════ */
+@layer base {
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
 }
 
 html,
