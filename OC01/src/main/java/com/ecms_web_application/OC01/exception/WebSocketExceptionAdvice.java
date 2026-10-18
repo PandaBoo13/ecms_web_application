@@ -1,5 +1,5 @@
 // src/main/java/org/wisdom/oc01/exception/WebSocketExceptionAdvice.java
-package org.wisdom.oc01.exception;
+package com.ecms_web_application.OC01.exception;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.handler.annotation.MessageExceptionHandler;

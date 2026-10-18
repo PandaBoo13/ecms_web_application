@@ -247,6 +247,10 @@ app:
     success-redirect: ${OAUTH2_SUCCESS_REDIRECT:http://localhost:5173/oauth2/redirect}
     failure-redirect: ${OAUTH2_FAILURE_REDIRECT:http://localhost:5173/login?error=oauth2}
 
+  # WebSocket — Chat & Notification realtime
+  websocket:
+    allowed-origins: ${WS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:5173,http://127.0.0.1:5173}
+    enabled: ${WS_ENABLED:true}
   cors:
     allowed-origins:
       - ${CORS_FE_ADMIN_LOCAL:http://localhost:5173}
@@ -277,16 +281,6 @@ logging:
     # 🆕 Datasource
     com.zaxxer.hikari: WARN
 
-  # 🆕 File log rotation
-  file:
-    name: logs/ecms.log
-    max-size: 10MB
-    max-history: 7
-    total-size-cap: 1GB
-
-  pattern:
-    console: "%d{HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n"
-    file: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n"
 
 # ══════════════════════════════════════════════════════════════════
 # COOKIE
@@ -318,3 +312,15 @@ management:
       hikaricp: true          # đo connection pool
       jvm: true
       http: true
+# ══════════════════════════════════════════════════════════════════
+# NOTIFICATION — Chat & Notification
+# ══════════════════════════════════════════════════════════════════
+notification:
+  cleanup:
+    enabled: ${NOTIF_CLEANUP_ENABLED:true}
+    expired-retention-days: ${NOTIF_EXPIRED_RETENTION_DAYS:7}
+  channel:
+    email:
+      enabled: ${NOTIF_EMAIL_ENABLED:true}
+    push:
+      enabled: ${NOTIF_PUSH_ENABLED:true}

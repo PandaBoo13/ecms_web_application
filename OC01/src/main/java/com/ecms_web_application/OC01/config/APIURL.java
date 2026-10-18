@@ -8,20 +8,24 @@ public class APIURL {
     public static final String[] PUBLIC_URLS = {
             // Static & system
             "/",
-            "/error",                 // Spring Boot default error page
+            "/error",
             "/favicon.ico",
             "/.well-known/**",
-            "/uploads/**",            // serve file tĩnh
+            "/uploads/**",
             "/files/**",
 
-            // Swagger / OpenAPI (Springdoc 2.x)
+            // Swagger / OpenAPI
             "/swagger-ui/**",
-            "/swagger-ui.html",       // ← QUAN TRỌNG: Springdoc redirect qua đây
+            "/swagger-ui.html",
             "/v3/api-docs/**",
 
             // OAuth2 (Google login)
             "/oauth2/authorization/**",
             "/login/oauth2/code/**",
+
+            // WebSocket (handshake + SockJS fallback)
+            "/ws",
+            "/ws/**",
 
             // Auth — public endpoints
             "/api/auth/login",
@@ -34,14 +38,13 @@ public class APIURL {
             // Public browse (landing page không login)
             "/api/public/**",
 
-            // 🆕 Course browse cho guest
+            // Course browse cho guest
             "/api/courses",
             "/api/courses/**",
     };
 
     // ============================================================
     // USER — Đã đăng nhập (mọi role: STUDENT, INSTRUCTOR, ADMIN)
-    // Chỉ self-service
     // ============================================================
     public static final String[] USER_URLS = {
             // Auth — self
@@ -52,33 +55,39 @@ public class APIURL {
             // Self profile
             "/api/users/me",
 
-            // 🆕 Instructor self-manage chuyên môn
+            // Instructor self-manage chuyên môn
             "/api/instructors/me/specializations",
             "/api/instructors/me/specializations/**",
 
-            // File upload (mọi user đã login đều upload được)
+            // File upload
             "/api/files/**",
 
-            // 🆕 Progress — user xem tiến độ của mình
+            // Progress
             "/api/progress",
             "/api/progress/**",
+
+            // ============================================================
+            // 🆕 CHAT & NOTIFICATION — self-service, mọi user đã login
+            // Ownership được check ở Service layer (requireActiveParticipant,
+            // findMyConversations, findInbox...). Filter không cần check
+            // permission vì đây là dữ liệu của chính user.
+            // ============================================================
+            "/api/chat/**",
+            "/api/notifications/**",
     };
 
     // ============================================================
     // ADMIN — Chỉ ADMIN
     // ============================================================
     public static final String[] ADMIN_URLS = {
-            // RBAC toàn bộ
             "/api/rbac/**",
     };
 
     // ============================================================
     // PROTECTED — Cần permission cụ thể (check DB)
-    // Dùng cho các hành động nguy hiểm / cần kiểm soát chặt
-    // Permission được gán trong bảng `permission` + `account_permission`
     // ============================================================
     public static final String[] PROTECTED_URLS = {
-            // Category — đọc cho mọi user, ghi cần permission
+            // Category
             "/api/categories/**",
             "/api/categories",
 
@@ -88,7 +97,7 @@ public class APIURL {
             "/api/instructors/category/*/specializations",
             "/api/instructors/category/*/specializations/**",
 
-            // 🆕 Course write + lifecycle
+            // Course write + lifecycle
             "/api/courses/*/submit-review",
             "/api/courses/*/review",
             "/api/courses/*/archive",
@@ -97,7 +106,7 @@ public class APIURL {
             "/api/courses/*/offline-info",
             "/api/courses/*/hard",
 
-            // 🆕 Course nested (resource/session/question/quiz)
+            // Course nested
             "/api/courses/*/resources",
             "/api/courses/*/resources/**",
             "/api/courses/*/sessions",
@@ -107,7 +116,7 @@ public class APIURL {
             "/api/courses/*/quizzes",
             "/api/courses/*/quizzes/**",
 
-            // 🆕 Audit log — chỉ ADMIN xem
+            // Audit log
             "/api/audit-logs",
             "/api/audit-logs/**",
             "/api/rooms",
