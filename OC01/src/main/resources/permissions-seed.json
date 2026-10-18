@@ -44,14 +44,27 @@
 
   { "method": "GET",    "path": "/api/leads",                                "module": "lead",       "description": "Xem danh sách khách hàng tiềm năng" },
   { "method": "GET",    "path": "/api/leads/{id}",                           "module": "lead",       "description": "Xem chi tiết khách hàng tiềm năng" },
+  { "method": "GET",    "path": "/api/leads/{id}/detail",                    "module": "lead",       "description": "Xem chi tiết Lead và lịch sử" },
   { "method": "POST",   "path": "/api/leads",                                "module": "lead",       "description": "Tạo mới khách hàng tiềm năng" },
   { "method": "PUT",    "path": "/api/leads/{id}",                           "module": "lead",       "description": "Cập nhật khách hàng tiềm năng" },
+  { "method": "PUT",    "path": "/api/leads/{id}/assign",                    "module": "lead",       "description": "Phân công tư vấn viên cho Lead" },
+  { "method": "POST",   "path": "/api/leads/{id}/interactions",              "module": "lead",       "description": "Ghi nhận tương tác tư vấn" },
+  { "method": "GET",    "path": "/api/leads/{id}/interactions",              "module": "lead",       "description": "Xem lịch sử tương tác của Lead" },
+  { "method": "POST",   "path": "/api/leads/{id}/placement-tests",          "module": "lead",       "description": "Ghi nhận đánh giá đầu vào Lead" },
+  { "method": "GET",    "path": "/api/leads/{id}/placement-tests",          "module": "lead",       "description": "Xem danh sách đánh giá đầu vào của Lead" },
   { "method": "DELETE", "path": "/api/leads/{id}",                           "module": "lead",       "description": "Xóa khách hàng tiềm năng" },
 
   { "method": "GET",    "path": "/api/students",                             "module": "student",    "description": "Xem danh sách học viên" },
   { "method": "GET",    "path": "/api/students/{id}",                        "module": "student",    "description": "Xem chi tiết học viên" },
+  { "method": "GET",    "path": "/api/students/{id}/detail",                 "module": "student",    "description": "Xem chi tiết học viên và lịch sử" },
   { "method": "GET",    "path": "/api/students/code/{studentCode}",          "module": "student",    "description": "Xem chi tiết học viên theo mã" },
   { "method": "POST",   "path": "/api/students",                             "module": "student",    "description": "Tạo mới học viên" },
+  { "method": "POST",   "path": "/api/students/convert-lead",                "module": "student",    "description": "Chuyển đổi Lead thành Student" },
   { "method": "PUT",    "path": "/api/students/{id}",                        "module": "student",    "description": "Cập nhật thông tin học viên" },
+  { "method": "PATCH",  "path": "/api/students/{id}/status",                 "module": "student",    "description": "Cập nhật trạng thái học viên" },
+  { "method": "POST",   "path": "/api/students/{id}/guardians",              "module": "student",    "description": "Thêm người giám hộ học viên" },
+  { "method": "GET",    "path": "/api/students/{id}/guardians",              "module": "student",    "description": "Xem danh sách người giám hộ học viên" },
+  { "method": "DELETE", "path": "/api/students/{id}/guardians/{guardianId}", "module": "student",    "description": "Xóa người giám hộ học viên" },
+  { "method": "GET",    "path": "/api/students/{id}/academic-histories",     "module": "student",    "description": "Xem lịch sử học tập của học viên" },
   { "method": "DELETE", "path": "/api/students/{id}",                        "module": "student",    "description": "Xóa học viên" }
 ]
