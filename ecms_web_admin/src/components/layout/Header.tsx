@@ -1,7 +1,9 @@
-import { Layout, Button, Space, Badge } from 'antd';
-import { MenuFoldOutlined, MenuUnfoldOutlined, BellOutlined } from '@ant-design/icons';
+import { Layout, Button, Space } from 'antd';
+import { MenuFoldOutlined, MenuUnfoldOutlined } from '@ant-design/icons';
 import UserDropdown from './UserDropdown';
 import LanguageDropdown from './LanguageDropdown';
+import NotificationDropdown from './NotificationDropdown';
+import ChatWidget from '@/components/chat/ChatWidget';
 import { useUIStore } from '@/stores/uiStore';
 
 const { Header: AntHeader } = Layout;
@@ -31,11 +33,10 @@ const Header = () => {
         style={{ fontSize: 16, width: 48, height: 48 }}
       />
 
-      <Space size={16} align="center">
+      <Space size={12} align="center">
         <LanguageDropdown />
-        <Badge count={0} size="small">
-          <Button type="text" icon={<BellOutlined style={{ fontSize: 18 }} />} />
-        </Badge>
+        <NotificationDropdown />
+        <ChatWidget />
         <UserDropdown />
       </Space>
     </AntHeader>

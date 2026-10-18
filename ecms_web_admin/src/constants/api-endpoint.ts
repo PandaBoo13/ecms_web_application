@@ -143,6 +143,27 @@ export const API_ENDPOINT = {
   FILES_UPLOAD: '/api/files/upload',
 
   // ══════════════════════════════════════════════════════════════
+  // NOTIFICATIONS
+  // ══════════════════════════════════════════════════════════════
+  NOTIFICATIONS: '/api/notifications',
+  NOTIFICATION_DETAIL: (id: number) => `/api/notifications/${id}`,
+  NOTIFICATIONS_UNREAD_COUNT: '/api/notifications/unread-count',
+  NOTIFICATION_MARK_READ: (id: number) => `/api/notifications/${id}/read`,
+  NOTIFICATION_MARK_ALL_READ: '/api/notifications/read-all',
+  NOTIFICATION_DELETE: (id: number) => `/api/notifications/${id}`,
+  NOTIFICATION_DELETE_ALL: '/api/notifications',
+
+  // ══════════════════════════════════════════════════════════════
+  // CHAT
+  // ══════════════════════════════════════════════════════════════
+  CHAT_CONVERSATIONS: '/api/chat/conversations',
+  CHAT_CONVERSATION_DETAIL: (id: number) => `/api/chat/conversations/${id}`,
+  CHAT_MESSAGES: (id: number) => `/api/chat/conversations/${id}/messages`,
+  CHAT_MARK_READ: (id: number) => `/api/chat/conversations/${id}/read`,
+  CHAT_MESSAGE_DETAIL: (id: number) => `/api/chat/messages/${id}`,
+  CHAT_USERS_SEARCH: '/api/chat/users/search',
+
+  // ══════════════════════════════════════════════════════════════
   // LEADS
   // ══════════════════════════════════════════════════════════════
   LEADS: '/api/leads',
