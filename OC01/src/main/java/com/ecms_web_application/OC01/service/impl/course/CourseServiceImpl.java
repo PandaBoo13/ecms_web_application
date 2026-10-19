@@ -36,12 +36,16 @@ public class CourseServiceImpl implements CourseService {
     private final CategoryRepository categoryRepository;
     private final RoomRepository roomRepository;
     private final AuditLogService auditLogService;
+    private final com.ecms_web_application.OC01.service.SessionService sessionService;
+    private final com.ecms_web_application.OC01.repository.QuestionRepository questionRepository;
+    private final com.ecms_web_application.OC01.generic.validator.CourseValidator courseValidator;
 
     private static final Pattern NON_ALNUM = Pattern.compile("[^a-z0-9]+");
 
     @Override
     @Transactional
     public CourseResponse create(CourseCreateRequest request) {
+        courseValidator.validateForCreate(request);
         Account current = SecurityUtils.requireCurrentAccount();
         String typeCode = (request.getCourseType() == CourseType.OFFLINE) ? "OFF" : "ONL";
         String code = generateCode(typeCode);
@@ -56,6 +60,8 @@ public class CourseServiceImpl implements CourseService {
         c.setDescription(request.getDescription());
         c.setThumbnailUrl(request.getThumbnailUrl());
         c.setOutcomes(request.getOutcomes());
+        c.setLearningMode(request.getLearningMode());
+        c.setAllowedRoomIds(request.getAllowedRoomIds());
         c.setPrice(request.getPrice() == null ? BigDecimal.ZERO : request.getPrice());
         c.setOldPrice(request.getOldPrice());
         c.setIsFree(Boolean.TRUE.equals(request.getIsFree()));
@@ -108,6 +114,7 @@ public class CourseServiceImpl implements CourseService {
     @Override
     @Transactional
     public CourseResponse update(Long id, CourseUpdateRequest request) {
+        courseValidator.validateForUpdate(request);
         Course c = getCourseOrThrow(id);
         assertCanEdit(c);
 
@@ -124,6 +131,8 @@ public class CourseServiceImpl implements CourseService {
         if (request.getDescription() != null) c.setDescription(request.getDescription());
         if (request.getThumbnailUrl() != null) c.setThumbnailUrl(request.getThumbnailUrl());
         if (request.getOutcomes() != null) c.setOutcomes(request.getOutcomes());
+        if (request.getLearningMode() != null)    c.setLearningMode(request.getLearningMode());
+        if (request.getAllowedRoomIds() != null)  c.setAllowedRoomIds(request.getAllowedRoomIds());
         if (request.getPrice() != null) {
             if (request.getPrice().signum() < 0) {
                 throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Giá phải >= 0");
@@ -149,6 +158,7 @@ public class CourseServiceImpl implements CourseService {
     @Override
     @Transactional
     public CourseResponse updateOfflineInfo(Long id, CourseOfflineInfoRequest request) {
+        courseValidator.validateForOfflineInfo(request);
         Course c = getCourseOrThrow(id);
         assertCanEdit(c);
 
@@ -175,6 +185,7 @@ public class CourseServiceImpl implements CourseService {
         c.setCourseType(CourseType.OFFLINE);
         c.setProgressType(ProgressType.SESSION_BASED);
         c.setClassStatus(ClassStatus.PLANNED);
+        if (c.getLearningMode() == null) c.setLearningMode("SEQUENTIAL");
         if (request.getTeacherId() != null) {
             c.setTeacher(accountRepository.findById(request.getTeacherId())
                     .orElseThrow(() -> new ErrorHandler(HttpStatus.NOT_FOUND, "GV không tồn tại")));
@@ -186,6 +197,15 @@ public class CourseServiceImpl implements CourseService {
 
         Course saved = courseRepository.save(c);
         auditLogService.log("UPDATE_OFFLINE", "COURSE", id, "Chuyển OFFLINE");
+        // Auto generate session nếu course chưa có session (best-effort)
+        try {
+            if (saved.getCourseType() == CourseType.OFFLINE) {
+                sessionService.generateSessions(id);
+            }
+        } catch (Exception ex) {
+            log.warn("[AutoGenerate] Không sinh được session cho course {}: {}",
+                    id, ex.getMessage());
+        }
         return toResponse(saved);
     }
 
@@ -276,6 +296,8 @@ public class CourseServiceImpl implements CourseService {
         copy.setDescription(src.getDescription());
         copy.setThumbnailUrl(src.getThumbnailUrl());
         copy.setOutcomes(src.getOutcomes());
+        copy.setLearningMode(src.getLearningMode());
+        copy.setAllowedRoomIds(src.getAllowedRoomIds());
         copy.setPrice(Boolean.TRUE.equals(request.getResetPrice()) ? BigDecimal.ZERO : src.getPrice());
         copy.setOldPrice(src.getOldPrice());
         copy.setIsFree(src.getIsFree());
@@ -314,10 +336,34 @@ public class CourseServiceImpl implements CourseService {
             newR.setSettings(srcR.getSettings());
             newR.setStatus(ResourceStatus.DRAFT);
             newR.setQuizCategory(srcR.getQuizCategory());
+            newR.setHashtagFilter(srcR.getHashtagFilter());
+            newR.setTotalQuestions(srcR.getTotalQuestions());
+            newR.setShuffleQuestions(srcR.getShuffleQuestions());
             newR.setCreatedBy(current);
             idMap.put(srcR.getId(), resourceRepository.save(newR));
         }
 
+        // Copy Question pool — remap lesson_id qua idMap
+        java.util.List<com.ecms_web_application.OC01.entity.Question> srcQuestions =
+                questionRepository.findByCourse_Id(src.getId());
+        for (com.ecms_web_application.OC01.entity.Question sq : srcQuestions) {
+            com.ecms_web_application.OC01.entity.Question nq =
+                    new com.ecms_web_application.OC01.entity.Question();
+            nq.setCourse(savedCopy);
+            if (sq.getLesson() != null) {
+                nq.setLesson(idMap.get(sq.getLesson().getId()));
+            }
+            nq.setQuestionType(sq.getQuestionType());
+            nq.setContent(sq.getContent());
+            nq.setOptions(sq.getOptions());
+            nq.setCorrectAnswer(sq.getCorrectAnswer());
+            nq.setExplanation(sq.getExplanation());
+            nq.setHashtag(sq.getHashtag());
+            nq.setPoints(sq.getPoints());
+            nq.setOrderIndex(sq.getOrderIndex());
+            nq.setStatus(sq.getStatus());
+            questionRepository.save(nq);
+        }
         auditLogService.log("COPY", "COURSE", savedCopy.getId(), "Copy từ course " + src.getId());
         log.info("Copy course {} → {}", src.getId(), savedCopy.getId());
         return getById(savedCopy.getId());
@@ -344,6 +390,19 @@ public class CourseServiceImpl implements CourseService {
         }
         courseRepository.delete(c);
         auditLogService.log("HARD_DELETE", "COURSE", id, null);
+    }
+
+    @Override
+    @Transactional
+    public CourseResponse changeTeacher(Long courseId, Long newTeacherId) {
+        Course c = getCourseOrThrow(courseId);
+        if (c.getCourseType() != CourseType.OFFLINE) {
+            throw new ErrorHandler(HttpStatus.BAD_REQUEST,
+                    "Chỉ đổi GV chính cho khóa OFFLINE");
+        }
+        sessionService.changeCourseMainTeacher(courseId, newTeacherId);
+        Course updated = getCourseOrThrow(courseId);
+        return toResponse(updated);
     }
 
     private Course getCourseOrThrow(Long id) {
@@ -449,6 +508,8 @@ public class CourseServiceImpl implements CourseService {
         r.setSessionStartTime(c.getSessionStartTime());
         r.setSessionEndTime(c.getSessionEndTime());
         r.setCopiedFromCourseId(c.getCopiedFromCourseId());
+        r.setLearningMode(c.getLearningMode());
+        r.setAllowedRoomIds(c.getAllowedRoomIds());
         r.setCreatedAt(c.getCreatedAt());
         r.setUpdatedAt(c.getUpdatedAt());
     }
@@ -482,6 +543,9 @@ public class CourseServiceImpl implements CourseService {
         res.setAvailableFrom(r.getAvailableFrom());
         res.setAvailableUntil(r.getAvailableUntil());
         res.setQuizCategory(r.getQuizCategory() != null ? r.getQuizCategory().name() : null);
+        res.setHashtagFilter(r.getHashtagFilter());
+        res.setTotalQuestions(r.getTotalQuestions());
+        res.setShuffleQuestions(r.getShuffleQuestions());
         res.setCreatedAt(r.getCreatedAt());
         res.setUpdatedAt(r.getUpdatedAt());
         return res;

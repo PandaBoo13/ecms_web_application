@@ -15,6 +15,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.security.access.prepost.PreAuthorize;
 
 @RestController
 @RequestMapping("/api/courses")
@@ -109,6 +110,16 @@ public class CourseController {
         CourseDetailResponse data = courseService.copy(sourceId, request);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(new RequestResponse(data, "Copy khóa học thành công"));
+    }
+
+    /** FR_CRS_009B: đổi GV chính của khóa. Chỉ ADMIN. */
+    @PatchMapping("/{id}/teacher")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<RequestResponse> changeTeacher(
+            @PathVariable Long id,
+            @RequestParam Long teacherId) {
+        CourseResponse data = courseService.changeTeacher(id, teacherId);
+        return ResponseEntity.ok(new RequestResponse(data, "Đã đổi GV chính của khóa"));
     }
 
     @DeleteMapping("/{id}")

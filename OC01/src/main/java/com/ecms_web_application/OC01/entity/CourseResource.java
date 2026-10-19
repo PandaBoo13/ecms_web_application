@@ -73,6 +73,10 @@ public class CourseResource {
     @Column(name = "created_at", updatable = false) private LocalDateTime createdAt;
     @Column(name = "updated_at") private LocalDateTime updatedAt;
 
+    @Column(name = "hashtag_filter", length = 500) private String hashtagFilter;
+    @Column(name = "total_questions") private Integer totalQuestions;
+    @Column(name = "shuffle_questions") private Boolean shuffleQuestions = false;
+
     @PrePersist void onCreate() {
         LocalDateTime now = LocalDateTime.now();
         if (createdAt == null) createdAt = now;

@@ -20,5 +20,6 @@ public class ResourceTreeResponse {
     private String quizCategory;
     private BigDecimal passingScore;
     private Integer maxAttempts;
+    private String hashtagFilter;
     private List<ResourceTreeResponse> children = new ArrayList<>();
 }

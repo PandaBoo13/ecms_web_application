@@ -19,4 +19,8 @@ public class CourseUpdateRequest {
     private Boolean isFree;
     private Long categoryId;
     private Long roomId;
+    @Size(max = 20)
+    private String learningMode;
+
+    private List<Long> allowedRoomIds;
 }

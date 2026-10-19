@@ -30,6 +30,7 @@ public class ProgressServiceImpl implements ProgressService {
 
     private final ProgressRepository progressRepository;
     private final CourseResourceRepository resourceRepository;
+    private final com.ecms_web_application.OC01.service.ProgressCalculationService progressCalculationService;
 
     @Override
     @Transactional(readOnly = true)
@@ -101,6 +102,12 @@ public class ProgressServiceImpl implements ProgressService {
         }
 
         Progress saved = progressRepository.save(p);
+        // FR_CRS_015: recalc chỉ cho HV hiện tại — efficient hơn recalc cả course
+        if (saved.getStatus() == ProgressStatus.COMPLETED
+                || saved.getStatus() == ProgressStatus.PASSED) {
+            progressCalculationService.recalculateForStudent(
+                    saved.getAccount().getId(), saved.getCourse().getId());
+        }
         return toResponse(saved);
     }
 
@@ -108,6 +115,19 @@ public class ProgressServiceImpl implements ProgressService {
     @Transactional
     public ProgressResponse markResourceCompleted(Long resourceId) {
         return updateResourceProgress(resourceId, 100, null);
+    }
+
+    @Override
+    @Transactional
+    public void markHasUncompletedNewContent(Long courseId) {
+        // Delegate sang calc service: đồng bộ cờ + % + total/completed items
+        progressCalculationService.onResourceChanged(courseId);
+    }
+
+    @Override
+    @Transactional
+    public void recalculateCourseProgress(Long courseId) {
+        progressCalculationService.recalculateForCourse(courseId);
     }
 
     private ProgressResponse toResponse(Progress p) {
@@ -134,6 +154,7 @@ public class ProgressServiceImpl implements ProgressService {
         r.setLastAccessedAt(p.getLastAccessedAt());
         r.setStartedAt(p.getStartedAt());
         r.setCompletedAt(p.getCompletedAt());
+        r.setHasUncompletedNewContent(p.getHasUncompletedNewContent());
         return r;
     }
 }
