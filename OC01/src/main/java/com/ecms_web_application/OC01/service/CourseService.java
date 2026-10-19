@@ -20,4 +20,5 @@ public interface CourseService {
     CourseDetailResponse copy(Long sourceCourseId, CourseCopyRequest request);
     void softDelete(Long id);
     void hardDelete(Long id);
+    CourseResponse changeTeacher(Long courseId, Long newTeacherId);
 }

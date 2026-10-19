@@ -14,6 +14,9 @@ interface Props {
 
 const DAY_LABELS = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
 
+const learningModeLabel = (mode?: string) =>
+  mode === 'SEQUENTIAL' ? 'Tuần tự' : mode === 'AUTONOMOUS' ? 'Tự do' : '—';
+
 const CourseOverviewCard = ({ course }: Props) => {
   return (
     <Card>
@@ -44,6 +47,30 @@ const CourseOverviewCard = ({ course }: Props) => {
         </Descriptions.Item>
         <Descriptions.Item label="Miễn phí">
           {course.isFree ? <Tag color="green">Có</Tag> : <Tag>Không</Tag>}
+        </Descriptions.Item>
+
+        <Descriptions.Item label="Learning mode">
+          {course.learningMode ? (
+            <Tag color={course.learningMode === 'SEQUENTIAL' ? 'blue' : 'cyan'}>
+              {learningModeLabel(course.learningMode)}
+            </Tag>
+          ) : (
+            <Text type="secondary">—</Text>
+          )}
+        </Descriptions.Item>
+        <Descriptions.Item label="Phòng được phép">
+          {course.allowedRoomIds && course.allowedRoomIds.length > 0 ? (
+            <Space size={4} wrap>
+              {course.allowedRoomIds.map((rid) => (
+                <Tag key={rid}>#{rid}</Tag>
+              ))}
+            </Space>
+          ) : (
+            <Text type="secondary">Tất cả</Text>
+          )}
+        </Descriptions.Item>
+        <Descriptions.Item label="Progress type">
+          <Tag color="geekblue">{course.progressType}</Tag>
         </Descriptions.Item>
 
         <Descriptions.Item label="Giảng viên">

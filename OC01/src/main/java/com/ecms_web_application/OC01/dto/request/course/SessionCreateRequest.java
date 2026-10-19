@@ -17,4 +17,5 @@ public class SessionCreateRequest {
     private Long assistantId;
     private Long roomId;
     private String note;
+    private Long substituteTeacherId;
 }

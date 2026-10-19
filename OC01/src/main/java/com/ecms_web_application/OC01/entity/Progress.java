@@ -61,6 +61,9 @@ public class Progress {
     @Column(name = "created_at", updatable = false) private LocalDateTime createdAt;
     @Column(name = "updated_at") private LocalDateTime updatedAt;
 
+    @Column(name = "has_uncompleted_new_content", nullable = false)
+    private Boolean hasUncompletedNewContent = false;
+
     @PrePersist void onCreate() {
         LocalDateTime now = LocalDateTime.now();
         if (createdAt == null) createdAt = now;

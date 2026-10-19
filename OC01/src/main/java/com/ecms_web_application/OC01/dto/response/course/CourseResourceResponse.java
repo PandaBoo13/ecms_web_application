@@ -37,4 +37,7 @@ public class CourseResourceResponse {
     private String quizCategory;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    private String hashtagFilter;
+    private Integer totalQuestions;
+    private Boolean shuffleQuestions;
 }

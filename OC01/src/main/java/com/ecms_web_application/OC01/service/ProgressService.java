@@ -11,4 +11,9 @@ public interface ProgressService {
     List<ProgressResponse> getResourceProgresses(Long courseId);
     ProgressResponse updateResourceProgress(Long resourceId, Integer percentage, Long timeSpentSeconds);
     ProgressResponse markResourceCompleted(Long resourceId);
+    /** FR_CRS_015: set cờ cần học bổ sung cho HV đã 100% khi course có resource mới. */
+    void markHasUncompletedNewContent(Long courseId);
+
+    /** FR_CRS_015: tính lại % COURSE, giữ mức cao nhất đã đạt. */
+    void recalculateCourseProgress(Long courseId);
 }

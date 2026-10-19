@@ -18,4 +18,5 @@ public class QuizCreateRequest {
     @Size(max = 500) private String hashtagFilter;
     private LocalDateTime availableFrom;
     private LocalDateTime availableUntil;
+    private Long parentId;
 }

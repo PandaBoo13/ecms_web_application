@@ -44,6 +44,16 @@ const buildTree = (flat: CourseResourceResponse[]): DataNode[] => {
           <span>{r.title}</span>
           {r.isRequired && <Tag color="red">Bắt buộc</Tag>}
           {r.isFreePreview && <Tag color="green">Preview</Tag>}
+          {r.resourceType === 'QUIZ' && r.quizCategory && (
+            <Tag color={r.quizCategory === 'MANDATORY' ? 'purple' : 'default'}>
+              {r.quizCategory === 'MANDATORY' ? 'Bắt buộc' : 'Tự chọn'}
+            </Tag>
+          )}
+          {r.resourceType === 'QUIZ' && r.hashtagFilter && (
+            <Text type="secondary" style={{ fontSize: 11 }}>
+              #{r.hashtagFilter}
+            </Text>
+          )}
           {r.duration ? (
             <Text type="secondary" style={{ fontSize: 12 }}>
               {Math.floor(r.duration / 60)} phút

@@ -42,4 +42,6 @@ public class CourseResponse {
     private Long copiedFromCourseId;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    private String learningMode;
+    private List<Long> allowedRoomIds;
 }
