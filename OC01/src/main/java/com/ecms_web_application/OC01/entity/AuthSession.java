@@ -10,10 +10,6 @@ import java.time.LocalDateTime;
 
 /**
  * AuthSession — Quản lý refresh token theo từng thiết bị.
- *
- * Mỗi lần user login → tạo 1 bản ghi.
- * Refresh token chỉ lưu hash (SHA-256), không lưu raw token.
- * Khi logout / đổi password → set revokedAt + revokedReason.
  */
 @Setter
 @Getter
@@ -26,16 +22,13 @@ public class AuthSession {
     @Column(name = "id")
     private Long id;
 
-    // ===== Account (ManyToOne) =====
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "account_id", nullable = false)
     private Account account;
 
-    // ===== Token =====
     @Column(name = "refresh_token_hash", nullable = false, unique = true, length = 255)
     private String refreshTokenHash;
 
-    // ===== Thiết bị =====
     @Enumerated(EnumType.STRING)
     @Column(name = "device_type", nullable = false, length = 20)
     private DeviceType deviceType = DeviceType.OTHER;
@@ -53,9 +46,9 @@ public class AuthSession {
     @Column(name = "revoked_at")
     private LocalDateTime revokedAt;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "revoked_reason", length = 30)
-    private RevokedReason revokedReason;
+    // ✅ Đổi từ RevokedReason → String, bỏ @Enumerated, tăng length
+    @Column(name = "revoked_reason", length = 255)
+    private String revokedReason;
 
     @Column(name = "last_active_at")
     private LocalDateTime lastActiveAt;
@@ -104,7 +97,14 @@ public class AuthSession {
         return !isRevoked() && !isExpired();
     }
 
+    /** Overload giữ tương thích cho code cũ dùng enum */
     public void revoke(RevokedReason reason) {
+        this.revokedAt = LocalDateTime.now();
+        this.revokedReason = reason != null ? reason.name() : null;
+    }
+
+    /** Overload mới — lưu String tự do */
+    public void revoke(String reason) {
         this.revokedAt = LocalDateTime.now();
         this.revokedReason = reason;
     }

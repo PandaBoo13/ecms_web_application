@@ -14,11 +14,14 @@ import com.ecms_web_application.OC01.dto.response.rbac.AccountResponse;
 import com.ecms_web_application.OC01.dto.response.rbac.AccountRoleResponse;
 import com.ecms_web_application.OC01.entity.Account;
 import com.ecms_web_application.OC01.entity.Role;
+import com.ecms_web_application.OC01.entity.enums.RevokedReason;                    // ✅ thêm
 import com.ecms_web_application.OC01.exception.ErrorHandler;
 import com.ecms_web_application.OC01.repository.AccountRepository;
 import com.ecms_web_application.OC01.repository.AuthSessionRepository;
 import com.ecms_web_application.OC01.repository.RoleRepository;
 import com.ecms_web_application.OC01.service.AccountRoleService;
+import com.ecms_web_application.OC01.service.AuditLogService;                     // ⚠️ đổi theo project
+import com.ecms_web_application.OC01.service.EmailService;                       // ✅ thêm
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -32,8 +35,12 @@ public class AccountRoleServiceImpl implements AccountRoleService {
     private final RoleRepository roleRepository;
     private final PermissionManager permissionManager;
     private final AuthSessionRepository authSessionRepository;
+    private final EmailService emailService;          // ✅ inject
+    private final AuditLogService auditLogService;    // ⚠️ bỏ nếu project chưa có
 
     private static final String INSTRUCTOR_ROLE_CODE = "INSTRUCTOR";
+
+    // ==================== ROLE ====================
 
     @Override
     @Transactional(readOnly = true)
@@ -73,6 +80,8 @@ public class AccountRoleServiceImpl implements AccountRoleService {
         log.info("Xóa role khỏi account {}", accountId);
     }
 
+    // ==================== SEARCH ====================
+
     @Override
     @Transactional(readOnly = true)
     public Page<AccountResponse> getAccountsByRole(Long roleId, Pageable pageable) {
@@ -110,9 +119,71 @@ public class AccountRoleServiceImpl implements AccountRoleService {
                 .toList();
     }
 
+    // ==================== LOCK / UNLOCK ====================
+
+    @Override
+    @Transactional
+    public void lockAccount(Long accountId, AccountLockRequest request) {
+        Account account = getAccountOrThrow(accountId);
+        boolean isLocked = Boolean.TRUE.equals(request.getIsLocked());
+        account.setIsLocked(isLocked);
+
+        if (isLocked) {
+            account.setLockedUntil(null);
+
+            // ✅ Truyền String mô tả đầy đủ — lưu nguyên văn vào DB
+            String reasonText = "Admin khóa tài khoản: "
+                    + (request.getReason() != null && !request.getReason().isBlank()
+                    ? request.getReason()
+                    : "Không có lý do");
+            authSessionRepository.revokeAllByAccountId(
+                    account.getId(),
+                    LocalDateTime.now(),
+                    reasonText
+            );
+
+            try {
+                auditLogService.log(
+                        "LOCK_ACCOUNT", "Account", accountId,
+                        "Admin khóa tài khoản: " + request.getReason());
+            } catch (Exception e) {
+                log.warn("[LockAccount] Audit log thất bại: {}", e.getMessage());
+            }
+
+            sendLockEmail(account, request.getReason());
+
+            log.info("Khóa tài khoản accountId={}, email={}, reason={}",
+                    accountId, account.getEmail(), request.getReason());
+        } else {
+            account.setLockedUntil(null);
+            account.setFailedLoginCount(0);
+            log.info("Mở khóa tài khoản accountId={}, email={}", accountId, account.getEmail());
+        }
+
+        accountRepository.save(account);
+    }
+    // ==================== HELPERS ====================
+
     private Account getAccountOrThrow(Long accountId) {
         return accountRepository.findById(accountId)
                 .orElseThrow(() -> new ErrorHandler(HttpStatus.NOT_FOUND, "Account không tồn tại"));
+    }
+
+    /** Gửi mail thông báo khóa tài khoản. Lỗi không làm rollback transaction. */
+    private void sendLockEmail(Account acc, String reason) {
+        try {
+            String fullName = acc.getUserProfile() != null
+                    ? acc.getUserProfile().getFullName()
+                    : acc.getEmail();
+            emailService.sendAccountLockedEmail(acc.getEmail(), fullName, reason, null);
+        } catch (Exception e) {
+            log.warn("[LockAccount] Gửi mail thất bại cho {}: {}", acc.getEmail(), e.getMessage());
+        }
+    }
+
+    /** FIX: trả "" thay vì null cho String params */
+    private String emptyToBlank(String s) {
+        return (s == null || s.isBlank()) ? "" : s.trim();
     }
 
     private AccountResponse toResponse(Account a) {
@@ -136,32 +207,5 @@ public class AccountRoleServiceImpl implements AccountRoleService {
         res.setCreatedAt(a.getCreatedAt());
         res.setUpdatedAt(a.getUpdatedAt());
         return res;
-    }
-
-    @Override
-    @Transactional
-    public void lockAccount(Long accountId, AccountLockRequest request) {
-        Account account = getAccountOrThrow(accountId);
-        boolean isLocked = Boolean.TRUE.equals(request.getIsLocked());
-        account.setIsLocked(isLocked);
-        if (isLocked) {
-            account.setLockedUntil(null);
-            authSessionRepository.revokeAllByAccountId(
-                    account.getId(),
-                    LocalDateTime.now(),
-                    "Admin khóa tài khoản: " + (request.getReason() != null ? request.getReason() : "")
-            );
-            log.info("Khóa tài khoản accountId={}, email={}, reason={}", accountId, account.getEmail(), request.getReason());
-        } else {
-            account.setLockedUntil(null);
-            account.setFailedLoginCount(0);
-            log.info("Mở khóa tài khoản accountId={}, email={}", accountId, account.getEmail());
-        }
-        accountRepository.save(account);
-    }
-
-    /** FIX: trả "" thay vì null cho String params */
-    private String emptyToBlank(String s) {
-        return (s == null || s.isBlank()) ? "" : s.trim();
     }
 }
