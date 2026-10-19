@@ -24,6 +24,7 @@ export const API_ENDPOINT = {
   COURSE_CANCEL: (id: number) => `/api/courses/${id}/cancel`,
   COURSE_COPY: (id: number) => `/api/courses/${id}/copy`,
   COURSE_HARD_DELETE: (id: number) => `/api/courses/${id}/hard`,
+  COURSE_CHANGE_TEACHER: (id: number) => `/api/courses/${id}/teacher`,
 
   // ══════════════════════════════════════════════════════════════
   // RESOURCES
@@ -41,6 +42,14 @@ export const API_ENDPOINT = {
     `/api/courses/${courseId}/sessions/${id}`,
   SESSION_CANCEL: (courseId: number, id: number) =>
     `/api/courses/${courseId}/sessions/${id}/cancel`,
+  SESSION_GENERATE: (courseId: number) =>
+    `/api/courses/${courseId}/sessions/generate`,
+  SESSION_DONE: (courseId: number, id: number) =>
+    `/api/courses/${courseId}/sessions/${id}/done`,
+  SESSION_SUBSTITUTE_TEACHER: (courseId: number, id: number) =>
+    `/api/courses/${courseId}/sessions/${id}/substitute-teacher`,
+  SESSION_ASSISTANT: (courseId: number, id: number) =>
+    `/api/courses/${courseId}/sessions/${id}/assistant`,
   SESSION_TEACHER: (courseId: number, id: number) =>
     `/api/courses/${courseId}/sessions/${id}/teacher`,
 
@@ -50,6 +59,21 @@ export const API_ENDPOINT = {
   QUESTIONS: (courseId: number) => `/api/courses/${courseId}/questions`,
   QUESTION_DETAIL: (courseId: number, id: number) =>
     `/api/courses/${courseId}/questions/${id}`,
+
+  // ══════════════════════════════════════════════════════════════
+  // QUIZZES
+  // ══════════════════════════════════════════════════════════════
+  QUIZZES: (courseId: number) => `/api/courses/${courseId}/quizzes`,
+  QUIZ_DETAIL: (courseId: number, id: number) =>
+    `/api/courses/${courseId}/quizzes/${id}`,
+  QUIZ_START: (courseId: number, id: number) =>
+    `/api/courses/${courseId}/quizzes/${id}/start`,
+  QUIZ_SUBMIT: (courseId: number, id: number) =>
+    `/api/courses/${courseId}/quizzes/${id}/submit`,
+  QUIZ_ATTEMPTS: (courseId: number, id: number) =>
+    `/api/courses/${courseId}/quizzes/${id}/attempts`,
+  QUIZ_ATTEMPT_DETAIL: (courseId: number, id: number, attemptId: number) =>
+    `/api/courses/${courseId}/quizzes/${id}/attempts/${attemptId}`,
 
   // ══════════════════════════════════════════════════════════════
   // CATEGORIES

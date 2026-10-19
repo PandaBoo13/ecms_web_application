@@ -11,6 +11,7 @@ import CourseOverviewCard from '@/components/course/CourseOverviewCard';
 import CourseResourceTree from '@/components/course/CourseResourceTree';
 import CourseSessionList from '@/components/course/CourseSessionList';
 import CourseQuestionList from '@/components/course/CourseQuestionList';
+import QuizListCard from '@/components/course/QuizListCard';
 
 import { courseApi } from '@/services/api/courses';
 import type { CourseDetailResponse } from '@/services/types/course';
@@ -50,35 +51,48 @@ const CourseDetailPage = () => {
   if (error) return <ErrorState title="Lỗi" description={error} onRetry={fetchCourse} />;
   if (!course) return <ErrorState description="Không tìm thấy khóa học" />;
 
+  const tabItems = [
+    {
+      key: 'overview',
+      label: 'Tổng quan',
+      children: <CourseOverviewCard course={course} />,
+    },
+    {
+      key: 'resources',
+      label: `Nội dung (${course.resources?.length || 0})`,
+      children: <CourseResourceTree resources={course.resources || []} />,
+    },
+    {
+      key: 'questions',
+      label: 'Câu hỏi',
+      children: <CourseQuestionList courseId={courseId} />,
+    },
+    {
+      key: 'quizzes',
+      label: 'Quiz',
+      children: <QuizListCard courseId={courseId} />,
+    },
+  ];
+
+  // Chỉ OFFLINE mới có tab Session
+  if (course.courseType === 'OFFLINE') {
+    tabItems.splice(2, 0, {
+      key: 'sessions',
+      label: `Buổi học (${course.sessions?.length || 0})`,
+      children: (
+        <CourseSessionList
+          courseId={courseId}
+          sessions={course.sessions || []}
+          onRefresh={fetchCourse}
+        />
+      ),
+    });
+  }
+
   return (
     <PageContainer>
       <CourseDetailHeader course={course} onRefresh={fetchCourse} />
-
-      <Tabs
-        defaultActiveKey="overview"
-        items={[
-          {
-            key: 'overview',
-            label: 'Tổng quan',
-            children: <CourseOverviewCard course={course} />,
-          },
-          {
-            key: 'resources',
-            label: `Nội dung (${course.resources?.length || 0})`,
-            children: <CourseResourceTree resources={course.resources || []} />,
-          },
-          {
-            key: 'sessions',
-            label: `Buổi học (${course.sessions?.length || 0})`,
-            children: <CourseSessionList sessions={course.sessions || []} />,
-          },
-          {
-            key: 'questions',
-            label: 'Câu hỏi',
-            children: <CourseQuestionList courseId={courseId} />,
-          },
-        ]}
-      />
+      <Tabs defaultActiveKey="overview" items={tabItems} />
     </PageContainer>
   );
 };
