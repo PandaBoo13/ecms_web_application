@@ -186,4 +186,10 @@ export const API_ENDPOINT = {
   STUDENT_GUARDIANS: (id: number) => `/api/students/${id}/guardians`,
   STUDENT_GUARDIAN_DETAIL: (id: number, guardianId: number) => `/api/students/${id}/guardians/${guardianId}`,
   STUDENT_ACADEMIC_HISTORIES: (id: number) => `/api/students/${id}/academic-histories`,
+
+  // ══════════════════════════════════════════════════════════════
+  // AI AGENT
+  // ══════════════════════════════════════════════════════════════
+  AI_AGENT_CHAT: '/api/ai-agent/chat',
+
 } as const;

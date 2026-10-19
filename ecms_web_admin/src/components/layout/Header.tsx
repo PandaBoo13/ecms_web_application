@@ -4,6 +4,7 @@ import UserDropdown from './UserDropdown';
 import LanguageDropdown from './LanguageDropdown';
 import NotificationDropdown from './NotificationDropdown';
 import ChatWidget from '@/components/chat/ChatWidget';
+import AIAgentWidget from '@/components/ai/AIAgentWidget';
 import { useUIStore } from '@/stores/uiStore';
 
 const { Header: AntHeader } = Layout;
@@ -37,6 +38,7 @@ const Header = () => {
         <LanguageDropdown />
         <NotificationDropdown />
         <ChatWidget />
+        <AIAgentWidget />
         <UserDropdown />
       </Space>
     </AntHeader>
