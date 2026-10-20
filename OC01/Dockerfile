@@ -28,4 +28,5 @@ COPY --from=build /app/target/*.jar app.jar
 EXPOSE 10000
 
 # 🔥 ĐÃ SỬA: Ép Spring Boot chạy ở cổng 10000 và lắng nghe trên 0.0.0.0
-ENTRYPOINT ["java", "-Xmx380m", "-jar", "app.jar", "--server.port=10000", "--server.address=0.0.0.0"]
+# Sử dụng shell form hoặc truyền $PORT để Java nhận đúng cổng từ Render
+ENTRYPOINT ["sh", "-c", "java -Xmx380m -jar app.jar --server.port=${PORT:-10000} --server.address=0.0.0.0"]
