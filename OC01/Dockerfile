@@ -24,8 +24,8 @@ RUN apk add --no-cache fontconfig ttf-dejavu
 # Copy file JAR từ giai đoạn build sang
 COPY --from=build /app/target/*.jar app.jar
 
-# Render sẽ inject biến PORT, nhưng ta mở cổng 8080 mặc định
-EXPOSE 8080
+# 🔥 ĐÃ SỬA: Mở cổng 10000 (cổng mặc định Render thường dùng cho Docker)
+EXPOSE 10000
 
-# Cấu hình RAM cho gói Free của Render (512MB) để tránh bị OOM (Out of Memory) Kill
-ENTRYPOINT ["java", "-Xmx380m", "-jar", "app.jar"]
+# 🔥 ĐÃ SỬA: Ép Spring Boot chạy ở cổng 10000 và lắng nghe trên 0.0.0.0
+ENTRYPOINT ["java", "-Xmx380m", "-jar", "app.jar", "--server.port=10000", "--server.address=0.0.0.0"]
