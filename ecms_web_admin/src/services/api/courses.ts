@@ -1,4 +1,3 @@
-// src/services/api/courses.ts
 import api from './axiosConfig';
 import { API_ENDPOINT } from '@/constants/api-endpoint';
 import type { RequestResponse, PageResponse } from '../types/api';
@@ -185,6 +184,13 @@ export const resourceApi = {
   delete: async (courseId: number, id: number): Promise<void> => {
     await api.delete(API_ENDPOINT.RESOURCE_DETAIL(courseId, id));
   },
+
+  reorder: async (
+    courseId: number,
+    items: { id: number; orderIndex: number }[],
+  ): Promise<void> => {
+    await api.put(API_ENDPOINT.RESOURCE_REORDER(courseId), { items });
+  },
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -269,7 +275,6 @@ export const sessionApi = {
     return data.data;
   },
 
-  /** @deprecated Dùng assignSubstituteTeacher */
   assignTeacher: async (
     courseId: number,
     id: number,

@@ -1,6 +1,6 @@
 import { Table, Space } from 'antd';
 import type { ColumnsType, TablePaginationConfig } from 'antd/es/table';
-import type { ReactNode } from 'react';
+import type { ReactNode, HTMLAttributes } from 'react';
 import SearchInput from './SearchInput';
 import EmptyState from '../feedback/EmptyState';
 import { useTranslation } from '@/hooks/useTranslation';
@@ -23,6 +23,9 @@ interface Props<T> {
   extra?: ReactNode;
   title?: ReactNode;
   showSearch?: boolean;
+  
+  // Event
+  onRow?: (record: T, index?: number) => HTMLAttributes<HTMLElement>;
 }
 
 function DataTable<T extends object>({
@@ -39,6 +42,7 @@ function DataTable<T extends object>({
   extra,
   title,
   showSearch = true,
+  onRow,
 }: Props<T>) {
   const { t } = useTranslation();
 
@@ -84,6 +88,7 @@ function DataTable<T extends object>({
         pagination={pagination}
         title={title ? () => title : undefined}
         scroll={{ x: 'max-content' }}
+        onRow={onRow}
         locale={{
           emptyText: <EmptyState />,
         }}
