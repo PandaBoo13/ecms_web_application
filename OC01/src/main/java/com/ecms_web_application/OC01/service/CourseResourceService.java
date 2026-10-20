@@ -12,4 +12,5 @@ public interface CourseResourceService {
     CourseResourceResponse create(Long courseId, ResourceCreateRequest request);
     CourseResourceResponse update(Long id, ResourceUpdateRequest request);
     void delete(Long id);
+    void reorder(Long courseId, com.ecms_web_application.OC01.dto.request.course.ResourceReorderRequest request);
 }

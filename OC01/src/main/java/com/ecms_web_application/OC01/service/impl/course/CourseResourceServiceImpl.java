@@ -2,6 +2,7 @@ package com.ecms_web_application.OC01.service.impl.course;
 
 import com.ecms_web_application.OC01.config.SecurityUtils;
 import com.ecms_web_application.OC01.dto.request.course.ResourceCreateRequest;
+import com.ecms_web_application.OC01.dto.request.course.ResourceReorderRequest;
 import com.ecms_web_application.OC01.dto.request.course.ResourceUpdateRequest;
 import com.ecms_web_application.OC01.dto.response.course.CourseResourceResponse;
 import com.ecms_web_application.OC01.dto.response.course.ResourceTreeResponse;
@@ -81,8 +82,8 @@ public class CourseResourceServiceImpl implements CourseResourceService {
         r.setDescription(request.getDescription());
         Integer next = request.getOrderIndex() != null ? request.getOrderIndex()
                 : (parent == null
-                    ? Optional.ofNullable(resourceRepository.maxRootOrderIndex(courseId)).orElse(-1) + 1
-                    : Optional.ofNullable(resourceRepository.maxChildOrderIndex(parent.getId())).orElse(-1) + 1);
+                ? Optional.ofNullable(resourceRepository.maxRootOrderIndex(courseId)).orElse(-1) + 1
+                : Optional.ofNullable(resourceRepository.maxChildOrderIndex(parent.getId())).orElse(-1) + 1);
         r.setOrderIndex(next);
         r.setIsRequired(Boolean.TRUE.equals(request.getIsRequired()));
         r.setIsFreePreview(Boolean.TRUE.equals(request.getIsFreePreview()));
@@ -162,11 +163,42 @@ public class CourseResourceServiceImpl implements CourseResourceService {
         }
         boolean needRecalc = Boolean.TRUE.equals(r.getIsRequired())
                 && (r.getCourse().getStatus() == com.ecms_web_application.OC01.entity.enums.CourseStatus.PUBLISHED
-                 || r.getCourse().getStatus() == com.ecms_web_application.OC01.entity.enums.CourseStatus.ONGOING);
+                || r.getCourse().getStatus() == com.ecms_web_application.OC01.entity.enums.CourseStatus.ONGOING);
         Long courseIdForRecalc = r.getCourse().getId();
         resourceRepository.delete(r);
         auditLogService.log("DELETE", "RESOURCE", id, null);
         if (needRecalc) progressCalculationService.onResourceChanged(courseIdForRecalc);
+    }
+
+    @Override
+    @Transactional
+    public void reorder(Long courseId, ResourceReorderRequest request) {
+        courseRepository.findById(courseId)
+                .orElseThrow(() -> new ErrorHandler(HttpStatus.NOT_FOUND, "Khóa học không tồn tại"));
+
+        List<CourseResource> toUpdate = new ArrayList<>();
+        Map<Long, Set<Integer>> usedIndices = new HashMap<>();
+
+        for (ResourceReorderRequest.ReorderItem item : request.getItems()) {
+            CourseResource r = getOrThrow(item.getId());
+
+            if (!r.getCourse().getId().equals(courseId)) {
+                throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Resource " + item.getId() + " không thuộc khóa học này");
+            }
+
+            Long parentKey = r.getParent() != null ? r.getParent().getId() : -1L;
+            Set<Integer> indices = usedIndices.computeIfAbsent(parentKey, k -> new HashSet<>());
+            if (!indices.add(item.getOrderIndex())) {
+                throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Trùng orderIndex " + item.getOrderIndex() + " trong cùng parent");
+            }
+
+            r.setOrderIndex(item.getOrderIndex());
+            toUpdate.add(r);
+        }
+
+        resourceRepository.saveAll(toUpdate);
+        auditLogService.log("REORDER", "RESOURCE", courseId, "Cập nhật thứ tự " + toUpdate.size() + " resource");
+        log.info("Reorder course {}: {} resource", courseId, toUpdate.size());
     }
 
     private CourseResource getOrThrow(Long id) {
@@ -190,7 +222,6 @@ public class CourseResourceServiceImpl implements CourseResourceService {
         }
     }
 
-    /** Q3=C: chỉ set cờ khi course đã publish/ongoing và resource là bắt buộc. */
     private void triggerRecalcIfRequired(CourseResource r) {
         if (!Boolean.TRUE.equals(r.getIsRequired())) return;
         var status = r.getCourse().getStatus();

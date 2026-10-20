@@ -60,4 +60,11 @@ public class CourseResourceController {
         resourceService.delete(id);
         return ResponseEntity.ok(new RequestResponse("Xóa resource thành công"));
     }
+    @PutMapping("/reorder")
+    public ResponseEntity<RequestResponse> reorder(
+            @PathVariable Long courseId,
+            @jakarta.validation.Valid @RequestBody com.ecms_web_application.OC01.dto.request.course.ResourceReorderRequest request) {
+        resourceService.reorder(courseId, request);
+        return ResponseEntity.ok(new RequestResponse("Cập nhật thứ tự thành công"));
+    }
 }
