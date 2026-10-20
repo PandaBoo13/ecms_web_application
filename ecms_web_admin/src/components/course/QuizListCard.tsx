@@ -1,25 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
-  Card,
-  Table,
-  Button,
-  Space,
-  Tag,
-  Modal,
-  Form,
-  Input,
-  InputNumber,
-  Switch,
-  Select,
-  Popconfirm,
-  Tooltip,
+  Card, Table, Button, Space, Tag, Modal, Form, Input, InputNumber,
+  Switch, Select, Popconfirm, Tooltip,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { PlusOutlined, DeleteOutlined, ReloadOutlined } from '@ant-design/icons';
 import toast from 'react-hot-toast';
 
-import StatusTag from '@/components/common/StatusTag';
 import DateDisplay from '@/components/common/DateDisplay';
+import InlineEdit from '@/components/common/InlineEdit';
 import { quizApi } from '@/services/api/courses';
 import type { QuizResponse, QuizCreateRequest } from '@/services/types/course';
 
@@ -79,17 +68,38 @@ const QuizListCard = ({ courseId }: Props) => {
     }
   };
 
+  const handleUpdateTitle = async (id: number, newTitle: string, record: QuizResponse) => {
+    try {
+      await quizApi.update(courseId, id, {
+        title: newTitle,
+        quizType: record.quizType,
+        passingScore: record.passingScore,
+        maxAttempts: record.maxAttempts,
+        timeLimit: record.timeLimit,
+        shuffleQuestions: record.shuffleQuestions,
+        totalQuestions: record.totalQuestions,
+        hashtagFilter: record.hashtagFilter,
+      });
+      toast.success('Đã cập nhật tiêu đề Quiz');
+      fetchData();
+    } catch (err) {
+      toast.error((err as { message?: string })?.message || 'Cập nhật thất bại');
+      throw err;
+    }
+  };
+
   const columns: ColumnsType<QuizResponse> = [
-    {
-      title: 'ID',
-      dataIndex: 'id',
-      width: 70,
-      align: 'center',
-    },
+    { title: 'ID', dataIndex: 'id', width: 70, align: 'center' },
     {
       title: 'Tiêu đề',
       dataIndex: 'title',
       ellipsis: true,
+      render: (title: string, record) => (
+        <InlineEdit
+          value={title}
+          onSave={(newVal) => handleUpdateTitle(record.id, newVal, record)}
+        />
+      ),
     },
     {
       title: 'Loại',
@@ -175,16 +185,17 @@ const QuizListCard = ({ courseId }: Props) => {
             <Button icon={<ReloadOutlined />} onClick={fetchData}>
               Làm mới
             </Button>
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={() => setCreateOpen(true)}
-            >
+            <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>
               Tạo Quiz
             </Button>
           </Space>
         }
       >
+        <div style={{ marginBottom: 16 }}>
+          <span style={{ fontStyle: 'italic', fontSize: 13, color: '#888' }}>
+            * Mẹo: Nhấp đúp chuột vào tiêu đề để sửa nhanh.
+          </span>
+        </div>
         <Table<QuizResponse>
           columns={columns}
           dataSource={data}
@@ -196,7 +207,6 @@ const QuizListCard = ({ courseId }: Props) => {
         />
       </Card>
 
-      {/* Modal tạo quiz */}
       <Modal
         title="Tạo Quiz mới"
         open={createOpen}
@@ -219,11 +229,7 @@ const QuizListCard = ({ courseId }: Props) => {
           }}
           style={{ marginTop: 12 }}
         >
-          <Form.Item
-            name="title"
-            label="Tiêu đề"
-            rules={[{ required: true, message: 'Vui lòng nhập tiêu đề' }]}
-          >
+          <Form.Item name="title" label="Tiêu đề" rules={[{ required: true, message: 'Vui lòng nhập tiêu đề' }]}>
             <Input maxLength={255} placeholder="VD: Kiểm tra chương 1" />
           </Form.Item>
 
@@ -237,21 +243,11 @@ const QuizListCard = ({ courseId }: Props) => {
           </Form.Item>
 
           <Space size={12} style={{ display: 'flex' }}>
-            <Form.Item
-              name="passingScore"
-              label="Điểm pass (%)"
-              rules={[{ required: true, message: 'Bắt buộc' }]}
-              style={{ flex: 1 }}
-            >
+            <Form.Item name="passingScore" label="Điểm pass (%)" rules={[{ required: true, message: 'Bắt buộc' }]} style={{ flex: 1 }}>
               <InputNumber min={0} max={100} style={{ width: '100%' }} />
             </Form.Item>
-
             <Form.Item name="maxAttempts" label="Số lần làm tối đa" style={{ flex: 1 }}>
-              <InputNumber
-                min={1}
-                style={{ width: '100%' }}
-                placeholder="Để trống = không giới hạn"
-              />
+              <InputNumber min={1} style={{ width: '100%' }} placeholder="Để trống = không giới hạn" />
             </Form.Item>
           </Space>
 
@@ -259,29 +255,16 @@ const QuizListCard = ({ courseId }: Props) => {
             <Form.Item name="timeLimit" label="Giới hạn (phút)" style={{ flex: 1 }}>
               <InputNumber min={0} style={{ width: '100%' }} placeholder="Để trống" />
             </Form.Item>
-
-            <Form.Item
-              name="totalQuestions"
-              label="Số câu hỏi"
-              rules={[{ required: true, message: 'Bắt buộc' }]}
-              style={{ flex: 1 }}
-            >
+            <Form.Item name="totalQuestions" label="Số câu hỏi" rules={[{ required: true, message: 'Bắt buộc' }]} style={{ flex: 1 }}>
               <InputNumber min={1} style={{ width: '100%' }} />
             </Form.Item>
           </Space>
 
           <Form.Item name="hashtagFilter" label="Hashtag filter">
-            <Input
-              maxLength={500}
-              placeholder="VD: chuong1,grammar (phân cách bằng dấu phẩy)"
-            />
+            <Input maxLength={500} placeholder="VD: chuong1,grammar (phân cách bằng dấu phẩy)" />
           </Form.Item>
 
-          <Form.Item
-            name="shuffleQuestions"
-            label="Đảo câu hỏi"
-            valuePropName="checked"
-          >
+          <Form.Item name="shuffleQuestions" label="Đảo câu hỏi" valuePropName="checked">
             <Switch />
           </Form.Item>
         </Form>

@@ -33,6 +33,7 @@ export const API_ENDPOINT = {
   RESOURCE_TREE: (courseId: number) => `/api/courses/${courseId}/resources/tree`,
   RESOURCE_DETAIL: (courseId: number, id: number) =>
     `/api/courses/${courseId}/resources/${id}`,
+  RESOURCE_REORDER: (courseId: number) => `/api/courses/${courseId}/resources/reorder`,
 
   // ══════════════════════════════════════════════════════════════
   // SESSIONS
@@ -42,6 +43,8 @@ export const API_ENDPOINT = {
     `/api/courses/${courseId}/sessions/${id}`,
   SESSION_CANCEL: (courseId: number, id: number) =>
     `/api/courses/${courseId}/sessions/${id}/cancel`,
+  SESSION_TEACHER: (courseId: number, id: number) =>
+    `/api/courses/${courseId}/sessions/${id}/teacher`,
   SESSION_GENERATE: (courseId: number) =>
     `/api/courses/${courseId}/sessions/generate`,
   SESSION_DONE: (courseId: number, id: number) =>
@@ -50,8 +53,6 @@ export const API_ENDPOINT = {
     `/api/courses/${courseId}/sessions/${id}/substitute-teacher`,
   SESSION_ASSISTANT: (courseId: number, id: number) =>
     `/api/courses/${courseId}/sessions/${id}/assistant`,
-  SESSION_TEACHER: (courseId: number, id: number) =>
-    `/api/courses/${courseId}/sessions/${id}/teacher`,
 
   // ══════════════════════════════════════════════════════════════
   // QUESTIONS

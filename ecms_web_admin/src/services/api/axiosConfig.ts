@@ -26,11 +26,11 @@ interface QueueItem {
   resolve: () => void;
   reject: (reason?: unknown) => void;
 }
-
+// http://localhost:8080
 // ══════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════
-export const API_HOST = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+export const API_HOST = import.meta.env.VITE_API_URL || '';
 
 /** ⚠️ KHÔNG append `/api` — endpoint đã có prefix này */
 export const API_BASE_URL = API_HOST;
