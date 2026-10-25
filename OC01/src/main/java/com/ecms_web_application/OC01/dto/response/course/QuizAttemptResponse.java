@@ -22,4 +22,6 @@ public class QuizAttemptResponse {
     private LocalDateTime startedAt;
     private LocalDateTime submittedAt;
     private Integer timeSpent;
+    private java.util.List<QuizQuestionView> questions;
+    private java.util.Map<String, Object> answers;
 }

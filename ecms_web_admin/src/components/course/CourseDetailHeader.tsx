@@ -1,4 +1,4 @@
-import { Button, Space, Popconfirm, Modal, Input, Typography } from 'antd';
+import { Button, Space, Popconfirm, Modal, Input, Typography, Select } from 'antd';
 import {
   ArrowLeftOutlined,
   SendOutlined,
@@ -7,15 +7,21 @@ import {
   InboxOutlined,
   StopOutlined,
   ReloadOutlined,
+  UserSwitchOutlined,
+  ThunderboltOutlined,
+  CopyOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 
 import PageHeader from '@/components/common/PageHeader';
 import StatusTag from '@/components/common/StatusTag';
-import { courseApi } from '@/services/api/courses';
+import { courseApi, sessionApi } from '@/services/api/courses';
+import { adminUserApi } from '@/services/api/admin';
 import type { CourseDetailResponse } from '@/services/types/course';
+import type { AccountResponse } from '@/services/types/user';
+import { useAuth } from '@/hooks/useAuth';
 
 const { Text } = Typography;
 
@@ -26,7 +32,31 @@ interface Props {
 
 const CourseDetailHeader = ({ course, onRefresh }: Props) => {
   const navigate = useNavigate();
+  const { isAdmin } = useAuth();
   const [submitting, setSubmitting] = useState(false);
+  const [generating, setGenerating] = useState(false);
+
+  // Đổi GV chính
+  const [teacherModalOpen, setTeacherModalOpen] = useState(false);
+  const [instructors, setInstructors] = useState<AccountResponse[]>([]);
+  const [loadingInstructors, setLoadingInstructors] = useState(false);
+  const [selectedTeacherId, setSelectedTeacherId] = useState<number | undefined>();
+
+  // Copy khóa
+  const [copyModalOpen, setCopyModalOpen] = useState(false);
+  const [copyTitle, setCopyTitle] = useState('');
+  const [copyDisplayCode, setCopyDisplayCode] = useState('');
+  const [copySubmitting, setCopySubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!teacherModalOpen) return;
+    setLoadingInstructors(true);
+    adminUserApi
+      .search({ roleCode: 'INSTRUCTOR', isActive: true, page: 0, size: 200 })
+      .then((res) => setInstructors(res.content))
+      .catch(() => toast.error('Không tải được danh sách giảng viên'))
+      .finally(() => setLoadingInstructors(false));
+  }, [teacherModalOpen]);
 
   // ══════════════════════════════════════════════════════════════
   // HANDLERS
@@ -129,8 +159,79 @@ const CourseDetailHeader = ({ course, onRefresh }: Props) => {
     });
   };
 
+  const handleGenerateSessions = async () => {
+    setGenerating(true);
+    try {
+      const res = await sessionApi.generate(course.id);
+      toast.success(res.message, { duration: 5000 });
+      if (res.skipped.length > 0) {
+        Modal.info({
+          title: 'Một số ngày bị bỏ qua',
+          content: (
+            <div style={{ maxHeight: 300, overflow: 'auto' }}>
+              {res.skipped.map((s, i) => (
+                <div key={i} style={{ fontSize: 13, padding: '2px 0' }}>
+                  <Text code>{s.date}</Text> — {s.reason}
+                </div>
+              ))}
+            </div>
+          ),
+        });
+      }
+      onRefresh();
+    } catch (err) {
+      toast.error((err as { message?: string })?.message || 'Sinh session thất bại');
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const handleChangeTeacher = async () => {
+    if (!selectedTeacherId) {
+      toast.error('Vui lòng chọn giảng viên');
+      return;
+    }
+    try {
+      await courseApi.changeTeacher(course.id, selectedTeacherId);
+      toast.success('Đã đổi GV chính của khóa');
+      setTeacherModalOpen(false);
+      setSelectedTeacherId(undefined);
+      onRefresh();
+    } catch (err) {
+      toast.error((err as { message?: string })?.message || 'Đổi GV thất bại');
+    }
+  };
+
+  const openCopyModal = () => {
+    setCopyTitle(`${course.title} (Copy)`);
+    setCopyDisplayCode(`${course.displayCode}-COPY`);
+    setCopyModalOpen(true);
+  };
+
+  const handleCopy = async () => {
+    if (!copyTitle.trim() || !copyDisplayCode.trim()) {
+      toast.error('Vui lòng nhập đầy đủ tiêu đề và display code');
+      return;
+    }
+    setCopySubmitting(true);
+    try {
+      const newCourse = await courseApi.copy(course.id, {
+        newTitle: copyTitle.trim(),
+        newDisplayCode: copyDisplayCode.trim(),
+        resetPrice: false,
+      });
+      toast.success(`Đã copy khóa học #${newCourse.id}`);
+      setCopyModalOpen(false);
+      navigate(`/admin/courses/${newCourse.id}`);
+    } catch (err) {
+      toast.error((err as { message?: string })?.message || 'Copy thất bại');
+    } finally {
+      setCopySubmitting(false);
+    }
+  };
+
   // ══════════════════════════════════════════════════════════════
-  // RENDER ACTIONS THEO STATUS
+  // RENDER ACTIONS
   // ══════════════════════════════════════════════════════════════
   const renderActions = () => {
     const buttons: React.ReactNode[] = [];
@@ -145,7 +246,7 @@ const CourseDetailHeader = ({ course, onRefresh }: Props) => {
           onClick={handleSubmitReview}
         >
           Gửi duyệt
-        </Button>
+        </Button>,
       );
     }
 
@@ -162,7 +263,7 @@ const CourseDetailHeader = ({ course, onRefresh }: Props) => {
         </Button>,
         <Button key="reject" danger icon={<CloseOutlined />} onClick={handleReject}>
           Từ chối
-        </Button>
+        </Button>,
       );
     }
 
@@ -176,7 +277,46 @@ const CourseDetailHeader = ({ course, onRefresh }: Props) => {
           cancelText="Hủy"
         >
           <Button icon={<InboxOutlined />}>Lưu trữ</Button>
-        </Popconfirm>
+        </Popconfirm>,
+      );
+    }
+
+    // Sinh session — chỉ cho OFFLINE
+    if (
+      course.courseType === 'OFFLINE' &&
+      ['DRAFT', 'PENDING_REVIEW', 'PUBLISHED'].includes(course.status)
+    ) {
+      buttons.push(
+        <Button
+          key="generate"
+          icon={<ThunderboltOutlined />}
+          loading={generating}
+          onClick={handleGenerateSessions}
+        >
+          Sinh session
+        </Button>,
+      );
+    }
+
+    // Đổi GV chính — ADMIN + OFFLINE
+    if (isAdmin() && course.courseType === 'OFFLINE') {
+      buttons.push(
+        <Button
+          key="changeTeacher"
+          icon={<UserSwitchOutlined />}
+          onClick={() => setTeacherModalOpen(true)}
+        >
+          Đổi GV chính
+        </Button>,
+      );
+    }
+
+    // Copy khóa — DRAFT / PUBLISHED / ARCHIVED
+    if (['DRAFT', 'PUBLISHED', 'ARCHIVED'].includes(course.status)) {
+      buttons.push(
+        <Button key="copy" icon={<CopyOutlined />} onClick={openCopyModal}>
+          Copy
+        </Button>,
       );
     }
 
@@ -184,40 +324,107 @@ const CourseDetailHeader = ({ course, onRefresh }: Props) => {
       buttons.push(
         <Button key="cancel" danger icon={<StopOutlined />} onClick={handleCancel}>
           Hủy khóa
-        </Button>
+        </Button>,
       );
     }
 
     return buttons;
   };
 
-  // ══════════════════════════════════════════════════════════════
-  // RENDER
-  // ══════════════════════════════════════════════════════════════
   return (
-    <PageHeader
-      title={course.title}
-      subtitle={
-        <Space size={8}>
-          <Text type="secondary">{course.code}</Text>
-          <StatusTag status={course.status} />
-          <StatusTag status={course.courseType} />
-        </Space>
-      }
-      backButton
-      backTo="/admin/courses"
-      extra={
-        <Space wrap>
-          <Button icon={<ReloadOutlined />} onClick={onRefresh}>
-            Làm mới
-          </Button>
-          <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/admin/courses')}>
-            Danh sách
-          </Button>
-          {renderActions()}
-        </Space>
-      }
-    />
+    <>
+      <PageHeader
+        title={course.title}
+        subtitle={
+          <Space size={8}>
+            <Text type="secondary">{course.code}</Text>
+            <StatusTag status={course.status} />
+            <StatusTag status={course.courseType} />
+          </Space>
+        }
+        backButton
+        backTo="/admin/courses"
+        extra={
+          <Space wrap>
+            <Button icon={<ReloadOutlined />} onClick={onRefresh}>
+              Làm mới
+            </Button>
+            <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/admin/courses')}>
+              Danh sách
+            </Button>
+            {renderActions()}
+          </Space>
+        }
+      />
+
+      {/* Modal đổi GV chính */}
+      <Modal
+        title="Đổi giảng viên chính của khóa"
+        open={teacherModalOpen}
+        onCancel={() => setTeacherModalOpen(false)}
+        onOk={handleChangeTeacher}
+        okText="Xác nhận"
+        cancelText="Hủy"
+        destroyOnClose
+      >
+        <div style={{ marginBottom: 12 }}>
+          <Text type="secondary">
+            Hệ thống sẽ sync GV mới xuống các buổi SCHEDULED chưa có GV dạy thay.
+          </Text>
+        </div>
+        <Select
+          style={{ width: '100%' }}
+          placeholder="Chọn giảng viên"
+          loading={loadingInstructors}
+          value={selectedTeacherId}
+          onChange={setSelectedTeacherId}
+          showSearch
+          optionFilterProp="label"
+          options={instructors.map((a) => ({
+            value: a.accountId,
+            label: `${a.fullName || a.email} (${a.email})`,
+          }))}
+        />
+      </Modal>
+
+      {/* Modal copy */}
+      <Modal
+        title="Copy khóa học"
+        open={copyModalOpen}
+        onCancel={() => setCopyModalOpen(false)}
+        onOk={handleCopy}
+        confirmLoading={copySubmitting}
+        okText="Copy"
+        cancelText="Hủy"
+        destroyOnClose
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 4 }}>
+              Tiêu đề mới
+            </div>
+            <Input
+              value={copyTitle}
+              onChange={(e) => setCopyTitle(e.target.value)}
+              placeholder="VD: Khóa học ABC (Copy)"
+            />
+          </div>
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 4 }}>
+              Display code mới
+            </div>
+            <Input
+              value={copyDisplayCode}
+              onChange={(e) => setCopyDisplayCode(e.target.value)}
+              placeholder="VD: CRS-ONL-202610-COPY"
+            />
+          </div>
+          <Text type="secondary" style={{ fontSize: 12 }}>
+            Cây nội dung và ngân hàng câu hỏi sẽ được copy. Enrollment, session, progress không copy.
+          </Text>
+        </div>
+      </Modal>
+    </>
   );
 };
 

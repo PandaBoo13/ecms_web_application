@@ -29,4 +29,5 @@ public class ProgressResponse {
     private LocalDateTime lastAccessedAt;
     private LocalDateTime startedAt;
     private LocalDateTime completedAt;
+    private Boolean hasUncompletedNewContent;
 }

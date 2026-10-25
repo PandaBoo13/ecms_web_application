@@ -3,7 +3,7 @@ spring:
     name: OC01
 
   # ══════════════════════════════════════════════════════════════
-  # AI
+  # AI (ĐÃ SỬA LỖI CÚ PHÁP)
   # ══════════════════════════════════════════════════════════════
   ai:
     google:
@@ -11,9 +11,14 @@ spring:
         api-key: ${GEMINI_API_KEY}
         chat:
           options:
-            model: gemini-2.0-flash-exp
-            temperature: 0.7
+            # ✅ Chọn model 2.5+ đang được hỗ trợ và ổn định
+            model: gemini-3.8-flash
 
+            # ✅ Tắt tính năng thinking (giữ nguyên như bạn đã làm)
+            include-thoughts: false
+
+            # ✅ Giữ temperature thấp để AI ít bịa đặt
+            temperature: 0.2
   # ══════════════════════════════════════════════════════════════
   # DATASOURCE — PostgreSQL
   # ══════════════════════════════════════════════════════════════
@@ -168,7 +173,7 @@ spring:
 # SERVER — TỐI ƯU
 # ══════════════════════════════════════════════════════════════════
 server:
-  port: ${SERVER_PORT:8080}
+  port: ${PORT:8080} # 🔥 ĐÃ SỬA: Đổi SERVER_PORT thành PORT để Render nhận diện
   address: 0.0.0.0
 
   # 🆕 GZIP COMPRESSION — giảm 70-85% payload JSON
@@ -251,10 +256,12 @@ app:
   websocket:
     allowed-origins: ${WS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:5173,http://127.0.0.1:5173}
     enabled: ${WS_ENABLED:true}
+
+  # 🔥 ĐÃ SỬA: Thêm domain Vercel vào danh sách CORS
   cors:
     allowed-origins:
       - ${CORS_FE_ADMIN_LOCAL:http://localhost:5173}
-      - ${CORS_FE_ADMIN:http://admin.ecms.local:3001}
+      - ${CORS_FE_ADMIN:https://ecms-web-application-qtjc0lmxt-pandaboo13s-projects.vercel.app}
       - ${CORS_FE_PUBLIC:http://study.ecms.local:3000}
       - ${CORS_FE_PUBLIC_LOCAL:http://localhost:3000}
 
@@ -290,9 +297,9 @@ cookie:
   refresh-token-name: refresh_token
   domain:
   path: /
-  secure: false
+  secure: true       # 🔥 ĐÃ SỬA: Bắt buộc true cho HTTPS (Vercel/Render)
   http-only: true
-  same-site: Lax
+  same-site: None    # 🔥 ĐÃ SỬA: Bắt buộc None để cho phép Cross-site
   access-token-max-age: 900
   refresh-token-max-age: 2592000
 

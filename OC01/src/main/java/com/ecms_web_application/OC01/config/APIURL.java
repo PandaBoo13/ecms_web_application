@@ -74,6 +74,10 @@ public class APIURL {
             // ============================================================
             "/api/chat/**",
             "/api/notifications/**",
+
+            // Quiz self-service — HV làm bài, GV xem. Phân quyền GV/Admin qua @PreAuthorize.
+            "/api/courses/*/quizzes",
+            "/api/courses/*/quizzes/**",
     };
 
     // ============================================================
@@ -105,6 +109,7 @@ public class APIURL {
             "/api/courses/*/copy",
             "/api/courses/*/offline-info",
             "/api/courses/*/hard",
+            "/api/courses/*/teacher",
 
             // Course nested
             "/api/courses/*/resources",
@@ -113,8 +118,6 @@ public class APIURL {
             "/api/courses/*/sessions/**",
             "/api/courses/*/questions",
             "/api/courses/*/questions/**",
-            "/api/courses/*/quizzes",
-            "/api/courses/*/quizzes/**",
 
             // Audit log
             "/api/audit-logs",

@@ -3,6 +3,7 @@ package com.ecms_web_application.OC01.dto.response.course;
 import lombok.Getter;
 import lombok.Setter;
 import java.time.LocalDateTime;
+import java.time.LocalDate;
 
 @Setter @Getter
 public class SessionResponse {
@@ -25,4 +26,11 @@ public class SessionResponse {
     private Long rescheduledFromId;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    private LocalDate sessionDate;
+    private Long substituteTeacherId;
+    private String substituteTeacherName;
+    private Long effectiveTeacherId;
+    private String effectiveTeacherName;
+    private Long effectiveRoomId;
+    private String effectiveRoomName;
 }

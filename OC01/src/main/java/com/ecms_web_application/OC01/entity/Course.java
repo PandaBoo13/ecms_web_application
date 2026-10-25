@@ -88,6 +88,11 @@ public class Course {
     @Column(name = "created_at", updatable = false) private LocalDateTime createdAt;
     @Column(name = "updated_at") private LocalDateTime updatedAt;
 
+    @Column(name = "learning_mode", length = 20) private String learningMode;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "allowed_room_ids", columnDefinition = "jsonb") private List<Long> allowedRoomIds;
+
     @PrePersist void onCreate() {
         LocalDateTime now = LocalDateTime.now();
         if (createdAt == null) createdAt = now;

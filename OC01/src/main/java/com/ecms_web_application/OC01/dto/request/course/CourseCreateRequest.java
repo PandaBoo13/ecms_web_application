@@ -24,4 +24,8 @@ public class CourseCreateRequest {
     private Long categoryId;
     private Long teacherId;
     private Long roomId;
+    @Size(max = 20)
+    private String learningMode;
+
+    private List<Long> allowedRoomIds;
 }

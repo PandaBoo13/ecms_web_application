@@ -10,6 +10,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.data.jpa.repository.Modifying;
 
 @Repository
 public interface ProgressRepository extends IRepository<Progress, Long> {
@@ -22,6 +23,7 @@ public interface ProgressRepository extends IRepository<Progress, Long> {
             Long accountId, Long courseId, ProgressScope type);
 
     long countByCourse_IdAndProgressType(Long courseId, ProgressScope type);
+    List<Progress> findByCourse_IdAndProgressType(Long courseId, ProgressScope type);
 
     @Query("""
         SELECT p FROM Progress p LEFT JOIN FETCH p.course c
@@ -29,4 +31,22 @@ public interface ProgressRepository extends IRepository<Progress, Long> {
         ORDER BY p.lastAccessedAt DESC NULLS LAST
     """)
     Page<Progress> findCourseProgressByAccount(@Param("accountId") Long accountId, Pageable pageable);
+
+    @Query("""
+        SELECT p FROM Progress p
+        WHERE p.course.id = :courseId
+          AND p.progressType = com.ecms_web_application.OC01.entity.enums.ProgressScope.COURSE
+          AND p.progressPercentage >= 100
+    """)
+    List<Progress> findCompletedCourseProgresses(@Param("courseId") Long courseId);
+
+    @Modifying
+    @Query("""
+        UPDATE Progress p
+        SET p.hasUncompletedNewContent = true
+        WHERE p.course.id = :courseId
+          AND p.progressType = com.ecms_web_application.OC01.entity.enums.ProgressScope.COURSE
+          AND p.progressPercentage >= 100
+    """)
+    int markHasUncompletedNewContent(@Param("courseId") Long courseId);
 }

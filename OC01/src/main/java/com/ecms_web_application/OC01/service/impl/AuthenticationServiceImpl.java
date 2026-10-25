@@ -58,7 +58,6 @@ public class AuthenticationServiceImpl implements AuthenticationService {
     private final EmailService emailService;
     private final AuthValidator authValidator;
 
-    /** ⚠️ ĐỔI: role mặc định khi đăng ký — STUDENT thay vì CUSTOMER */
     private static final String DEFAULT_ROLE = "STUDENT";
 
     // ============================================================
@@ -71,7 +70,6 @@ public class AuthenticationServiceImpl implements AuthenticationService {
         boolean emailExists = accountRepository.existsByEmail(request.getEmail());
         authValidator.validateForRegister(request, emailExists);
 
-        // ⚠️ SỬA: default role = STUDENT
         String roleCode = request.getRoleCode() != null
                 ? request.getRoleCode().toUpperCase()
                 : DEFAULT_ROLE;
@@ -138,7 +136,6 @@ public class AuthenticationServiceImpl implements AuthenticationService {
         account.setLastLoginAt(LocalDateTime.now());
         accountRepository.saveAndFlush(account);
 
-        // ⚠️ SỬA: default role = STUDENT
         String roleCode = account.getRole() != null ? account.getRole().getCode() : DEFAULT_ROLE;
         String accessToken = jwtService.generateAccessTokenWithUserInfo(
                 account.getEmail(),
@@ -171,7 +168,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
                     .ifPresent(session -> {
                         if (session.getRevokedAt() == null) {
                             session.setRevokedAt(LocalDateTime.now());
-                            session.setRevokedReason(RevokedReason.LOGOUT);
+                            session.setRevokedReason(RevokedReason.LOGOUT.name());   // ✅
                             authSessionRepository.save(session);
                             log.info("Revoke session hiện tại: accountId={}, sessionId={}",
                                     session.getAccount().getId(), session.getId());
@@ -217,7 +214,6 @@ public class AuthenticationServiceImpl implements AuthenticationService {
             throw new ErrorHandler(HttpStatus.FORBIDDEN, "Tài khoản đã bị vô hiệu hóa");
         }
 
-        // ⚠️ SỬA: default role = STUDENT
         String roleCode = account.getRole() != null ? account.getRole().getCode() : DEFAULT_ROLE;
         String newAccessToken = jwtService.generateAccessTokenWithUserInfo(
                 account.getEmail(),
@@ -226,7 +222,6 @@ public class AuthenticationServiceImpl implements AuthenticationService {
                 roleCode
         );
 
-        // 🆕 ROTATE: tạo refresh token mới, thay hash cũ (token cũ tự vô hiệu)
         String newRefreshToken = jwtService.generateRefreshToken(account.getEmail());
         session.setRefreshTokenHash(hashToken(newRefreshToken));
         session.setLastActiveAt(LocalDateTime.now());
@@ -287,7 +282,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
                         account.getId(), LocalDateTime.now())
                 .forEach(session -> {
                     session.setRevokedAt(LocalDateTime.now());
-                    session.setRevokedReason(RevokedReason.PASSWORD_CHANGE);
+                    session.setRevokedReason(RevokedReason.PASSWORD_CHANGE.name());   // ✅
                     authSessionRepository.save(session);
                 });
 
@@ -393,7 +388,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
                         account.getId(), LocalDateTime.now())
                 .forEach(session -> {
                     session.setRevokedAt(LocalDateTime.now());
-                    session.setRevokedReason(RevokedReason.PASSWORD_CHANGE);
+                    session.setRevokedReason(RevokedReason.PASSWORD_CHANGE.name());   // ✅
                     authSessionRepository.save(session);
                 });
 
@@ -402,6 +397,9 @@ public class AuthenticationServiceImpl implements AuthenticationService {
         log.info("Reset mật khẩu thành công: email={}", email);
     }
 
+    // ============================================================
+    // AUTH-10: UPDATE PROFILE
+    // ============================================================
     @Override
     @Transactional
     public UserInfoResponse updateProfile(UpdateProfileRequest request) {
@@ -447,7 +445,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
                 .ifPresent(session -> {
                     if (session.getRevokedAt() == null) {
                         session.setRevokedAt(LocalDateTime.now());
-                        session.setRevokedReason(RevokedReason.LOGOUT);
+                        session.setRevokedReason(RevokedReason.LOGOUT.name());   // ✅
                         authSessionRepository.save(session);
                         log.info("Revoke session: accountId={}", session.getAccount().getId());
                     }

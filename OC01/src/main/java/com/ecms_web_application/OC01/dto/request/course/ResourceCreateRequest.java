@@ -38,4 +38,11 @@ public class ResourceCreateRequest {
     private LocalDateTime availableFrom;
     private LocalDateTime availableUntil;
     private QuizCategory quizCategory;
+    @Size(max = 500)
+    private String hashtagFilter;
+
+    @Min(1)
+    private Integer totalQuestions;
+
+    private Boolean shuffleQuestions;
 }

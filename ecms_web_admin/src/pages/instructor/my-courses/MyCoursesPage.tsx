@@ -96,6 +96,10 @@ const MyCoursesPage = () => {
     }
   };
 
+  const goToDetail = (id: number) => {
+    navigate(`/instructor/courses/${id}/edit`);
+  };
+
   // ══════════════════════════════════════════════════════════════
   // COLUMNS
   // ══════════════════════════════════════════════════════════════
@@ -179,22 +183,22 @@ const MyCoursesPage = () => {
               <Button
                 type="text"
                 icon={<SendOutlined style={{ color: '#1890ff' }} />}
-                onClick={() => handleSubmitReview(record.id)}
+                onClick={(e) => { e.stopPropagation(); handleSubmitReview(record.id); }}
               />
             </Tooltip>
           )}
-          <Tooltip title="Chỉnh sửa">
+          <Tooltip title="Chỉnh sửa / Quản lý">
             <Button
               type="text"
               icon={<EditOutlined />}
-              onClick={() => navigate(`/instructor/courses/${record.id}/edit`)}
+              onClick={(e) => { e.stopPropagation(); goToDetail(record.id); }}
             />
           </Tooltip>
-          <Tooltip title="Xem trước">
+          <Tooltip title="Xem chi tiết">
             <Button
               type="text"
               icon={<EyeOutlined />}
-              onClick={() => navigate(`/instructor/courses/${record.id}/edit`)}
+              onClick={(e) => { e.stopPropagation(); goToDetail(record.id); }}
             />
           </Tooltip>
           <Popconfirm
@@ -203,7 +207,7 @@ const MyCoursesPage = () => {
             okText="Xóa"
             cancelText="Hủy"
             okButtonProps={{ danger: true }}
-            onConfirm={() => handleDelete(record.id)}
+            onConfirm={(e) => { e?.stopPropagation(); handleDelete(record.id); }}
             disabled={record.status !== 'DRAFT' && record.status !== 'ARCHIVED'}
           >
             <Tooltip
@@ -218,6 +222,7 @@ const MyCoursesPage = () => {
                 danger
                 icon={<DeleteOutlined />}
                 disabled={record.status !== 'DRAFT' && record.status !== 'ARCHIVED'}
+                onClick={(e) => e.stopPropagation()}
               />
             </Tooltip>
           </Popconfirm>
@@ -271,6 +276,10 @@ const MyCoursesPage = () => {
           }}
           onSearch={(v) => setKeyword(v)}
           searchPlaceholder="Tìm theo tiêu đề, mã khóa học..."
+          onRow={(record) => ({
+            onDoubleClick: () => goToDetail(record.id),
+            style: { cursor: 'pointer' },
+          })}
           extra={
             <Select
               placeholder="Trạng thái"

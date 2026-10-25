@@ -32,8 +32,8 @@
 		<commons-io.version>2.16.1</commons-io.version>
 		<commons-fileupload.version>1.5</commons-fileupload.version>
 
-		<!-- ✅ Spring AI BOM & Lombok Version -->
-		<spring-ai.version>1.1.0</spring-ai.version>
+		<!-- ✅ ĐÃ NÂNG CẤP LÊN 1.1.2 ĐỂ FIX LỖI THOUGHT_SIGNATURE -->
+		<spring-ai.version>1.1.8</spring-ai.version>
 		<lombok.version>1.18.36</lombok.version>
 	</properties>
 
@@ -203,7 +203,7 @@
 		</dependency>
 
 		<!-- ============================================================ -->
-		<!-- SPRING AI — Google Gemini (✅ ĐÃ SỬA)                        -->
+		<!-- SPRING AI — Google Gemini                                    -->
 		<!-- ============================================================ -->
 		<dependency>
 			<groupId>org.springframework.ai</groupId>

@@ -2,6 +2,7 @@ package com.ecms_web_application.OC01.service.impl.course;
 
 import com.ecms_web_application.OC01.config.SecurityUtils;
 import com.ecms_web_application.OC01.dto.request.course.ResourceCreateRequest;
+import com.ecms_web_application.OC01.dto.request.course.ResourceReorderRequest;
 import com.ecms_web_application.OC01.dto.request.course.ResourceUpdateRequest;
 import com.ecms_web_application.OC01.dto.response.course.CourseResourceResponse;
 import com.ecms_web_application.OC01.dto.response.course.ResourceTreeResponse;
@@ -31,6 +32,7 @@ public class CourseResourceServiceImpl implements CourseResourceService {
     private final CourseResourceRepository resourceRepository;
     private final CourseRepository courseRepository;
     private final AuditLogService auditLogService;
+    private final com.ecms_web_application.OC01.service.ProgressCalculationService progressCalculationService;
 
     @Override
     @Transactional(readOnly = true)
@@ -80,8 +82,8 @@ public class CourseResourceServiceImpl implements CourseResourceService {
         r.setDescription(request.getDescription());
         Integer next = request.getOrderIndex() != null ? request.getOrderIndex()
                 : (parent == null
-                    ? Optional.ofNullable(resourceRepository.maxRootOrderIndex(courseId)).orElse(-1) + 1
-                    : Optional.ofNullable(resourceRepository.maxChildOrderIndex(parent.getId())).orElse(-1) + 1);
+                ? Optional.ofNullable(resourceRepository.maxRootOrderIndex(courseId)).orElse(-1) + 1
+                : Optional.ofNullable(resourceRepository.maxChildOrderIndex(parent.getId())).orElse(-1) + 1);
         r.setOrderIndex(next);
         r.setIsRequired(Boolean.TRUE.equals(request.getIsRequired()));
         r.setIsFreePreview(Boolean.TRUE.equals(request.getIsFreePreview()));
@@ -103,9 +105,13 @@ public class CourseResourceServiceImpl implements CourseResourceService {
         r.setAvailableFrom(request.getAvailableFrom());
         r.setAvailableUntil(request.getAvailableUntil());
         r.setQuizCategory(request.getQuizCategory());
+        r.setHashtagFilter(request.getHashtagFilter());
+        r.setTotalQuestions(request.getTotalQuestions());
+        r.setShuffleQuestions(Boolean.TRUE.equals(request.getShuffleQuestions()));
         r.setCreatedBy(current);
 
         CourseResource saved = resourceRepository.save(r);
+        triggerRecalcIfRequired(saved);
         auditLogService.log("CREATE", "RESOURCE", saved.getId(),
                 "Tạo " + request.getResourceType() + ": " + saved.getTitle());
         return toResponse(saved);
@@ -138,8 +144,12 @@ public class CourseResourceServiceImpl implements CourseResourceService {
         if (request.getAvailableFrom() != null)  r.setAvailableFrom(request.getAvailableFrom());
         if (request.getAvailableUntil() != null) r.setAvailableUntil(request.getAvailableUntil());
         if (request.getQuizCategory() != null) r.setQuizCategory(request.getQuizCategory());
+        if (request.getHashtagFilter() != null)    r.setHashtagFilter(request.getHashtagFilter());
+        if (request.getTotalQuestions() != null)   r.setTotalQuestions(request.getTotalQuestions());
+        if (request.getShuffleQuestions() != null) r.setShuffleQuestions(request.getShuffleQuestions());
 
         CourseResource saved = resourceRepository.save(r);
+        triggerRecalcIfRequired(saved);
         auditLogService.log("UPDATE", "RESOURCE", id, null);
         return toResponse(saved);
     }
@@ -151,8 +161,44 @@ public class CourseResourceServiceImpl implements CourseResourceService {
         if (resourceRepository.existsByParent_Id(id)) {
             throw new ErrorHandler(HttpStatus.CONFLICT, "Không thể xóa — còn resource con");
         }
+        boolean needRecalc = Boolean.TRUE.equals(r.getIsRequired())
+                && (r.getCourse().getStatus() == com.ecms_web_application.OC01.entity.enums.CourseStatus.PUBLISHED
+                || r.getCourse().getStatus() == com.ecms_web_application.OC01.entity.enums.CourseStatus.ONGOING);
+        Long courseIdForRecalc = r.getCourse().getId();
         resourceRepository.delete(r);
         auditLogService.log("DELETE", "RESOURCE", id, null);
+        if (needRecalc) progressCalculationService.onResourceChanged(courseIdForRecalc);
+    }
+
+    @Override
+    @Transactional
+    public void reorder(Long courseId, ResourceReorderRequest request) {
+        courseRepository.findById(courseId)
+                .orElseThrow(() -> new ErrorHandler(HttpStatus.NOT_FOUND, "Khóa học không tồn tại"));
+
+        List<CourseResource> toUpdate = new ArrayList<>();
+        Map<Long, Set<Integer>> usedIndices = new HashMap<>();
+
+        for (ResourceReorderRequest.ReorderItem item : request.getItems()) {
+            CourseResource r = getOrThrow(item.getId());
+
+            if (!r.getCourse().getId().equals(courseId)) {
+                throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Resource " + item.getId() + " không thuộc khóa học này");
+            }
+
+            Long parentKey = r.getParent() != null ? r.getParent().getId() : -1L;
+            Set<Integer> indices = usedIndices.computeIfAbsent(parentKey, k -> new HashSet<>());
+            if (!indices.add(item.getOrderIndex())) {
+                throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Trùng orderIndex " + item.getOrderIndex() + " trong cùng parent");
+            }
+
+            r.setOrderIndex(item.getOrderIndex());
+            toUpdate.add(r);
+        }
+
+        resourceRepository.saveAll(toUpdate);
+        auditLogService.log("REORDER", "RESOURCE", courseId, "Cập nhật thứ tự " + toUpdate.size() + " resource");
+        log.info("Reorder course {}: {} resource", courseId, toUpdate.size());
     }
 
     private CourseResource getOrThrow(Long id) {
@@ -173,6 +219,15 @@ public class CourseResourceServiceImpl implements CourseResourceService {
         if (!ok) {
             throw new ErrorHandler(HttpStatus.BAD_REQUEST,
                     String.format("Không thể đặt %s dưới %s", childType, parentType));
+        }
+    }
+
+    private void triggerRecalcIfRequired(CourseResource r) {
+        if (!Boolean.TRUE.equals(r.getIsRequired())) return;
+        var status = r.getCourse().getStatus();
+        if (status == com.ecms_web_application.OC01.entity.enums.CourseStatus.PUBLISHED
+                || status == com.ecms_web_application.OC01.entity.enums.CourseStatus.ONGOING) {
+            progressCalculationService.onResourceChanged(r.getCourse().getId());
         }
     }
 
@@ -205,6 +260,9 @@ public class CourseResourceServiceImpl implements CourseResourceService {
         res.setAvailableFrom(r.getAvailableFrom());
         res.setAvailableUntil(r.getAvailableUntil());
         res.setQuizCategory(r.getQuizCategory() != null ? r.getQuizCategory().name() : null);
+        res.setHashtagFilter(r.getHashtagFilter());
+        res.setTotalQuestions(r.getTotalQuestions());
+        res.setShuffleQuestions(r.getShuffleQuestions());
         res.setCreatedAt(r.getCreatedAt());
         res.setUpdatedAt(r.getUpdatedAt());
         return res;
@@ -224,6 +282,7 @@ public class CourseResourceServiceImpl implements CourseResourceService {
         t.setQuizCategory(r.getQuizCategory() != null ? r.getQuizCategory().name() : null);
         t.setPassingScore(r.getPassingScore());
         t.setMaxAttempts(r.getMaxAttempts());
+        t.setHashtagFilter(r.getHashtagFilter());
         return t;
     }
 }
