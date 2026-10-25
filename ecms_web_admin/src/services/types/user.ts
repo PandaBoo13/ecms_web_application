@@ -173,3 +173,12 @@ export interface AssignPermissionRequest {
 export interface AssignPermissionsBatchRequest {
   permissionIds: number[];
 }
+
+// ══════════════════════════════════════════════════════════════
+// RBAC REQUESTS
+// ══════════════════════════════════════════════════════════════
+
+export interface AccountLockRequest {
+  isLocked: boolean;
+  reason?: string;
+}
