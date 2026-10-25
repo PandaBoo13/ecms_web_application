@@ -35,6 +35,7 @@ export const vi = {
   'menu.userList': 'Tài khoản',
   'menu.system': 'Hệ thống',
   'menu.roles': 'Phân quyền',
+  'menu.permissions': 'Quyền hạn',
   'menu.auditLogs': 'Nhật ký hệ thống',
   'menu.reports': 'Báo cáo',
   'menu.generalReports': 'Báo cáo chung',
