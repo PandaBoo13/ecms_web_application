@@ -126,34 +126,33 @@ export const API_ENDPOINT = {
   // ══════════════════════════════════════════════════════════════
   // RBAC
   // ══════════════════════════════════════════════════════════════
+  // Roles
   RBAC_ROLES: '/api/rbac/roles',
   RBAC_ROLE_DETAIL: (id: number) => `/api/rbac/roles/${id}`,
   RBAC_ROLE_ACCOUNTS: (roleId: number) => `/api/rbac/roles/${roleId}/accounts`,
+
+  // Permissions
   RBAC_PERMISSIONS: '/api/rbac/permissions',
   RBAC_PERMISSION_DETAIL: (id: number) => `/api/rbac/permissions/${id}`,
   RBAC_PERMISSIONS_ALL: '/api/rbac/permissions/all',
-  RBAC_PERMISSIONS_DEFAULT: '/api/rbac/permissions/default',
   RBAC_PERMISSIONS_MODULES: '/api/rbac/permissions/modules',
   RBAC_PERMISSIONS_SYNC: '/api/rbac/permissions/sync',
+
+  // Role ↔ Permission
+  RBAC_ROLE_PERMISSIONS: (roleId: number) => `/api/rbac/roles/${roleId}/permissions`,
+  RBAC_ROLE_PERMISSIONS_BATCH: (roleId: number) => `/api/rbac/roles/${roleId}/permissions/batch`,
+  RBAC_ROLE_PERMISSION_DETAIL: (roleId: number, permissionId: number) =>
+    `/api/rbac/roles/${roleId}/permissions/${permissionId}`,
+  RBAC_ROLE_PERMISSION_ACTIVATE: (roleId: number, permissionId: number) =>
+    `/api/rbac/roles/${roleId}/permissions/${permissionId}/activate`,
+  RBAC_ROLE_PERMISSION_DEACTIVATE: (roleId: number, permissionId: number) =>
+    `/api/rbac/roles/${roleId}/permissions/${permissionId}/deactivate`,
+
+  // Accounts
   RBAC_ACCOUNTS: '/api/rbac/accounts',
   RBAC_ACCOUNT_DETAIL: (id: number) => `/api/rbac/accounts/${id}`,
   RBAC_ACCOUNT_ROLES: (id: number) => `/api/rbac/accounts/${id}/roles`,
   RBAC_ACCOUNT_ROLE: (id: number) => `/api/rbac/accounts/${id}/role`,
-  RBAC_ACCOUNT_PERMISSIONS: (id: number) => `/api/rbac/accounts/${id}/permissions`,
-  RBAC_ACCOUNT_PERMISSIONS_CUSTOM: (id: number) =>
-    `/api/rbac/accounts/${id}/permissions/custom`,
-  RBAC_ACCOUNT_PERMISSIONS_BATCH: (id: number) =>
-    `/api/rbac/accounts/${id}/permissions/batch`,
-  RBAC_ACCOUNT_PERMISSION_DETAIL: (accountId: number, permissionId: number) =>
-    `/api/rbac/accounts/${accountId}/permissions/${permissionId}`,
-  RBAC_ACCOUNT_PERMISSION_DEACTIVATE: (accountId: number, permissionId: number) =>
-    `/api/rbac/accounts/${accountId}/permissions/${permissionId}/deactivate`,
-  RBAC_ACCOUNT_PERMISSION_ACTIVATE: (accountId: number, permissionId: number) =>
-    `/api/rbac/accounts/${accountId}/permissions/${permissionId}/activate`,
-  RBAC_ACCOUNT_PERMISSION_CHECK: (id: number) =>
-    `/api/rbac/accounts/${id}/permissions/check`,
-  RBAC_ACCOUNT_PERMISSION_CHECK_RESOURCE: (id: number) =>
-    `/api/rbac/accounts/${id}/permissions/check-resource`,
   RBAC_ACCOUNTS_TEACHERS: '/api/rbac/accounts/teachers',
   RBAC_ACCOUNT_LOCK: (id: number) => `/api/rbac/accounts/${id}/lock`,
 

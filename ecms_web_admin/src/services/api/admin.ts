@@ -4,12 +4,17 @@ import type { RequestResponse, PageResponse } from '../types/api';
 import type { AuditLogResponse } from '../types/admin';
 import type {
   Role,
+  RoleRequest,
   Permission,
+  PermissionRequest,
   AccountResponse,
-  AccountPermissionResponse,
   AccountRoleResponse,
+  AccountLockRequest,
 } from '../types/user';
 
+// ═══════════════════════════════════════════════════════════════
+// RBAC — ACCOUNTS
+// ═══════════════════════════════════════════════════════════════
 export const adminUserApi = {
   search: async (params: Record<string, unknown>): Promise<PageResponse<AccountResponse>> => {
     const { data } = await api.get<RequestResponse<PageResponse<AccountResponse>>>(
@@ -37,32 +42,68 @@ export const adminUserApi = {
     await api.put(API_ENDPOINT.RBAC_ACCOUNT_ROLE(id), { roleId });
   },
 
-  getPermissions: async (id: number): Promise<AccountPermissionResponse[]> => {
-    const { data } = await api.get<RequestResponse<AccountPermissionResponse[]>>(
-      API_ENDPOINT.RBAC_ACCOUNT_PERMISSIONS(id)
+  removeRole: async (id: number): Promise<void> => {
+    await api.delete(API_ENDPOINT.RBAC_ACCOUNT_ROLE(id));
+  },
+
+  getTeachers: async (): Promise<AccountResponse[]> => {
+    const { data } = await api.get<RequestResponse<AccountResponse[]>>(
+      API_ENDPOINT.RBAC_ACCOUNTS_TEACHERS
     );
     return data.data;
   },
+
+  lockAccount: async (id: number, payload: AccountLockRequest): Promise<void> => {
+    await api.patch(API_ENDPOINT.RBAC_ACCOUNT_LOCK(id), payload);
+  },
 };
 
+// ═══════════════════════════════════════════════════════════════
+// RBAC — ROLES
+// ═══════════════════════════════════════════════════════════════
 export const adminRoleApi = {
   list: async (): Promise<Role[]> => {
     const { data } = await api.get<RequestResponse<Role[]>>(API_ENDPOINT.RBAC_ROLES);
     return data.data;
   },
-  create: async (payload: { code: string; description?: string }): Promise<Role> => {
+
+  getById: async (id: number): Promise<Role> => {
+    const { data } = await api.get<RequestResponse<Role>>(API_ENDPOINT.RBAC_ROLE_DETAIL(id));
+    return data.data;
+  },
+
+  create: async (payload: RoleRequest): Promise<Role> => {
     const { data } = await api.post<RequestResponse<Role>>(API_ENDPOINT.RBAC_ROLES, payload);
     return data.data;
   },
-  update: async (id: number, payload: { code: string; description?: string }): Promise<Role> => {
-    const { data } = await api.put<RequestResponse<Role>>(API_ENDPOINT.RBAC_ROLE_DETAIL(id), payload);
+
+  update: async (id: number, payload: RoleRequest): Promise<Role> => {
+    const { data } = await api.put<RequestResponse<Role>>(
+      API_ENDPOINT.RBAC_ROLE_DETAIL(id),
+      payload
+    );
     return data.data;
   },
+
   delete: async (id: number): Promise<void> => {
     await api.delete(API_ENDPOINT.RBAC_ROLE_DETAIL(id));
   },
+
+  getAccountsByRole: async (
+    roleId: number,
+    params?: { page?: number; size?: number }
+  ): Promise<PageResponse<AccountResponse>> => {
+    const { data } = await api.get<RequestResponse<PageResponse<AccountResponse>>>(
+      API_ENDPOINT.RBAC_ROLE_ACCOUNTS(roleId),
+      { params }
+    );
+    return data.data;
+  },
 };
 
+// ═══════════════════════════════════════════════════════════════
+// RBAC — PERMISSIONS
+// ═══════════════════════════════════════════════════════════════
 export const adminPermissionApi = {
   search: async (params?: Record<string, unknown>): Promise<PageResponse<Permission>> => {
     const { data } = await api.get<RequestResponse<PageResponse<Permission>>>(
@@ -71,23 +112,93 @@ export const adminPermissionApi = {
     );
     return data.data;
   },
+
+  getById: async (id: number): Promise<Permission> => {
+    const { data } = await api.get<RequestResponse<Permission>>(
+      API_ENDPOINT.RBAC_PERMISSION_DETAIL(id)
+    );
+    return data.data;
+  },
+
   listAll: async (): Promise<Permission[]> => {
-    const { data } = await api.get<RequestResponse<Permission[]>>(API_ENDPOINT.RBAC_PERMISSIONS_ALL);
+    const { data } = await api.get<RequestResponse<Permission[]>>(
+      API_ENDPOINT.RBAC_PERMISSIONS_ALL
+    );
     return data.data;
   },
-  create: async (payload: Partial<Permission>): Promise<Permission> => {
-    const { data } = await api.post<RequestResponse<Permission>>(API_ENDPOINT.RBAC_PERMISSIONS, payload);
+
+  getModules: async (): Promise<string[]> => {
+    const { data } = await api.get<RequestResponse<string[]>>(
+      API_ENDPOINT.RBAC_PERMISSIONS_MODULES
+    );
     return data.data;
   },
+
+  create: async (payload: PermissionRequest): Promise<Permission> => {
+    const { data } = await api.post<RequestResponse<Permission>>(
+      API_ENDPOINT.RBAC_PERMISSIONS,
+      payload
+    );
+    return data.data;
+  },
+
+  update: async (id: number, payload: PermissionRequest): Promise<Permission> => {
+    const { data } = await api.put<RequestResponse<Permission>>(
+      API_ENDPOINT.RBAC_PERMISSION_DETAIL(id),
+      payload
+    );
+    return data.data;
+  },
+
   delete: async (id: number): Promise<void> => {
     await api.delete(API_ENDPOINT.RBAC_PERMISSION_DETAIL(id));
   },
+
   sync: async (): Promise<string> => {
     const { data } = await api.post<RequestResponse<string>>(API_ENDPOINT.RBAC_PERMISSIONS_SYNC);
     return data.data;
   },
 };
 
+// ═══════════════════════════════════════════════════════════════
+// RBAC — ROLE ↔ PERMISSION
+// ═══════════════════════════════════════════════════════════════
+export const adminRolePermissionApi = {
+  list: async (roleId: number): Promise<Permission[]> => {
+    const { data } = await api.get<RequestResponse<Permission[]>>(
+      API_ENDPOINT.RBAC_ROLE_PERMISSIONS(roleId)
+    );
+    return data.data;
+  },
+
+  assign: async (roleId: number, permissionId: number): Promise<void> => {
+    await api.post(API_ENDPOINT.RBAC_ROLE_PERMISSIONS(roleId), { permissionId });
+  },
+
+  assignBatch: async (roleId: number, permissionIds: number[]): Promise<void> => {
+    await api.post(API_ENDPOINT.RBAC_ROLE_PERMISSIONS_BATCH(roleId), { permissionIds });
+  },
+
+  remove: async (roleId: number, permissionId: number): Promise<void> => {
+    await api.delete(API_ENDPOINT.RBAC_ROLE_PERMISSION_DETAIL(roleId, permissionId));
+  },
+
+  removeAll: async (roleId: number): Promise<void> => {
+    await api.delete(API_ENDPOINT.RBAC_ROLE_PERMISSIONS(roleId));
+  },
+
+  activate: async (roleId: number, permissionId: number): Promise<void> => {
+    await api.patch(API_ENDPOINT.RBAC_ROLE_PERMISSION_ACTIVATE(roleId, permissionId));
+  },
+
+  deactivate: async (roleId: number, permissionId: number): Promise<void> => {
+    await api.patch(API_ENDPOINT.RBAC_ROLE_PERMISSION_DEACTIVATE(roleId, permissionId));
+  },
+};
+
+// ═══════════════════════════════════════════════════════════════
+// AUDIT LOG
+// ═══════════════════════════════════════════════════════════════
 export const auditLogApi = {
   search: async (params: Record<string, unknown>): Promise<PageResponse<AuditLogResponse>> => {
     const { data } = await api.get<RequestResponse<PageResponse<AuditLogResponse>>>(
