@@ -13,7 +13,6 @@ import com.ecms_web_application.OC01.dto.request.rbac.PermissionRequest;
 import com.ecms_web_application.OC01.dto.response.rbac.PermissionResponse;
 import com.ecms_web_application.OC01.entity.Permission;
 import com.ecms_web_application.OC01.exception.ErrorHandler;
-import com.ecms_web_application.OC01.repository.AccountPermissionRepository;
 import com.ecms_web_application.OC01.repository.PermissionRepository;
 import com.ecms_web_application.OC01.service.PermissionService;
 
@@ -25,7 +24,6 @@ import java.util.List;
 public class PermissionServiceImpl implements PermissionService {
 
     private final PermissionRepository permissionRepository;
-    private final AccountPermissionRepository accountPermissionRepository;
     private final PermissionManager permissionManager;
 
     /** ⚠️ ĐỔI: module mặc định — "public" cho mọi user authenticated */

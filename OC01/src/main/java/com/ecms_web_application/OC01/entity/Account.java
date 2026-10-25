@@ -84,9 +84,6 @@ public class Account implements UserDetails {
     private UserProfile userProfile;
 
     @OneToMany(mappedBy = "account", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    private List<AccountPermission> accountPermissions = new ArrayList<>();
-
-    @OneToMany(mappedBy = "account", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<InstructorSpecialization> instructorSpecializations = new ArrayList<>();
 
     // ===== Hooks =====
@@ -114,19 +111,13 @@ public class Account implements UserDetails {
     }
 
     @Override
-    public String getPassword() {
-        return passwordHash;
-    }
+    public String getPassword() { return passwordHash; }
 
     @Override
-    public String getUsername() {
-        return email;
-    }
+    public String getUsername() { return email; }
 
     @Override
-    public boolean isAccountNonExpired() {
-        return true;
-    }
+    public boolean isAccountNonExpired() { return true; }
 
     @Override
     public boolean isAccountNonLocked() {
@@ -149,15 +140,7 @@ public class Account implements UserDetails {
     }
 
     // ===== Helper =====
-    public boolean isAdmin() {
-        return role != null && "ADMIN".equals(role.getCode());
-    }
-
-    public boolean isInstructor() {
-        return role != null && "INSTRUCTOR".equals(role.getCode());
-    }
-
-    public boolean isStudent() {
-        return role != null && "STUDENT".equals(role.getCode());
-    }
+    public boolean isAdmin() { return role != null && "ADMIN".equals(role.getCode()); }
+    public boolean isInstructor() { return role != null && "INSTRUCTOR".equals(role.getCode()); }
+    public boolean isStudent() { return role != null && "STUDENT".equals(role.getCode()); }
 }

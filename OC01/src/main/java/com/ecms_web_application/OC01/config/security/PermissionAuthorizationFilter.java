@@ -11,7 +11,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.annotation.Lazy; // 1. Import @Lazy
+import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
@@ -21,7 +21,15 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 
 /**
- * Filter phân quyền — FAIL-CLOSED.
+ * Filter phân quyền — TỐI GIẢN HÓA (FAIL-CLOSED).
+ * 
+ * Logic: 
+ * 1. OPTIONS -> pass
+ * 2. PUBLIC -> pass
+ * 3. Chưa đăng nhập -> 401
+ * 4. ADMIN -> pass (Bypass)
+ * 5. USER_URLS -> pass (Chỉ cần đăng nhập)
+ * 6. TẤT CẢ CÁC URL CÒN LẠI -> Check quyền trong DB (RBAC)
  */
 @Component
 @Slf4j
@@ -33,7 +41,6 @@ public class PermissionAuthorizationFilter extends OncePerRequestFilter {
 
     private static final AntPathMatcher PATH_MATCHER = new AntPathMatcher();
 
-    // 2. Viết tường minh constructor và gắn @Lazy để tránh lỗi vòng lặp/khởi tạo sớm
     public PermissionAuthorizationFilter(
             @Lazy AccountPermissionService accountPermissionService,
             @Lazy PermissionService permissionService,
@@ -58,7 +65,7 @@ public class PermissionAuthorizationFilter extends OncePerRequestFilter {
             return;
         }
 
-        // ── 2. PUBLIC → pass luôn, không cần login ──
+        // ── 2. PUBLIC → pass luôn ──
         if (matchesPath(APIURL.PUBLIC_URLS, path)) {
             filterChain.doFilter(request, response);
             return;
@@ -76,46 +83,32 @@ public class PermissionAuthorizationFilter extends OncePerRequestFilter {
             return;
         }
 
-        // ── 5. USER → chỉ cần đăng nhập là pass, KHÔNG check DB ──
+        // ── 5. USER_URLS → chỉ cần đăng nhập là pass ──
         if (matchesPath(APIURL.USER_URLS, path)) {
             filterChain.doFilter(request, response);
             return;
         }
 
-        // ── 6. PROTECTED → mapping + account_permission ──
-        if (matchesPath(APIURL.PROTECTED_URLS, path)) {
-            Long accountId = SecurityUtils.getCurrentAccountId();
+        // ── 6. TẤT CẢ CÁC URL CÒN LẠI → CHECK QUYỀN TRONG DB (RBAC) ──
+        Long accountId = SecurityUtils.getCurrentAccountId();
 
-            // 6a. Bắt buộc mapping trong DB (method + path)
-            boolean hasMapping = permissionService.existsByMethodAndEndpoint(method, path);
-            if (!hasMapping) {
-                log.warn("[SECURITY] Deny — PROTECTED endpoint chưa mapping: {} {} (accountId={})",
-                        method, path, accountId);
-                sendError(response, HttpStatus.FORBIDDEN,
-                        "Endpoint chưa được cấu hình phân quyền — liên hệ admin");
-                return;
-            }
-
-            // 6b. Check account có permission chưa
-            boolean allowed = accountPermissionService.hasPermission(accountId, method, path);
-            if (allowed) {
-                filterChain.doFilter(request, response);
-                return;
-            }
-
-            log.warn("[SECURITY] Deny — accountId={} {} {} (không có permission)",
-                    accountId, method, path);
-            sendError(response, HttpStatus.FORBIDDEN,
-                    "Bạn không có quyền thực hiện hành động này");
+        // 6a. Kiểm tra Endpoint này đã được khai báo trong bảng Permission chưa
+        boolean hasMapping = permissionService.existsByMethodAndEndpoint(method, path);
+        if (!hasMapping) {
+            log.warn("[SECURITY] Deny — Endpoint chưa mapping: {} {} (accountId={})", method, path, accountId);
+            sendError(response, HttpStatus.FORBIDDEN, "Endpoint chưa được cấu hình phân quyền — liên hệ admin");
             return;
         }
 
-        // ── 7. Fail-closed: không khớp nhóm nào ──
-        Long accountId = SecurityUtils.getCurrentAccountId();
-        log.warn("[SECURITY] Deny — URL chưa được khai báo nhóm: {} {} (accountId={})",
-                method, path, accountId);
-        sendError(response, HttpStatus.FORBIDDEN,
-                "Endpoint chưa được cấu hình phân quyền — liên hệ admin");
+        // 6b. Kiểm tra Role của User có quyền này không
+        boolean allowed = accountPermissionService.hasPermission(accountId, method, path);
+        if (allowed) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
+        log.warn("[SECURITY] Deny — accountId={} {} {} (không có quyền)", accountId, method, path);
+        sendError(response, HttpStatus.FORBIDDEN, "Bạn không có quyền thực hiện hành động này");
     }
 
     // ============================================================
