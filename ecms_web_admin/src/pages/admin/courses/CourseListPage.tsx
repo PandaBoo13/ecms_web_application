@@ -262,6 +262,10 @@ const CourseListPage = () => {
           }}
           onSearch={(v) => setKeyword(v)}
           searchPlaceholder={t('course.searchPlaceholder')}
+          onRow={(record) => ({
+            onDoubleClick: () => navigate(`/admin/courses/${record.id}`),
+            style: { cursor: 'pointer' },
+          })}
           extra={
             <Space>
               <Select

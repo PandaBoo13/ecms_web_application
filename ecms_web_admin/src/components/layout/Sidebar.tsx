@@ -9,6 +9,7 @@ import {
   UserOutlined,
   ProfileOutlined,
   UserAddOutlined,
+  FolderOutlined,
 } from '@ant-design/icons';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
@@ -29,6 +30,7 @@ const ICON_MAP: Record<string, React.ReactNode> = {
   UserOutlined: <UserOutlined />,
   ProfileOutlined: <ProfileOutlined />,
   UserAddOutlined: <UserAddOutlined />,
+  FolderOutlined: <FolderOutlined />,
 };
 
 const MENU_KEY_TRANSLATION_MAP: Record<string, string> = {
@@ -39,6 +41,7 @@ const MENU_KEY_TRANSLATION_MAP: Record<string, string> = {
   '/admin/students': 'menu.studentList',
   'courses': 'menu.courses',
   '/admin/courses': 'menu.courseList',
+  '/admin/categories': 'menu.categories',
   'users': 'menu.users',
   '/admin/users': 'menu.userList',
   'system': 'menu.system',
@@ -73,7 +76,6 @@ const Sidebar = ({ collapsed }: Props) => {
   const menu = isAdmin() ? ADMIN_MENU : INSTRUCTOR_MENU;
   const items = menu.map(renderItem);
 
-  // Tìm key match với path hiện tại
   const getSelectedKey = (): string => {
     const path = location.pathname;
     for (const item of menu) {

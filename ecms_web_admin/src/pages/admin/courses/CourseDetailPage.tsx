@@ -1,20 +1,25 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { Tabs } from 'antd';
+import { Tabs, Card, Space, Typography, Alert, Statistic, Row, Col } from 'antd';
 
 import PageContainer from '@/components/common/PageContainer';
 import PageLoading from '@/components/feedback/PageLoading';
 import ErrorState from '@/components/feedback/ErrorState';
+import PageHeader from '@/components/common/PageHeader';
+import StatusTag from '@/components/common/StatusTag';
+import MoneyDisplay from '@/components/common/MoneyDisplay';
 
-import CourseDetailHeader from '@/components/course/CourseDetailHeader';
-import CourseOverviewCard from '@/components/course/CourseOverviewCard';
-import CourseResourceTree from '@/components/course/CourseResourceTree';
+import CourseDetailActions from '@/components/course/CourseDetailActions';
+import CourseOverviewTab from '@/components/course/CourseOverviewTab';
+import ResourceManager from '@/components/course/ResourceManager';
 import CourseSessionList from '@/components/course/CourseSessionList';
 import CourseQuestionList from '@/components/course/CourseQuestionList';
 import QuizListCard from '@/components/course/QuizListCard';
 
 import { courseApi } from '@/services/api/courses';
 import type { CourseDetailResponse } from '@/services/types/course';
+
+const { Text } = Typography;
 
 const CourseDetailPage = () => {
   const { id } = useParams<{ id: string }>();
@@ -51,16 +56,26 @@ const CourseDetailPage = () => {
   if (error) return <ErrorState title="Lỗi" description={error} onRetry={fetchCourse} />;
   if (!course) return <ErrorState description="Không tìm thấy khóa học" />;
 
+  const isOngoing = course.status === 'ONGOING';
+
   const tabItems = [
     {
-      key: 'overview',
+      key: 'info',
       label: 'Tổng quan',
-      children: <CourseOverviewCard course={course} />,
+      children: <CourseOverviewTab course={course} onRefresh={fetchCourse} />,
     },
     {
       key: 'resources',
       label: `Nội dung (${course.resources?.length || 0})`,
-      children: <CourseResourceTree resources={course.resources || []} />,
+      children: isOngoing ? (
+        <Alert message="Không thể sửa nội dung khi khóa đang diễn ra" type="info" showIcon />
+      ) : (
+        <ResourceManager
+          courseId={courseId}
+          resources={course.resources || []}
+          onRefresh={fetchCourse}
+        />
+      ),
     },
     {
       key: 'questions',
@@ -74,7 +89,6 @@ const CourseDetailPage = () => {
     },
   ];
 
-  // Chỉ OFFLINE mới có tab Session
   if (course.courseType === 'OFFLINE') {
     tabItems.splice(2, 0, {
       key: 'sessions',
@@ -91,8 +105,52 @@ const CourseDetailPage = () => {
 
   return (
     <PageContainer>
-      <CourseDetailHeader course={course} onRefresh={fetchCourse} />
-      <Tabs defaultActiveKey="overview" items={tabItems} />
+      <PageHeader
+        title={course.title}
+        subtitle={
+          <Space size={8}>
+            <Text type="secondary">{course.code}</Text>
+            <StatusTag status={course.status} />
+            <StatusTag status={course.courseType} />
+          </Space>
+        }
+        backButton
+        backTo="/admin/courses"
+        extra={<CourseDetailActions course={course} onRefresh={fetchCourse} />}
+      />
+
+      <Row gutter={16} style={{ marginBottom: 20 }}>
+        <Col xs={12} sm={6}>
+          <Card size="small">
+            <Statistic
+              title="Học viên"
+              value={course.currentStudents}
+              suffix={course.maxStudents ? `/ ${course.maxStudents}` : ''}
+            />
+          </Card>
+        </Col>
+        <Col xs={12} sm={6}>
+          <Card size="small">
+            <Statistic
+              title="Học phí"
+              value={course.price}
+              formatter={(v) => <MoneyDisplay value={Number(v)} />}
+            />
+          </Card>
+        </Col>
+        <Col xs={12} sm={6}>
+          <Card size="small">
+            <Statistic title="Bài học" value={course.resources?.length || 0} />
+          </Card>
+        </Col>
+        <Col xs={12} sm={6}>
+          <Card size="small">
+            <Statistic title="Buổi học" value={course.sessions?.length || 0} />
+          </Card>
+        </Col>
+      </Row>
+
+      <Tabs defaultActiveKey="info" items={tabItems} />
     </PageContainer>
   );
 };

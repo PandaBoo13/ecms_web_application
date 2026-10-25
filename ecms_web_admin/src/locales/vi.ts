@@ -30,6 +30,7 @@ export const vi = {
   'menu.students': 'Học viên',
   'menu.studentList': 'Danh sách học viên',
   'menu.courses': 'Khóa học',
+  'menu.categories': 'Danh mục',
   'menu.courseList': 'Danh sách khóa học',
   'menu.users': 'Người dùng',
   'menu.userList': 'Tài khoản',
