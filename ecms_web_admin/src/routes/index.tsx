@@ -21,6 +21,7 @@ import UserDetailPage from '@/pages/admin/users/UserDetailPage';
 import CourseListPage from '@/pages/admin/courses/CourseListPage';
 import CourseDetailPage from '@/pages/admin/courses/CourseDetailPage';
 import RoleManagePage from '@/pages/admin/system/RoleManagePage';
+import PermissionListPage from '@/pages/admin/system/PermissionListPage';
 import SystemLogPage from '@/pages/admin/system/SystemLogPage';
 import ReportsPage from '@/pages/admin/reports/ReportsPage';
 import SettingsPage from '@/pages/admin/settings/SettingsPage';
@@ -66,6 +67,7 @@ export default function AppRouter() {
           <Route path="/admin/courses/:id" element={<CourseDetailPage />} />
 
           <Route path="/admin/roles" element={<RoleManagePage />} />
+          <Route path="/admin/permissions" element={<PermissionListPage />} />
           <Route path="/admin/audit-logs" element={<SystemLogPage />} />
           <Route path="/admin/reports" element={<ReportsPage />} />
           <Route path="/admin/profile" element={<ProfilePage />} />

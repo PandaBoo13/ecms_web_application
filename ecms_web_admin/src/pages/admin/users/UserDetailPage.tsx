@@ -14,8 +14,8 @@ import PageHeader from '@/components/common/PageHeader';
 import StatusTag from '@/components/common/StatusTag';
 import DateDisplay from '@/components/common/DateDisplay';
 
-import { adminUserApi, adminRoleApi } from '@/services/api/admin';
-import type { AccountResponse, Role, AccountPermissionResponse } from '@/services/types/user';
+import { adminUserApi, adminRoleApi, adminRolePermissionApi } from '@/services/api/admin';
+import type { AccountResponse, Role, Permission } from '@/services/types/user';
 
 const { Title, Text } = Typography;
 
@@ -26,7 +26,7 @@ const UserDetailPage = () => {
 
   const [user, setUser] = useState<AccountResponse | null>(null);
   const [roles, setRoles] = useState<Role[]>([]);
-  const [permissions, setPermissions] = useState<AccountPermissionResponse[]>([]);
+  const [permissions, setPermissions] = useState<Permission[]>([]);
   const [selectedRole, setSelectedRole] = useState<number | undefined>();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
