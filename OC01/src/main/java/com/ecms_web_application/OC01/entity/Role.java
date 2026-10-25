@@ -3,7 +3,6 @@ package com.ecms_web_application.OC01.entity;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
-
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -13,7 +12,6 @@ import java.util.List;
 @Entity
 @Table(name = "role")
 public class Role {
-
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id")
@@ -31,11 +29,12 @@ public class Role {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
-    // ===== Relations =====
     @OneToMany(mappedBy = "role", fetch = FetchType.LAZY)
     private List<Account> accounts = new ArrayList<>();
 
-    // ===== Hooks =====
+    @OneToMany(mappedBy = "role", fetch = FetchType.LAZY)
+    private List<RolePermission> rolePermissions = new ArrayList<>();
+
     @PrePersist
     void onCreate() {
         LocalDateTime now = LocalDateTime.now();

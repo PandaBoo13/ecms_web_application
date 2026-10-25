@@ -5,8 +5,6 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
 
 @Setter
 @Getter
@@ -37,11 +35,6 @@ public class Permission {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
-    // ===== Relations =====
-    @OneToMany(mappedBy = "permission", fetch = FetchType.LAZY)
-    private List<AccountPermission> accountPermissions = new ArrayList<>();
-
-    // ===== Hooks =====
     @PrePersist
     void onCreate() {
         LocalDateTime now = LocalDateTime.now();
@@ -50,7 +43,5 @@ public class Permission {
     }
 
     @PreUpdate
-    void onUpdate() {
-        this.updatedAt = LocalDateTime.now();
-    }
+    void onUpdate() { this.updatedAt = LocalDateTime.now(); }
 }

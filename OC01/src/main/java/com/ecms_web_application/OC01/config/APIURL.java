@@ -45,6 +45,7 @@ public class APIURL {
 
     // ============================================================
     // USER — Đã đăng nhập (mọi role: STUDENT, INSTRUCTOR, ADMIN)
+    // Không cần check quyền (vì chỉ xem dữ liệu của chính mình)
     // ============================================================
     public static final String[] USER_URLS = {
             // Auth — self
@@ -66,16 +67,11 @@ public class APIURL {
             "/api/progress",
             "/api/progress/**",
 
-            // ============================================================
-            // 🆕 CHAT & NOTIFICATION — self-service, mọi user đã login
-            // Ownership được check ở Service layer (requireActiveParticipant,
-            // findMyConversations, findInbox...). Filter không cần check
-            // permission vì đây là dữ liệu của chính user.
-            // ============================================================
+            // Chat & Notification — self-service
             "/api/chat/**",
             "/api/notifications/**",
 
-            // Quiz self-service — HV làm bài, GV xem. Phân quyền GV/Admin qua @PreAuthorize.
+            // Quiz self-service
             "/api/courses/*/quizzes",
             "/api/courses/*/quizzes/**",
     };
@@ -86,51 +82,6 @@ public class APIURL {
     public static final String[] ADMIN_URLS = {
             "/api/rbac/**",
     };
-
-    // ============================================================
-    // PROTECTED — Cần permission cụ thể (check DB)
-    // ============================================================
-    public static final String[] PROTECTED_URLS = {
-            // Category
-            "/api/categories/**",
-            "/api/categories",
-
-            // Instructor — xem chuyên môn (ngoài self)
-            "/api/instructors/*/specializations",
-            "/api/instructors/*/specializations/**",
-            "/api/instructors/category/*/specializations",
-            "/api/instructors/category/*/specializations/**",
-
-            // Course write + lifecycle
-            "/api/courses/*/submit-review",
-            "/api/courses/*/review",
-            "/api/courses/*/archive",
-            "/api/courses/*/cancel",
-            "/api/courses/*/copy",
-            "/api/courses/*/offline-info",
-            "/api/courses/*/hard",
-            "/api/courses/*/teacher",
-
-            // Course nested
-            "/api/courses/*/resources",
-            "/api/courses/*/resources/**",
-            "/api/courses/*/sessions",
-            "/api/courses/*/sessions/**",
-            "/api/courses/*/questions",
-            "/api/courses/*/questions/**",
-
-            // Audit log
-            "/api/audit-logs",
-            "/api/audit-logs/**",
-            "/api/rooms",
-            "/api/rooms/**",
-
-            // Lead
-            "/api/leads",
-            "/api/leads/**",
-
-            // Student
-            "/api/students",
-            "/api/students/**",
-    };
+    
+    // ĐÃ XÓA PROTECTED_URLS
 }
