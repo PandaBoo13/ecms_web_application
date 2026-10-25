@@ -37,6 +37,7 @@ export const en: Record<keyof typeof vi, string> = {
   'menu.userList': 'User Accounts',
   'menu.system': 'System',
   'menu.roles': 'Roles & Permissions',
+  'menu.permissions': 'Permissions',
   'menu.auditLogs': 'Audit Logs',
   'menu.reports': 'Reports',
   'menu.generalReports': 'General Reports',
