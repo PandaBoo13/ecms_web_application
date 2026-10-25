@@ -1,0 +1,4 @@
+import { Col, Row, Typography } from 'antd';
+const { Title, Paragraph } = Typography;
+const AboutPage = () => (<div style={{ padding: '48px 24px', maxWidth: 1000, margin: '0 auto' }}><Title level={2}>Giới thiệu ECMS</Title><Paragraph style={{ fontSize: 16 }}>Nền tảng đào tạo tiếng Anh hiện đại, cung cấp lộ trình cá nhân hóa.</Paragraph><Row gutter={32} style={{ marginTop: 32 }}><Col xs={24} md={8}><Title level={4} style={{ color: '#1677ff' }}>10+ năm</Title><Paragraph type="secondary">Kinh nghiệm</Paragraph></Col><Col xs={24} md={8}><Title level={4} style={{ color: '#10b981' }}>50.000+</Title><Paragraph type="secondary">Học viên</Paragraph></Col><Col xs={24} md={8}><Title level={4} style={{ color: '#8b5cf6' }}>200+</Title><Paragraph type="secondary">Giảng viên</Paragraph></Col></Row></div>);
+export default AboutPage;
