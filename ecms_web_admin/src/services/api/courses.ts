@@ -20,6 +20,8 @@ import type {
   QuestionResponse,
   QuestionCreateRequest,
   CategoryResponse,
+  CategoryCreateRequest,
+  CategoryUpdateRequest,
   RoomResponse,
   QuizResponse,
   QuizDetailResponse,

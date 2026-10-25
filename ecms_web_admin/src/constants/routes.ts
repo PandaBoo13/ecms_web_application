@@ -35,6 +35,7 @@ export const ADMIN_MENU: MenuItem[] = [
     icon: 'BookOutlined',
     children: [
       { key: '/admin/courses', label: 'Danh sách khóa học', path: '/admin/courses' },
+      { key: '/admin/categories', label: 'Danh mục', path: '/admin/categories' },
     ],
   },
   {
@@ -104,6 +105,7 @@ export const ROUTE_TITLE: Record<string, string> = {
   '/admin/students': 'Quản lý học viên',
   '/admin/users': 'Quản lý tài khoản',
   '/admin/courses': 'Quản lý khóa học',
+  '/admin/categories': 'Quản lý danh mục',
   '/admin/roles': 'Phân quyền',
   '/admin/permissions': 'Quản lý Quyền hạn',
   '/admin/audit-logs': 'Nhật ký hệ thống',

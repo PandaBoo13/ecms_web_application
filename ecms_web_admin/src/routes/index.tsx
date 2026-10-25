@@ -27,6 +27,7 @@ import ReportsPage from '@/pages/admin/reports/ReportsPage';
 import SettingsPage from '@/pages/admin/settings/SettingsPage';
 import LeadListPage from '@/pages/admin/leads/LeadListPage';
 import StudentListPage from '@/pages/admin/students/StudentListPage';
+import CategoryListPage from '@/pages/admin/categories/CategoryListPage';
 
 // ─── Instructor pages ───
 import InstructorDashboardPage from '@/pages/instructor/dashboard/InstructorDashboardPage';
@@ -62,6 +63,7 @@ export default function AppRouter() {
 
           <Route path="/admin/leads" element={<LeadListPage />} />
           <Route path="/admin/students" element={<StudentListPage />} />
+          <Route path="/admin/categories" element={<CategoryListPage />} />
 
           <Route path="/admin/courses" element={<CourseListPage />} />
           <Route path="/admin/courses/:id" element={<CourseDetailPage />} />

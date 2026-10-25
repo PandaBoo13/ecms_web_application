@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { Tabs, Card, Space, Typography, Alert, Statistic, Row, Col, Descriptions, Tag } from 'antd';
-import { LockOutlined } from '@ant-design/icons';
-import toast from 'react-hot-toast';
+import { Tabs, Card, Space, Typography, Alert, Statistic, Row, Col, Button } from 'antd';
+import { ReloadOutlined } from '@ant-design/icons';
 
 import PageContainer from '@/components/common/PageContainer';
 import PageLoading from '@/components/feedback/PageLoading';
@@ -10,24 +9,23 @@ import ErrorState from '@/components/feedback/ErrorState';
 import PageHeader from '@/components/common/PageHeader';
 import StatusTag from '@/components/common/StatusTag';
 import MoneyDisplay from '@/components/common/MoneyDisplay';
-import InlineEdit from '@/components/common/InlineEdit';
 
+import CourseOverviewTab from '@/components/course/CourseOverviewTab';
 import ResourceManager from '@/components/course/ResourceManager';
 import CourseSessionList from '@/components/course/CourseSessionList';
 import CourseQuestionList from '@/components/course/CourseQuestionList';
 import QuizListCard from '@/components/course/QuizListCard';
 
-import { courseApi, categoryApi } from '@/services/api/courses';
-import type { CourseDetailResponse, CategoryResponse, CourseUpdateRequest } from '@/services/types/course';
+import { courseApi } from '@/services/api/courses';
+import type { CourseDetailResponse } from '@/services/types/course';
 
-const { Text, Paragraph } = Typography;
+const { Text } = Typography;
 
 const CourseEditPage = () => {
   const { id } = useParams<{ id: string }>();
   const courseId = Number(id);
 
   const [course, setCourse] = useState<CourseDetailResponse | null>(null);
-  const [categories, setCategories] = useState<CategoryResponse[]>([]);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -37,8 +35,6 @@ const CourseEditPage = () => {
       setIsInitialLoading(false);
       return;
     }
-    
-    // Không set loading = true ở đây nữa để tránh chớp trang khi refresh ngầm
     try {
       const data = await courseApi.getById(courseId);
       setCourse(data);
@@ -51,20 +47,8 @@ const CourseEditPage = () => {
 
   useEffect(() => {
     fetchCourse();
-    categoryApi.tree().then(setCategories).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [courseId]);
-
-  const handleUpdateField = async (field: keyof CourseUpdateRequest, value: any) => {
-    try {
-      await courseApi.update(courseId, { [field]: value });
-      toast.success('Cập nhật thành công');
-      fetchCourse(); 
-    } catch (err) {
-      toast.error((err as { message?: string })?.message || 'Cập nhật thất bại');
-      throw err; 
-    }
-  };
 
   if (isInitialLoading) return <PageLoading tip="Đang tải khóa học..." />;
   if (error) return <ErrorState title="Lỗi" description={error} onRetry={fetchCourse} />;
@@ -72,153 +56,23 @@ const CourseEditPage = () => {
 
   const isOngoing = course.status === 'ONGOING';
 
-  const categoryOptions = categories.map(c => ({ value: c.id, label: c.name }));
-  const learningModeOptions = [
-    { value: 'AUTONOMOUS', label: 'Tự do' },
-    { value: 'SEQUENTIAL', label: 'Tuần tự' },
-  ];
-
   const tabItems = [
     {
       key: 'info',
-      label: 'Thông tin cơ bản',
-      children: (
-        <Card>
-          {isOngoing && (
-            <Alert
-              message="Khóa học đang diễn ra"
-              description="Bạn không thể thay đổi cấu trúc nội dung và học phí khi khóa học đang ở trạng thái ONGOING."
-              type="warning"
-              showIcon
-              icon={<LockOutlined />}
-              style={{ marginBottom: 24 }}
-            />
-          )}
-
-          <div style={{ marginBottom: 16 }}>
-            <Text type="secondary" style={{ fontStyle: 'italic' }}>
-              * Mẹo: Nhấp đúp chuột vào từng dòng thông tin để chỉnh sửa.
-            </Text>
-          </div>
-
-          <Descriptions bordered column={1} size="middle" labelStyle={{ width: '250px', fontWeight: 600, background: '#fafafa' }}>
-            <Descriptions.Item label="Tên khóa học">
-              {isOngoing ? course.title : (
-                <InlineEdit value={course.title} onSave={(v) => handleUpdateField('title', v)} />
-              )}
-            </Descriptions.Item>
-
-            <Descriptions.Item label="Mô tả ngắn">
-              {isOngoing ? course.shortDescription : (
-                <InlineEdit 
-                  type="textarea" 
-                  value={course.shortDescription} 
-                  onSave={(v) => handleUpdateField('shortDescription', v)} 
-                  placeholder="Nhập mô tả ngắn..." 
-                />
-              )}
-            </Descriptions.Item>
-
-            <Descriptions.Item label="Mô tả chi tiết">
-              {isOngoing ? (
-                <Paragraph style={{ whiteSpace: 'pre-wrap', margin: 0 }}>{course.description || '—'}</Paragraph>
-              ) : (
-                <InlineEdit 
-                  type="textarea" 
-                  value={course.description} 
-                  onSave={(v) => handleUpdateField('description', v)} 
-                  placeholder="Nhập mô tả chi tiết..." 
-                />
-              )}
-            </Descriptions.Item>
-
-            <Descriptions.Item label="Danh mục">
-              {isOngoing ? (
-                course.categoryName || '—'
-              ) : (
-                <InlineEdit 
-                  type="select"
-                  value={course.categoryId} 
-                  options={categoryOptions}
-                  onSave={(v) => handleUpdateField('categoryId', v)} 
-                  formatDisplay={() => course.categoryName || <span style={{color: '#bfbfbf'}}>Chưa chọn</span>}
-                />
-              )}
-            </Descriptions.Item>
-
-            {course.courseType === 'ONLINE' && (
-              <Descriptions.Item label="Chế độ học">
-                {isOngoing ? (
-                  course.learningMode === 'SEQUENTIAL' ? 'Tuần tự' : 'Tự do'
-                ) : (
-                  <InlineEdit 
-                    type="select"
-                    value={course.learningMode} 
-                    options={learningModeOptions}
-                    onSave={(v) => handleUpdateField('learningMode', v)} 
-                    formatDisplay={() => course.learningMode === 'SEQUENTIAL' ? 'Tuần tự' : 'Tự do'}
-                  />
-                )}
-              </Descriptions.Item>
-            )}
-
-            <Descriptions.Item label="Miễn phí">
-              {isOngoing ? (
-                course.isFree ? <Tag color="green">Có</Tag> : <Tag>Không</Tag>
-              ) : (
-                <InlineEdit 
-                  type="switch"
-                  value={course.isFree} 
-                  onSave={(v) => handleUpdateField('isFree', v)} 
-                  formatDisplay={() => course.isFree ? <Tag color="green">Có</Tag> : <Tag>Không</Tag>}
-                />
-              )}
-            </Descriptions.Item>
-
-            {!course.isFree && (
-              <>
-                <Descriptions.Item label="Giá bán">
-                  {isOngoing ? (
-                    <MoneyDisplay value={course.price} strong />
-                  ) : (
-                    <InlineEdit 
-                      type="number"
-                      value={course.price} 
-                      onSave={(v) => handleUpdateField('price', v)} 
-                      formatDisplay={(v) => <MoneyDisplay value={v} strong />}
-                    />
-                  )}
-                </Descriptions.Item>
-
-                <Descriptions.Item label="Giá gốc">
-                  {isOngoing ? (
-                    course.oldPrice ? <MoneyDisplay value={course.oldPrice} showFree={false} /> : '—'
-                  ) : (
-                    <InlineEdit 
-                      type="number"
-                      value={course.oldPrice} 
-                      onSave={(v) => handleUpdateField('oldPrice', v)} 
-                      formatDisplay={(v) => v ? <MoneyDisplay value={v} showFree={false} /> : <span style={{color: '#bfbfbf'}}>Chưa có</span>}
-                    />
-                  )}
-                </Descriptions.Item>
-              </>
-            )}
-          </Descriptions>
-        </Card>
-      ),
+      label: 'Tổng quan',
+      children: <CourseOverviewTab course={course} onRefresh={fetchCourse} />,
     },
     {
       key: 'resources',
-      label: 'Nội dung (Resources)',
-      children: (
-        <>
-          {isOngoing ? (
-             <Alert message="Không thể sửa nội dung khi khóa đang diễn ra" type="info" showIcon />
-          ) : (
-             <ResourceManager courseId={courseId} resources={course.resources || []} onRefresh={fetchCourse} />
-          )}
-        </>
+      label: `Nội dung (${course.resources?.length || 0})`,
+      children: isOngoing ? (
+        <Alert message="Không thể sửa nội dung khi khóa đang diễn ra" type="info" showIcon />
+      ) : (
+        <ResourceManager
+          courseId={courseId}
+          resources={course.resources || []}
+          onRefresh={fetchCourse}
+        />
       ),
     },
     {
@@ -237,7 +91,13 @@ const CourseEditPage = () => {
     tabItems.splice(2, 0, {
       key: 'sessions',
       label: `Buổi học (${course.sessions?.length || 0})`,
-      children: <CourseSessionList courseId={courseId} sessions={course.sessions || []} onRefresh={fetchCourse} />,
+      children: (
+        <CourseSessionList
+          courseId={courseId}
+          sessions={course.sessions || []}
+          onRefresh={fetchCourse}
+        />
+      ),
     });
   }
 
@@ -254,27 +114,40 @@ const CourseEditPage = () => {
         }
         backButton
         backTo="/instructor/courses"
+        extra={
+          <Button icon={<ReloadOutlined />} onClick={fetchCourse}>
+            Làm mới
+          </Button>
+        }
       />
 
-      <Row gutter={16} style={{ marginBottom: 24 }}>
-        <Col span={6}>
+      <Row gutter={16} style={{ marginBottom: 20 }}>
+        <Col xs={12} sm={6}>
           <Card size="small">
-            <Statistic title="Học viên" value={course.currentStudents} suffix={course.maxStudents ? `/ ${course.maxStudents}` : ''} />
+            <Statistic
+              title="Học viên"
+              value={course.currentStudents}
+              suffix={course.maxStudents ? `/ ${course.maxStudents}` : ''}
+            />
           </Card>
         </Col>
-        <Col span={6}>
+        <Col xs={12} sm={6}>
           <Card size="small">
-            <Statistic title="Học phí" value={course.price} formatter={(v) => <MoneyDisplay value={Number(v)} />} />
+            <Statistic
+              title="Học phí"
+              value={course.price}
+              formatter={(v) => <MoneyDisplay value={Number(v)} />}
+            />
           </Card>
         </Col>
-        <Col span={6}>
+        <Col xs={12} sm={6}>
           <Card size="small">
-            <Statistic title="Bài học (Resources)" value={course.resources?.length || 0} />
+            <Statistic title="Bài học" value={course.resources?.length || 0} />
           </Card>
         </Col>
-        <Col span={6}>
+        <Col xs={12} sm={6}>
           <Card size="small">
-            <Statistic title="Buổi học (Sessions)" value={course.sessions?.length || 0} />
+            <Statistic title="Buổi học" value={course.sessions?.length || 0} />
           </Card>
         </Col>
       </Row>
