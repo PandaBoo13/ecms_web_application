@@ -10,6 +10,9 @@ import type {
   AccountResponse,
   AccountRoleResponse,
   AccountLockRequest,
+  AccountCreateRequest,
+  AccountUpdateRequest,
+  AccountResetPasswordRequest,
 } from '../types/user';
 
 // ═══════════════════════════════════════════════════════════════
@@ -29,6 +32,30 @@ export const adminUserApi = {
       API_ENDPOINT.RBAC_ACCOUNT_DETAIL(id)
     );
     return data.data;
+  },
+
+  create: async (payload: AccountCreateRequest): Promise<AccountResponse> => {
+    const { data } = await api.post<RequestResponse<AccountResponse>>(
+      API_ENDPOINT.RBAC_ACCOUNTS,
+      payload
+    );
+    return data.data;
+  },
+
+  update: async (id: number, payload: AccountUpdateRequest): Promise<AccountResponse> => {
+    const { data } = await api.put<RequestResponse<AccountResponse>>(
+      API_ENDPOINT.RBAC_ACCOUNT_DETAIL(id),
+      payload
+    );
+    return data.data;
+  },
+
+  resetPassword: async (id: number, payload: AccountResetPasswordRequest): Promise<void> => {
+    await api.patch(API_ENDPOINT.RBAC_ACCOUNT_RESET_PASSWORD(id), payload);
+  },
+
+  delete: async (id: number): Promise<void> => {
+    await api.delete(API_ENDPOINT.RBAC_ACCOUNT_DETAIL(id));
   },
 
   getRoles: async (id: number): Promise<AccountRoleResponse[]> => {

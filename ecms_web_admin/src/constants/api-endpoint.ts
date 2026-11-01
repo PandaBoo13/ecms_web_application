@@ -155,6 +155,7 @@ export const API_ENDPOINT = {
   RBAC_ACCOUNT_ROLE: (id: number) => `/api/rbac/accounts/${id}/role`,
   RBAC_ACCOUNTS_TEACHERS: '/api/rbac/accounts/teachers',
   RBAC_ACCOUNT_LOCK: (id: number) => `/api/rbac/accounts/${id}/lock`,
+  RBAC_ACCOUNT_RESET_PASSWORD: (id: number) => `/api/rbac/accounts/${id}/reset-password`,
 
   // ══════════════════════════════════════════════════════════════
   // AUDIT

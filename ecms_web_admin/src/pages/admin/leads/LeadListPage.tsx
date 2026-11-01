@@ -12,7 +12,6 @@ import {
   Tag,
   Tabs,
   InputNumber,
-  Popconfirm,
   Card,
   Row,
   Col,
@@ -21,6 +20,7 @@ import {
   Alert,
   Divider,
   Badge,
+  Dropdown,
 } from 'antd';
 import {
   PlusOutlined,
@@ -43,6 +43,7 @@ import {
   MessageOutlined,
   CalendarOutlined,
   FileTextOutlined,
+  MoreOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import toast from 'react-hot-toast';
@@ -58,6 +59,7 @@ import { useTranslation } from '@/hooks/useTranslation';
 
 import { leadApi } from '@/services/api/leads';
 import { studentApi } from '@/services/api/students';
+import { courseApi } from '@/services/api/courses';
 import type {
   Lead,
   LeadDetail,
@@ -92,7 +94,31 @@ const LeadListPage = () => {
   const [pageSize, setPageSize] = useState(20);
   const [keyword, setKeyword] = useState('');
   const [statusFilter, setStatusFilter] = useState<LeadStatus | undefined>();
+  const [courseFilter, setCourseFilter] = useState<number | undefined>();
+  const [consultantFilter, setConsultantFilter] = useState<number | undefined>();
   const [inQueueFilter, setInQueueFilter] = useState<boolean | undefined>();
+  const [courses, setCourses] = useState<{ id: number; title: string; code: string }[]>([]);
+
+  const consultants = useMemo(
+    () => [
+      { id: 1, name: 'Quản Trị Viên (Admin)' },
+      { id: 2, name: 'Nguyễn Văn An' },
+      { id: 3, name: 'Trần Thị Bình' },
+    ],
+    []
+  );
+
+  // Load courses for course filter dropdown
+  useEffect(() => {
+    courseApi
+      .search({ page: 0, size: 500 })
+      .then((res) => {
+        if (res?.content) {
+          setCourses(res.content.map((c) => ({ id: c.id, title: c.title, code: c.code })));
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Metrics
   const [stats, setStats] = useState<LeadStats>({
@@ -155,6 +181,8 @@ const LeadListPage = () => {
       const res = await leadApi.search({
         search: keyword.trim() || undefined,
         status: statusFilter,
+        courseId: courseFilter,
+        consultantId: consultantFilter,
         inQueue: inQueueFilter,
         page,
         size: pageSize,
@@ -171,7 +199,7 @@ const LeadListPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, keyword, statusFilter, inQueueFilter]);
+  }, [page, pageSize, keyword, statusFilter, courseFilter, consultantFilter, inQueueFilter]);
 
   useEffect(() => {
     fetchData();
@@ -181,10 +209,30 @@ const LeadListPage = () => {
     fetchStats();
   }, [fetchStats]);
 
-  // Reset page khi filter thay đổi
-  useEffect(() => {
+  const handleKeywordChange = (kw: string) => {
+    setKeyword(kw);
     setPage(0);
-  }, [keyword, statusFilter, inQueueFilter]);
+  };
+
+  const handleStatusChange = (val?: LeadStatus) => {
+    setStatusFilter(val);
+    setPage(0);
+  };
+
+  const handleCourseChange = (val?: number) => {
+    setCourseFilter(val);
+    setPage(0);
+  };
+
+  const handleConsultantChange = (val?: number) => {
+    setConsultantFilter(val);
+    setPage(0);
+  };
+
+  const handleQueueChange = (val?: boolean) => {
+    setInQueueFilter(val);
+    setPage(0);
+  };
 
   const handleRefresh = () => {
     fetchData();
@@ -195,6 +243,8 @@ const LeadListPage = () => {
   const handleResetFilters = () => {
     setKeyword('');
     setStatusFilter(undefined);
+    setCourseFilter(undefined);
+    setConsultantFilter(undefined);
     setInQueueFilter(undefined);
     setPage(0);
   };
@@ -401,36 +451,56 @@ const LeadListPage = () => {
       {
         title: t('lead.courseInterest'),
         dataIndex: 'courseId',
-        width: 140,
-        render: (courseId?: number) =>
-          courseId ? (
-            <Tag
-              icon={<BookOutlined />}
-              color="processing"
-              style={{ borderRadius: 6, fontWeight: 500, padding: '2px 8px' }}
-            >
-              Course #{courseId}
-            </Tag>
-          ) : (
-            <Text type="secondary" style={{ fontSize: 13 }}>
-              —
-            </Text>
-          ),
+        width: 190,
+        render: (courseId?: number) => {
+          if (!courseId) {
+            return (
+              <Text type="secondary" style={{ fontSize: 13 }}>
+                —
+              </Text>
+            );
+          }
+          const matched = courses.find((c) => c.id === courseId);
+          return (
+            <Tooltip title={matched ? `${matched.title} (${matched.code})` : `Khóa học #${courseId}`}>
+              <Tag
+                icon={<BookOutlined />}
+                color="processing"
+                style={{
+                  borderRadius: 6,
+                  fontWeight: 500,
+                  padding: '2px 8px',
+                  maxWidth: 180,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  cursor: 'default',
+                }}
+              >
+                {matched ? matched.title : `Khóa #${courseId}`}
+              </Tag>
+            </Tooltip>
+          );
+        },
       },
       {
         title: t('lead.consultant'),
         key: 'consultant',
-        width: 170,
-        render: (_, record: Lead) =>
-          record.assignedConsultantId ? (
-            <Tag
-              color="blue"
-              icon={<UserOutlined />}
-              style={{ borderRadius: 12, padding: '2px 10px', fontWeight: 500 }}
-            >
-              TVV #{record.assignedConsultantId}
-            </Tag>
-          ) : (
+        width: 180,
+        render: (_, record: Lead) => {
+          if (record.assignedConsultantId) {
+            const matched = consultants.find((c) => c.id === record.assignedConsultantId);
+            return (
+              <Tag
+                color="blue"
+                icon={<UserOutlined />}
+                style={{ borderRadius: 12, padding: '2px 10px', fontWeight: 500 }}
+              >
+                {matched ? matched.name : `TVV #${record.assignedConsultantId}`}
+              </Tag>
+            );
+          }
+          return (
             <Tag
               color="warning"
               style={{
@@ -444,7 +514,8 @@ const LeadListPage = () => {
               <span className="pulse-dot-amber" />
               {t('lead.unassigned')}
             </Tag>
-          ),
+          );
+        },
       },
       {
         title: t('common.status'),
@@ -490,9 +561,9 @@ const LeadListPage = () => {
         title: t('common.actions'),
         key: 'actions',
         fixed: 'right',
-        width: 200,
+        width: 175,
         render: (_, record: Lead) => (
-          <Space size={3}>
+          <Space size={4}>
             <Tooltip title={t('lead.tooltip.view')}>
               <Button
                 type="text"
@@ -500,20 +571,6 @@ const LeadListPage = () => {
                 className="action-btn-circle view"
                 icon={<EyeOutlined style={{ color: '#1677ff', fontSize: 15 }} />}
                 onClick={() => handleOpenDetail(record)}
-              />
-            </Tooltip>
-
-            <Tooltip title={t('lead.tooltip.assign')}>
-              <Button
-                type="text"
-                shape="circle"
-                className="action-btn-circle assign"
-                icon={<UserSwitchOutlined style={{ color: '#722ed1', fontSize: 15 }} />}
-                onClick={() => {
-                  setSelectedLead(record);
-                  assignForm.setFieldsValue({ consultantId: record.assignedConsultantId });
-                  setAssignModalVisible(true);
-                }}
               />
             </Tooltip>
 
@@ -531,22 +588,8 @@ const LeadListPage = () => {
               />
             </Tooltip>
 
-            <Tooltip title={t('lead.tooltip.test')}>
-              <Button
-                type="text"
-                shape="circle"
-                className="action-btn-circle test"
-                icon={<FormOutlined style={{ color: '#08979c', fontSize: 15 }} />}
-                onClick={() => {
-                  setSelectedLead(record);
-                  placementTestForm.resetFields();
-                  setPlacementTestModalVisible(true);
-                }}
-              />
-            </Tooltip>
-
-            {!record.studentId && (
-              <Tooltip title={t('lead.tooltip.convert')}>
+            {!record.studentId ? (
+              <Tooltip title="Xác nhận thanh toán & Ghi danh">
                 <Button
                   type="primary"
                   size="small"
@@ -556,8 +599,8 @@ const LeadListPage = () => {
                   style={{
                     fontSize: 12,
                     fontWeight: 600,
-                    padding: '0 10px',
-                    height: 26,
+                    padding: '0 8px',
+                    height: 28,
                   }}
                   onClick={() => {
                     setSelectedLead(record);
@@ -568,34 +611,89 @@ const LeadListPage = () => {
                   {t('lead.convertBtn')}
                 </Button>
               </Tooltip>
+            ) : (
+              <Tag
+                color="cyan"
+                style={{
+                  borderRadius: 12,
+                  fontWeight: 600,
+                  padding: '2px 8px',
+                  margin: 0,
+                  cursor: 'pointer',
+                }}
+                onClick={() => handleOpenDetail(record)}
+              >
+                HV #{record.studentId}
+              </Tag>
             )}
 
-            <Popconfirm
-              title={t('lead.popconfirm.closeTitle')}
-              description={t('lead.popconfirm.closeDesc')}
-              onConfirm={() => handleCloseLead(record.id)}
-              okText={t('common.confirm')}
-              cancelText={t('common.cancel')}
-              okButtonProps={{ danger: true }}
+            <Dropdown
+              trigger={['click']}
+              menu={{
+                items: [
+                  {
+                    key: 'assign',
+                    icon: <UserSwitchOutlined style={{ color: '#722ed1' }} />,
+                    label: t('lead.tooltip.assign'),
+                    onClick: () => {
+                      setSelectedLead(record);
+                      assignForm.setFieldsValue({ consultantId: record.assignedConsultantId });
+                      setAssignModalVisible(true);
+                    },
+                  },
+                  {
+                    key: 'test',
+                    icon: <FormOutlined style={{ color: '#08979c' }} />,
+                    label: t('lead.tooltip.test'),
+                    onClick: () => {
+                      setSelectedLead(record);
+                      placementTestForm.resetFields();
+                      setPlacementTestModalVisible(true);
+                    },
+                  },
+                  {
+                    type: 'divider',
+                  },
+                  {
+                    key: 'close',
+                    danger: true,
+                    icon: <CloseCircleOutlined />,
+                    label: t('lead.tooltip.close'),
+                    onClick: () => {
+                      Modal.confirm({
+                        title: t('lead.popconfirm.closeTitle'),
+                        content: t('lead.popconfirm.closeDesc'),
+                        okText: t('common.confirm'),
+                        cancelText: t('common.cancel'),
+                        okButtonProps: { danger: true },
+                        onOk: () => handleCloseLead(record.id),
+                      });
+                    },
+                  },
+                ],
+              }}
             >
-              <Tooltip title={t('lead.tooltip.close')}>
-                <Button
-                  type="text"
-                  danger
-                  shape="circle"
-                  className="action-btn-circle delete"
-                  icon={<CloseCircleOutlined style={{ fontSize: 15 }} />}
-                />
-              </Tooltip>
-            </Popconfirm>
+              <Button
+                type="text"
+                shape="circle"
+                className="action-btn-circle"
+                icon={<MoreOutlined style={{ fontSize: 16, color: '#64748b' }} />}
+              />
+            </Dropdown>
           </Space>
         ),
       },
     ],
-    [t, handleOpenDetail]
+    [t, handleOpenDetail, courses, consultants]
   );
 
-  const hasActiveFilters = Boolean(keyword || statusFilter || inQueueFilter !== undefined);
+  const hasActiveFilters = Boolean(
+    keyword ||
+      statusFilter ||
+      courseFilter !== undefined ||
+      consultantFilter !== undefined ||
+      inQueueFilter !== undefined
+  );
 
   return (
     <PageContainer>
@@ -654,10 +752,13 @@ const LeadListPage = () => {
             icon={<TeamOutlined />}
             color="#2563eb"
             bgColor="#eff6ff"
-            active={!statusFilter && inQueueFilter === undefined}
+            active={!statusFilter && inQueueFilter === undefined && !courseFilter && !consultantFilter}
             onClick={() => {
               setStatusFilter(undefined);
               setInQueueFilter(undefined);
+              setCourseFilter(undefined);
+              setConsultantFilter(undefined);
+              setPage(0);
             }}
             tooltip="Nhấn để xem toàn bộ Lead"
           />
@@ -673,6 +774,7 @@ const LeadListPage = () => {
             onClick={() => {
               setStatusFilter(statusFilter === 'NEW' ? undefined : 'NEW');
               setInQueueFilter(undefined);
+              setPage(0);
             }}
             tagText="Cần liên hệ"
             tagColor="warning"
@@ -690,6 +792,7 @@ const LeadListPage = () => {
             onClick={() => {
               setInQueueFilter(inQueueFilter === true ? undefined : true);
               setStatusFilter(undefined);
+              setPage(0);
             }}
             tagText="Chờ TVV"
             tagColor="purple"
@@ -707,6 +810,7 @@ const LeadListPage = () => {
             onClick={() => {
               setStatusFilter(statusFilter === 'CONSULTED' ? undefined : 'CONSULTED');
               setInQueueFilter(undefined);
+              setPage(0);
             }}
             tagText="Đang chốt"
             tagColor="success"
@@ -732,16 +836,31 @@ const LeadListPage = () => {
             setPage(p);
             setPageSize(ps);
           }}
-          onSearch={setKeyword}
+          onSearch={handleKeywordChange}
+          searchValue={keyword}
           searchPlaceholder={t('lead.filter.searchPlaceholder')}
           extra={
             <Space wrap size={10}>
+              <Select
+                showSearch
+                allowClear
+                placeholder="Lọc theo khóa học"
+                style={{ width: 220, height: 38 }}
+                value={courseFilter}
+                onChange={handleCourseChange}
+                optionFilterProp="label"
+                options={courses.map((c) => ({
+                  value: c.id,
+                  label: `${c.title} (${c.code})`,
+                }))}
+              />
+
               <Select
                 placeholder={t('lead.filter.status')}
                 allowClear
                 style={{ width: 170, height: 38 }}
                 value={statusFilter}
-                onChange={setStatusFilter}
+                onChange={handleStatusChange}
               >
                 <Option value="NEW">
                   <Badge status="processing" text={t('status.NEW')} />
@@ -752,11 +871,23 @@ const LeadListPage = () => {
               </Select>
 
               <Select
+                placeholder="Tư vấn viên"
+                allowClear
+                style={{ width: 180, height: 38 }}
+                value={consultantFilter}
+                onChange={handleConsultantChange}
+                options={consultants.map((c) => ({
+                  value: c.id,
+                  label: c.name,
+                }))}
+              />
+
+              <Select
                 placeholder={t('lead.filter.queue')}
                 allowClear
-                style={{ width: 190, height: 38 }}
+                style={{ width: 180, height: 38 }}
                 value={inQueueFilter}
-                onChange={setInQueueFilter}
+                onChange={handleQueueChange}
               >
                 <Option value={true}>
                   <Badge status="warning" text={t('lead.filter.inQueue')} />
@@ -1147,7 +1278,7 @@ const LeadListPage = () => {
         </Form>
       </Modal>
 
-      {/* ── Modal Chuyển đổi thành Học viên (Idempotent) ── */}
+      {/* ── Modal Ghi danh & Lập hồ sơ Học viên (Sau khi thanh toán học phí) ── */}
       <Modal
         title={
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -1166,18 +1297,21 @@ const LeadListPage = () => {
             </div>
             <div>
               <div style={{ fontSize: 16, fontWeight: 700, color: '#0f172a' }}>
-                {t('lead.modal.convertTitle')} #{selectedLead?.id}
+                {t('lead.modal.convertTitle')}
               </div>
               <div style={{ fontSize: 12, color: '#64748b', fontWeight: 400 }}>
-                Chuyển đổi khách hàng tiềm năng thành học viên chính thức
+                {selectedLead?.fullName} • {selectedLead?.phone || selectedLead?.email}
               </div>
             </div>
           </div>
         }
         open={convertModalVisible}
-        onCancel={() => setConvertModalVisible(false)}
+        onCancel={() => {
+          setConvertModalVisible(false);
+          convertForm.resetFields();
+        }}
         onOk={() => convertForm.submit()}
-        okText={t('common.confirm')}
+        okText="Xác nhận ghi danh"
         cancelText={t('common.cancel')}
         okButtonProps={{ className: 'btn-success-gradient', style: { borderRadius: 8, height: 38, border: 'none' } }}
         cancelButtonProps={{ style: { borderRadius: 8, height: 38 } }}
@@ -1187,30 +1321,33 @@ const LeadListPage = () => {
         <Alert
           message={t('lead.modal.convertAlert')}
           description={t('lead.modal.convertAlertDesc')}
-          type="info"
+          type="success"
           showIcon
           style={{ marginBottom: 16, borderRadius: 8 }}
         />
 
         <Form form={convertForm} layout="vertical" onFinish={handleConvertToStudent}>
-          <Form.Item name="courseId" label={t('lead.modal.courseId')}>
-            <InputNumber
-              prefix={<BookOutlined style={{ color: '#94a3b8' }} />}
-              style={{ width: '100%', height: 38, borderRadius: 8 }}
-              placeholder="VD: 1"
+          <Form.Item
+            name="courseId"
+            label="Khóa học đăng ký chính thức"
+            rules={[{ required: true, message: 'Vui lòng chọn khóa học đăng ký' }]}
+          >
+            <Select
+              showSearch
+              placeholder="Chọn khóa học ghi danh"
+              style={{ width: '100%', height: 38 }}
+              optionFilterProp="label"
+              options={courses.map((c) => ({
+                value: c.id,
+                label: `${c.title} (${c.code})`,
+              }))}
             />
           </Form.Item>
-          <Form.Item name="classId" label={t('lead.modal.enrollClass')}>
-            <InputNumber
-              prefix={<TeamOutlined style={{ color: '#94a3b8' }} />}
-              style={{ width: '100%', height: 38, borderRadius: 8 }}
-              placeholder="VD: 101"
-            />
-          </Form.Item>
+
           <Form.Item name="note" label={t('lead.modal.depositNote')}>
             <TextArea
               rows={2}
-              placeholder="Đã hoàn tất thanh toán cọc 500k tại phòng tuyển sinh..."
+              placeholder="Đã xác nhận thanh toán học phí thành công qua chuyển khoản..."
               style={{ borderRadius: 8 }}
             />
           </Form.Item>
@@ -1269,6 +1406,30 @@ const LeadListPage = () => {
             >
               {t('lead.testBtn')}
             </Button>
+            {leadDetail && !leadDetail.studentId ? (
+              <Button
+                type="primary"
+                icon={<CheckCircleOutlined />}
+                className="btn-success-gradient"
+                onClick={() => {
+                  convertForm.setFieldsValue({ courseId: leadDetail.courseId });
+                  setConvertModalVisible(true);
+                }}
+                style={{ borderRadius: 8, border: 'none' }}
+              >
+                {t('lead.convertBtn')}
+              </Button>
+            ) : (
+              leadDetail?.studentId && (
+                <Tag
+                  color="cyan"
+                  icon={<CheckCircleOutlined />}
+                  style={{ borderRadius: 8, padding: '4px 10px', fontWeight: 600 }}
+                >
+                  HV #{leadDetail.studentId}
+                </Tag>
+              )
+            )}
           </Space>
         }
       >

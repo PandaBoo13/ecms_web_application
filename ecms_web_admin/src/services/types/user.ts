@@ -182,3 +182,26 @@ export interface AccountLockRequest {
   isLocked: boolean;
   reason?: string;
 }
+
+export interface AccountCreateRequest {
+  email: string;
+  password: string;
+  fullName: string;
+  phone?: string;
+  roleId?: number;
+  roleCode?: string;
+  isActive?: boolean;
+}
+
+export interface AccountUpdateRequest {
+  fullName?: string;
+  phone?: string;
+  avatarUrl?: string;
+  roleId?: number;
+  roleCode?: string;
+  isActive?: boolean;
+}
+
+export interface AccountResetPasswordRequest {
+  newPassword: string;
+}

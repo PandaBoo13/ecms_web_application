@@ -20,6 +20,7 @@ import {
   Alert,
   Divider,
   Badge,
+  Dropdown,
 } from 'antd';
 import {
   PlusOutlined,
@@ -43,6 +44,7 @@ import {
   LinkOutlined,
   LockOutlined,
   UnlockOutlined,
+  MoreOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import toast from 'react-hot-toast';
@@ -57,6 +59,7 @@ import StatsCard from '@/components/common/StatsCard';
 import { useTranslation } from '@/hooks/useTranslation';
 
 import { studentApi } from '@/services/api/students';
+import { courseApi } from '@/services/api/courses';
 import type {
   Student,
   StudentDetail,
@@ -89,6 +92,20 @@ const StudentListPage = () => {
   const [pageSize, setPageSize] = useState(20);
   const [keyword, setKeyword] = useState('');
   const [statusFilter, setStatusFilter] = useState<StudentStatus | undefined>();
+  const [courseFilter, setCourseFilter] = useState<number | undefined>();
+  const [courses, setCourses] = useState<{ id: number; title: string; code: string }[]>([]);
+
+  // Load courses for course filter dropdown
+  useEffect(() => {
+    courseApi
+      .search({ page: 0, size: 500 })
+      .then((res) => {
+        if (res?.content) {
+          setCourses(res.content.map((c) => ({ id: c.id, title: c.title, code: c.code })));
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Metrics
   const [stats, setStats] = useState<StudentStats>({
@@ -146,6 +163,7 @@ const StudentListPage = () => {
       const res = await studentApi.search({
         search: keyword.trim() || undefined,
         status: statusFilter,
+        courseId: courseFilter,
         page,
         size: pageSize,
         sortBy: 'createdAt',
@@ -161,7 +179,7 @@ const StudentListPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, keyword, statusFilter]);
+  }, [page, pageSize, keyword, statusFilter, courseFilter]);
 
   useEffect(() => {
     fetchData();
@@ -171,9 +189,20 @@ const StudentListPage = () => {
     fetchStats();
   }, [fetchStats]);
 
-  useEffect(() => {
+  const handleKeywordChange = (kw: string) => {
+    setKeyword(kw);
     setPage(0);
-  }, [keyword, statusFilter]);
+  };
+
+  const handleStatusChange = (val?: StudentStatus) => {
+    setStatusFilter(val);
+    setPage(0);
+  };
+
+  const handleCourseChange = (val?: number) => {
+    setCourseFilter(val);
+    setPage(0);
+  };
 
   const handleRefresh = () => {
     fetchData();
@@ -184,6 +213,7 @@ const StudentListPage = () => {
   const handleResetFilters = () => {
     setKeyword('');
     setStatusFilter(undefined);
+    setCourseFilter(undefined);
     setPage(0);
   };
 
@@ -460,7 +490,7 @@ const StudentListPage = () => {
         title: t('common.actions'),
         key: 'actions',
         fixed: 'right',
-        width: 230,
+        width: 120,
         render: (_, record: Student) => (
           <Space size={4}>
             <Tooltip title={t('student.tooltip.view')}>
@@ -493,87 +523,78 @@ const StudentListPage = () => {
               />
             </Tooltip>
 
-            {/* Khóa / Mở khóa tài khoản học viên */}
-            {record.isAccountLocked ? (
-              <Tooltip title={t('student.tooltip.unlockAccount')}>
-                <Button
-                  type="text"
-                  shape="circle"
-                  className="action-btn-circle !text-emerald-600 !bg-emerald-50 !border !border-emerald-200 hover:!bg-emerald-100 transition-colors"
-                  icon={<UnlockOutlined style={{ fontSize: 15 }} />}
-                  onClick={() => {
-                    setSelectedStudent(record);
-                    setIsLockingAction(false);
-                    accountLockForm.resetFields();
-                    setAccountLockModalVisible(true);
-                  }}
-                />
-              </Tooltip>
-            ) : (
-              <Tooltip title={t('student.tooltip.lockAccount')}>
-                <Button
-                  type="text"
-                  shape="circle"
-                  className="action-btn-circle !text-amber-600 !bg-amber-50 !border !border-amber-200 hover:!bg-amber-100 transition-colors"
-                  icon={<LockOutlined style={{ fontSize: 15 }} />}
-                  onClick={() => {
-                    setSelectedStudent(record);
-                    setIsLockingAction(true);
-                    accountLockForm.resetFields();
-                    setAccountLockModalVisible(true);
-                  }}
-                />
-              </Tooltip>
-            )}
-
-            <Tooltip title={t('student.tooltip.changeStatus')}>
-              <Button
-                type="text"
-                shape="circle"
-                className="action-btn-circle assign"
-                icon={<SyncOutlined style={{ fontSize: 15 }} />}
-                onClick={() => {
-                  setSelectedStudent(record);
-                  statusForm.setFieldsValue({
-                    status: record.status,
-                  });
-                  setStatusModalVisible(true);
-                }}
-              />
-            </Tooltip>
-
-            <Tooltip title={t('student.tooltip.addGuardian')}>
-              <Button
-                type="text"
-                shape="circle"
-                className="action-btn-circle interact"
-                icon={<UsergroupAddOutlined style={{ fontSize: 15 }} />}
-                onClick={() => {
-                  setSelectedStudent(record);
-                  guardianForm.resetFields();
-                  setGuardianModalVisible(true);
-                }}
-              />
-            </Tooltip>
-
-            <Popconfirm
-              title={t('student.popconfirm.inactivateTitle')}
-              description={t('student.popconfirm.inactivateDesc')}
-              onConfirm={() => handleDeleteStudent(record.id)}
-              okText={t('common.confirm')}
-              cancelText={t('common.cancel')}
-              okButtonProps={{ danger: true }}
+            <Dropdown
+              trigger={['click']}
+              menu={{
+                items: [
+                  {
+                    key: 'guardian',
+                    icon: <UsergroupAddOutlined style={{ color: '#08979c' }} />,
+                    label: t('student.tooltip.addGuardian'),
+                    onClick: () => {
+                      setSelectedStudent(record);
+                      guardianForm.resetFields();
+                      setGuardianModalVisible(true);
+                    },
+                  },
+                  {
+                    key: 'status',
+                    icon: <SyncOutlined style={{ color: '#722ed1' }} />,
+                    label: t('student.tooltip.changeStatus'),
+                    onClick: () => {
+                      setSelectedStudent(record);
+                      statusForm.setFieldsValue({
+                        status: record.status,
+                      });
+                      setStatusModalVisible(true);
+                    },
+                  },
+                  {
+                    key: 'lock',
+                    icon: record.isAccountLocked ? (
+                      <UnlockOutlined style={{ color: '#059669' }} />
+                    ) : (
+                      <LockOutlined style={{ color: '#d97706' }} />
+                    ),
+                    label: record.isAccountLocked
+                      ? t('student.tooltip.unlockAccount')
+                      : t('student.tooltip.lockAccount'),
+                    onClick: () => {
+                      setSelectedStudent(record);
+                      setIsLockingAction(!record.isAccountLocked);
+                      accountLockForm.resetFields();
+                      setAccountLockModalVisible(true);
+                    },
+                  },
+                  {
+                    type: 'divider',
+                  },
+                  {
+                    key: 'delete',
+                    danger: true,
+                    icon: <DeleteOutlined />,
+                    label: t('student.tooltip.inactivate'),
+                    onClick: () => {
+                      Modal.confirm({
+                        title: t('student.popconfirm.inactivateTitle'),
+                        content: t('student.popconfirm.inactivateDesc'),
+                        okText: t('common.confirm'),
+                        cancelText: t('common.cancel'),
+                        okButtonProps: { danger: true },
+                        onOk: () => handleDeleteStudent(record.id),
+                      });
+                    },
+                  },
+                ],
+              }}
             >
-              <Tooltip title={t('student.tooltip.inactivate')}>
-                <Button
-                  type="text"
-                  danger
-                  shape="circle"
-                  className="action-btn-circle delete"
-                  icon={<DeleteOutlined style={{ fontSize: 15 }} />}
-                />
-              </Tooltip>
-            </Popconfirm>
+              <Button
+                type="text"
+                shape="circle"
+                className="action-btn-circle"
+                icon={<MoreOutlined style={{ fontSize: 16, color: '#64748b' }} />}
+              />
+            </Dropdown>
           </Space>
         ),
       },
@@ -581,7 +602,7 @@ const StudentListPage = () => {
     [t, updateForm, statusForm, guardianForm, accountLockForm]
   );
 
-  const hasActiveFilters = Boolean(keyword || statusFilter);
+  const hasActiveFilters = Boolean(keyword || statusFilter || courseFilter !== undefined);
 
   return (
     <PageContainer>
@@ -640,8 +661,12 @@ const StudentListPage = () => {
             icon={<UserOutlined />}
             color="#2563eb"
             bgColor="#eff6ff"
-            active={!statusFilter}
-            onClick={() => setStatusFilter(undefined)}
+            active={!statusFilter && !courseFilter}
+            onClick={() => {
+              setStatusFilter(undefined);
+              setCourseFilter(undefined);
+              setPage(0);
+            }}
             tooltip={t('student.stats.allTooltip')}
           />
         </Col>
@@ -653,7 +678,10 @@ const StudentListPage = () => {
             color="#10b981"
             bgColor="#ecfdf5"
             active={statusFilter === 'ACTIVE'}
-            onClick={() => setStatusFilter(statusFilter === 'ACTIVE' ? undefined : 'ACTIVE')}
+            onClick={() => {
+              setStatusFilter(statusFilter === 'ACTIVE' ? undefined : 'ACTIVE');
+              setPage(0);
+            }}
             tagText={t('status.ACTIVE')}
             tagColor="success"
             tooltip={t('student.stats.activeTooltip')}
@@ -667,7 +695,10 @@ const StudentListPage = () => {
             color="#ef4444"
             bgColor="#fef2f2"
             active={statusFilter === 'INACTIVE'}
-            onClick={() => setStatusFilter(statusFilter === 'INACTIVE' ? undefined : 'INACTIVE')}
+            onClick={() => {
+              setStatusFilter(statusFilter === 'INACTIVE' ? undefined : 'INACTIVE');
+              setPage(0);
+            }}
             tagText={t('status.INACTIVE')}
             tagColor="error"
             tooltip={t('student.stats.inactiveTooltip')}
@@ -692,16 +723,31 @@ const StudentListPage = () => {
             setPage(p);
             setPageSize(ps);
           }}
-          onSearch={setKeyword}
+          onSearch={handleKeywordChange}
+          searchValue={keyword}
           searchPlaceholder={t('student.filter.searchPlaceholder')}
           extra={
             <Space wrap size={10}>
+              <Select
+                showSearch
+                allowClear
+                placeholder="Lọc theo khóa học"
+                style={{ width: 240, height: 38 }}
+                value={courseFilter}
+                onChange={handleCourseChange}
+                optionFilterProp="label"
+                options={courses.map((c) => ({
+                  value: c.id,
+                  label: `${c.title} (${c.code})`,
+                }))}
+              />
+
               <Select
                 placeholder={t('student.filter.status')}
                 allowClear
                 style={{ width: 180, height: 38 }}
                 value={statusFilter}
-                onChange={setStatusFilter}
+                onChange={handleStatusChange}
               >
                 <Option value="ACTIVE">
                   <Badge status="success" text={t('student.filter.active')} />

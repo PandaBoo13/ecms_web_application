@@ -40,10 +40,10 @@ export const ADMIN_MENU: MenuItem[] = [
   },
   {
     key: 'users',
-    label: 'Người dùng',
+    label: 'Users',
     icon: 'TeamOutlined',
     children: [
-      { key: '/admin/users', label: 'Tài khoản', path: '/admin/users' },
+      { key: '/admin/users', label: 'Danh sách Users', path: '/admin/users' },
     ],
   },
   {

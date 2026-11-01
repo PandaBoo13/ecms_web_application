@@ -1,9 +1,10 @@
 import { Input } from 'antd';
 import { SearchOutlined } from '@ant-design/icons';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useDebounce } from '@/hooks/useDebounce';
 
 interface Props {
+  value?: string;
   onSearch: (value: string) => void;
   placeholder?: string;
   delay?: number;
@@ -11,15 +12,29 @@ interface Props {
 }
 
 const SearchInput = ({
+  value: propValue,
   onSearch,
   placeholder = 'Tìm kiếm...',
   delay = 500,
   width = 320,
 }: Props) => {
-  const [value, setValue] = useState('');
+  const [value, setValue] = useState(propValue ?? '');
   const debounced = useDebounce(value, delay);
+  const isFirstMount = useRef(true);
+
+  // Synchronize with external value prop (e.g., reset button)
+  useEffect(() => {
+    if (propValue !== undefined && propValue !== value) {
+      setValue(propValue);
+    }
+  }, [propValue]);
 
   useEffect(() => {
+    // Avoid double firing on first render if initial value is empty
+    if (isFirstMount.current) {
+      isFirstMount.current = false;
+      if (!debounced) return;
+    }
     onSearch(debounced);
   }, [debounced, onSearch]);
 
@@ -30,6 +45,7 @@ const SearchInput = ({
       placeholder={placeholder}
       value={value}
       onChange={(e) => setValue(e.target.value)}
+      onPressEnter={() => onSearch(value)}
       style={{
         width,
         borderRadius: 8,
