@@ -10,8 +10,13 @@ import {
   SendOutlined,
 } from '@ant-design/icons';
 import toast from 'react-hot-toast';
+
 import { leadApi } from '@/services/api/leads';
-import { courseApi } from '@/services/api/courses';
+
+// 🆕 Cập nhật lại đường dẫn import API theo cấu trúc mới
+import { courseApi } from '@/services/api/course';
+// Nếu báo lỗi không tìm thấy, đổi thành: import { courseApi } from '@/services/api/course/courseApi';
+
 import type { CourseResponse } from '@/services/types/course';
 import type { LeadCreatePayload } from '@/services/types/lead';
 import {
@@ -348,4 +353,3 @@ export default function LeadRegistrationForm({
     </>
   );
 }
-

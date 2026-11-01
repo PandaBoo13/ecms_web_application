@@ -35,13 +35,20 @@ import {
   ArrowLeftOutlined,
 } from '@ant-design/icons';
 import toast from 'react-hot-toast';
-import { courseApi, resourceApi, sessionApi } from '@/services/api/courses';
+
+// 🆕 Cập nhật lại đường dẫn import API theo cấu trúc mới
+import { courseApi } from '@/services/api/course';
+import { resourceApi } from '@/services/api/course';
+import { sessionApi } from '@/services/api/course';
+// Nếu báo lỗi không tìm thấy, đổi thành import từ thư mục file tương ứng
+
 import type {
   CourseDetailResponse,
   ResourceTreeResponse,
   SessionResponse,
   ResourceType,
 } from '@/services/types/course';
+
 import MoneyDisplay from '@/components/common/MoneyDisplay';
 import DateDisplay from '@/components/common/DateDisplay';
 import StatusTag from '@/components/common/StatusTag';
@@ -394,6 +401,13 @@ export default function CourseDetailPage() {
                           <Descriptions.Item label="Ngày kết thúc dự kiến">
                             <DateDisplay value={course.endDate} format="short" />
                           </Descriptions.Item>
+
+                          {/* 🆕 Hiển thị tổng số buổi dự kiến cho khóa OFFLINE */}
+                          {course.courseType === 'OFFLINE' && course.totalSessionsExpected && (
+                            <Descriptions.Item label="Tổng số buổi dự kiến" span={2}>
+                              <strong>{course.totalSessionsExpected} buổi</strong>
+                            </Descriptions.Item>
+                          )}
 
                           {course.scheduleDays && course.scheduleDays.length > 0 && (
                             <Descriptions.Item label="Lịch học trong tuần" span={2}>
@@ -798,4 +812,3 @@ export default function CourseDetailPage() {
     </div>
   );
 }
-
