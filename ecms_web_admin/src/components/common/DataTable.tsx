@@ -19,6 +19,7 @@ interface Props<T> {
 
   // Toolbar
   onSearch?: (value: string) => void;
+  searchValue?: string;
   searchPlaceholder?: string;
   extra?: ReactNode;
   title?: ReactNode;
@@ -38,6 +39,7 @@ function DataTable<T extends object>({
   pageSize = 20,
   onPageChange,
   onSearch,
+  searchValue,
   searchPlaceholder,
   extra,
   title,
@@ -73,7 +75,11 @@ function DataTable<T extends object>({
       >
         <Space>
           {showSearch && onSearch && (
-            <SearchInput onSearch={onSearch} placeholder={searchPlaceholder} />
+            <SearchInput
+              value={searchValue}
+              onSearch={onSearch}
+              placeholder={searchPlaceholder}
+            />
           )}
         </Space>
         <Space>{extra}</Space>

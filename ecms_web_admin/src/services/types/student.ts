@@ -61,6 +61,7 @@ export interface StudentDetail extends Student {
 export interface StudentFilterParams {
   search?: string;
   status?: StudentStatus;
+  courseId?: number;
   page?: number;
   size?: number;
   sortBy?: string;

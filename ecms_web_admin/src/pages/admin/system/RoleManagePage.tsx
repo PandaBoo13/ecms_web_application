@@ -1,91 +1,171 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import {
-  Card, Button, Space, Input, Checkbox, Tag, Empty, Spin,
-  Modal, Form, Tooltip, Popconfirm,
+  Button,
+  Input,
+  Select,
+  Checkbox,
+  Tooltip,
+  Popconfirm,
+  Spin,
+  Empty,
+  Form,
 } from 'antd';
 import {
-  PlusOutlined, EditOutlined, DeleteOutlined, ReloadOutlined,
-  SaveOutlined, SearchOutlined, SafetyOutlined, UndoOutlined, KeyOutlined,
+  PlusOutlined,
+  EditOutlined,
+  DeleteOutlined,
+  ReloadOutlined,
+  HomeOutlined,
+  ArrowLeftOutlined,
+  SaveOutlined,
+  CheckSquareOutlined,
+  BorderOutlined,
 } from '@ant-design/icons';
 import toast from 'react-hot-toast';
 
 import PageContainer from '@/components/common/PageContainer';
-import PageHeader from '@/components/common/PageHeader';
-
 import {
   adminRoleApi,
   adminPermissionApi,
   adminRolePermissionApi,
 } from '@/services/api/admin';
-import type { Permission, Role } from '@/services/types/user';
+import type { Permission, Role, AccountPermissionResponse } from '@/services/types/user';
 
-interface RoleFormValues {
-  code: string;
-  description?: string;
-}
+const { Option } = Select;
 
-const METHOD_COLOR: Record<string, string> = {
-  GET: 'green', POST: 'blue', PUT: 'orange', PATCH: 'purple', DELETE: 'red',
+// ══════════════════════════════════════════════════════════════
+// HELPERS
+// ══════════════════════════════════════════════════════════════
+
+/**
+ * Format permission to action and tagCode (e.g. `courses-view`, `students-create`, `worksheets-approve`)
+ * exactly matching Image 1 and Image 2.
+ */
+export const getPermissionAction = (
+  p: Permission | AccountPermissionResponse
+): { action: string; tagCode: string } => {
+  const method = (p.method || '').toUpperCase();
+  const path = p.endpointPattern || '';
+  const mod = (p.module || 'general').toLowerCase();
+
+  let action = 'view';
+  if (path.includes('convert-lead')) action = 'convert';
+  else if (path.includes('submit-review')) action = 'submit-review';
+  else if (path.includes('review')) action = 'review';
+  else if (path.includes('archive')) action = 'archive';
+  else if (path.includes('cancel')) action = 'cancel';
+  else if (path.includes('copy')) action = 'copy';
+  else if (path.includes('offline-info')) action = 'offline-info';
+  else if (path.includes('hard')) action = 'hard-delete';
+  else if (path.includes('substitute-teacher')) action = 'substitute-teacher';
+  else if (path.includes('substitute')) action = 'substitute';
+  else if (path.includes('assistant')) action = 'assistant';
+  else if (path.includes('generate')) action = 'generate';
+  else if (path.includes('guardians')) {
+    action = method === 'POST' ? 'guardians-add' : method === 'DELETE' ? 'guardians-delete' : 'guardians-view';
+  } else if (path.includes('interactions')) {
+    action = method === 'POST' ? 'interactions-add' : 'interactions-view';
+  } else if (path.includes('placement-tests')) {
+    action = method === 'POST' ? 'placement-add' : 'placement-view';
+  } else if (path.includes('academic-histories')) action = 'academic-histories';
+  else if (path.includes('detail')) action = 'details';
+  else if (path.includes('status')) action = 'status';
+  else if (path.includes('assign')) action = 'assign';
+  else if (path.includes('teacher')) action = 'teacher';
+  else if (path.includes('tree')) action = 'tree';
+  else if (method === 'GET') {
+    action = path.includes('{id}') || path.includes('{code}') || path.includes('{studentCode}') ? 'details' : 'view';
+  } else if (method === 'POST') action = 'create';
+  else if (method === 'PUT') action = 'edit';
+  else if (method === 'PATCH') action = 'update';
+  else if (method === 'DELETE') action = 'delete';
+
+  const pluralMod = mod.endsWith('s') ? mod : `${mod}s`;
+  return {
+    action,
+    tagCode: `${pluralMod}-${action}`,
+  };
 };
 
-const setsEqual = (a: Set<number>, b: Set<number>) => {
-  if (a.size !== b.size) return false;
-  for (const x of a) if (!b.has(x)) return false;
-  return true;
+/**
+ * Get display guard for a role
+ */
+export const getRoleGuard = (role: Role): string => {
+  const code = (role.code || '').toUpperCase();
+  const desc = (role.description || '').toLowerCase();
+  if (desc.includes('guard:')) {
+    const match = desc.match(/guard:([a-z0-9_]+)/i);
+    if (match?.[1]) return match[1].toLowerCase();
+  }
+  if (code.includes('ADMIN')) return 'admin';
+  if (code.includes('STUDENT') || code.includes('CLIENT')) return 'client_api';
+  return 'candidate_api';
 };
+
+const GUARD_OPTIONS = [
+  { value: 'ADMIN', label: 'ADMIN' },
+  { value: 'CLIENT_API', label: 'CLIENT_API' },
+  { value: 'CANDIDATE_API', label: 'CANDIDATE_API' },
+];
 
 const RoleManagePage = () => {
-  const navigate = useNavigate();
+  // ── View mode: 'list' | 'create' | 'edit' ──
+  const [view, setView] = useState<'list' | 'create' | 'edit'>('list');
 
-  // ── Roles ──
+  // ── Data ──
   const [roles, setRoles] = useState<Role[]>([]);
   const [rolesLoading, setRolesLoading] = useState(false);
-
-  // ── All permissions ──
   const [allPerms, setAllPerms] = useState<Permission[]>([]);
   const [permsLoading, setPermsLoading] = useState(false);
+  const [rolePermsMap, setRolePermsMap] = useState<Record<number, AccountPermissionResponse[]>>({});
 
-  // ── Role selection ──
-  const [selectedRole, setSelectedRole] = useState<Role | null>(null);
+  // ── Edit/Create form state ──
+  const [editingRole, setEditingRole] = useState<Role | null>(null);
+  const [form] = Form.useForm();
+  const [selectedGuard, setSelectedGuard] = useState<string>('ADMIN');
+  const [selectedTab, setSelectedTab] = useState<string>('ADMIN');
   const [selectedPermIds, setSelectedPermIds] = useState<Set<number>>(new Set());
-  const [originalPermIds, setOriginalPermIds] = useState<Set<number>>(new Set());
-  const [loadingRolePerms, setLoadingRolePerms] = useState(false);
-  /** Những permission role từng có nhưng is_enabled=false (BE trả về) */
-  const [disabledPermIds, setDisabledPermIds] = useState<Set<number>>(new Set());
-
-  // ── UI ──
-  const [activeModule, setActiveModule] = useState<string | null>(null);
-  const [moduleSearch, setModuleSearch] = useState('');
-  const [permSearch, setPermSearch] = useState('');
   const [saving, setSaving] = useState(false);
 
-  // ── Role create/edit modal ──
-  const [roleModalOpen, setRoleModalOpen] = useState(false);
-  const [editingRole, setEditingRole] = useState<Role | null>(null);
-  const [roleFormSaving, setRoleFormSaving] = useState(false);
-  const [roleForm] = Form.useForm<RoleFormValues>();
+  // ══════════════════════════════════════════════════════════════
+  // FETCH ROLES & PERMISSIONS
+  // ══════════════════════════════════════════════════════════════
 
-  // ══════════════════════════════════════════════════════════════
-  // FETCH
-  // ══════════════════════════════════════════════════════════════
+  const fetchRolePerms = useCallback(async (roleList: Role[]) => {
+    const map: Record<number, AccountPermissionResponse[]> = {};
+    await Promise.all(
+      roleList.map(async (r) => {
+        try {
+          const list = await adminRolePermissionApi.list(r.id);
+          map[r.id] = (list as unknown as AccountPermissionResponse[]) || [];
+        } catch {
+          map[r.id] = [];
+        }
+      })
+    );
+    setRolePermsMap(map);
+  }, []);
+
   const fetchRoles = useCallback(async () => {
     setRolesLoading(true);
     try {
       const list = await adminRoleApi.list();
-      setRoles(list);
+      setRoles(list || []);
+      if (list && list.length > 0) {
+        fetchRolePerms(list);
+      }
     } catch (err) {
       toast.error((err as { message?: string })?.message || 'Không tải được danh sách vai trò');
     } finally {
       setRolesLoading(false);
     }
-  }, []);
+  }, [fetchRolePerms]);
 
   const fetchPermissions = useCallback(async () => {
     setPermsLoading(true);
     try {
       const list = await adminPermissionApi.listAll();
-      setAllPerms(list);
+      setAllPerms(list || []);
     } catch (err) {
       toast.error((err as { message?: string })?.message || 'Không tải được danh sách quyền');
     } finally {
@@ -98,785 +178,658 @@ const RoleManagePage = () => {
     fetchPermissions();
   }, [fetchRoles, fetchPermissions]);
 
-  const loadRolePerms = useCallback(async (role: Role) => {
-    setLoadingRolePerms(true);
-    try {
-      const list = await adminRolePermissionApi.list(role.id);
-      const enabledIds = new Set<number>();
-      const disabledIds = new Set<number>();
-
-      for (const item of list) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const raw = item as any;
-        // BE có thể trả về `id` hoặc `permissionId`
-        const pid = raw.id ?? raw.permissionId;
-        if (typeof pid !== 'number') continue;
-
-        // BE có thể trả về `isEnabled` hoặc `is_enabled`
-        const isEnabled = raw.isEnabled !== false && raw.is_enabled !== false;
-
-        if (isEnabled) {
-          enabledIds.add(pid);
-        } else {
-          disabledIds.add(pid);
-        }
-      }
-
-      setSelectedPermIds(new Set(enabledIds));
-      setOriginalPermIds(new Set(enabledIds));
-      setDisabledPermIds(disabledIds);
-    } catch (err) {
-      toast.error((err as { message?: string })?.message || 'Không tải được quyền của role');
-      setSelectedPermIds(new Set());
-      setOriginalPermIds(new Set());
-      setDisabledPermIds(new Set());
-    } finally {
-      setLoadingRolePerms(false);
-    }
-  }, []);
-
   // ══════════════════════════════════════════════════════════════
-  // GROUPING
+  // GROUPING PERMISSIONS BY MODULE
   // ══════════════════════════════════════════════════════════════
+
   const groupedByModule = useMemo(() => {
     const map = new Map<string, Permission[]>();
     for (const p of allPerms) {
-      const mod = p.module || 'UNCATEGORIZED';
+      const mod = (p.module || 'GENERAL').toUpperCase();
       if (!map.has(mod)) map.set(mod, []);
       map.get(mod)!.push(p);
     }
     return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
   }, [allPerms]);
 
-  // Auto-pick module đầu tiên nếu chưa có hoặc module cũ không tồn tại
-  useEffect(() => {
-    if (groupedByModule.length === 0) return;
-    if (!activeModule || !groupedByModule.some(([m]) => m === activeModule)) {
-      setActiveModule(groupedByModule[0][0]);
-    }
-  }, [groupedByModule, activeModule]);
+  // ══════════════════════════════════════════════════════════════
+  // SWITCH VIEWS
+  // ══════════════════════════════════════════════════════════════
 
-  const countByModule = useMemo(() => {
-    const map = new Map<string, { selected: number; total: number }>();
-    for (const [mod, perms] of groupedByModule) {
-      const selected = perms.filter((p) => selectedPermIds.has(p.id)).length;
-      map.set(mod, { selected, total: perms.length });
-    }
-    return map;
-  }, [groupedByModule, selectedPermIds]);
-
-  const filteredModules = useMemo(() => {
-    const kw = moduleSearch.trim().toLowerCase();
-    if (!kw) return groupedByModule;
-    return groupedByModule.filter(([mod]) => mod.toLowerCase().includes(kw));
-  }, [groupedByModule, moduleSearch]);
-
-  const currentModulePerms = useMemo(() => {
-    if (!activeModule) return [];
-    return groupedByModule.find(([m]) => m === activeModule)?.[1] ?? [];
-  }, [groupedByModule, activeModule]);
-
-  const filteredCurrentPerms = useMemo(() => {
-    const kw = permSearch.trim().toLowerCase();
-    if (!kw) return currentModulePerms;
-    return currentModulePerms.filter((p) => {
-      const hay = `${p.method} ${p.endpointPattern} ${p.description || ''}`.toLowerCase();
-      return hay.includes(kw);
+  const handleOpenCreate = () => {
+    setEditingRole(null);
+    form.resetFields();
+    form.setFieldsValue({
+      code: '',
+      guard: 'ADMIN',
+      prefix: '',
+      description: '',
     });
-  }, [currentModulePerms, permSearch]);
-
-  const currentModuleSelectedCount = useMemo(
-    () => currentModulePerms.filter((p) => selectedPermIds.has(p.id)).length,
-    [currentModulePerms, selectedPermIds],
-  );
-  const currentModuleAllChecked =
-    currentModulePerms.length > 0 && currentModuleSelectedCount === currentModulePerms.length;
-  const currentModuleIndeterminate =
-    currentModuleSelectedCount > 0 && !currentModuleAllChecked;
-
-  const dirty = useMemo(
-    () => !setsEqual(selectedPermIds, originalPermIds),
-    [selectedPermIds, originalPermIds],
-  );
-
-  // ══════════════════════════════════════════════════════════════
-  // HANDLERS
-  // ══════════════════════════════════════════════════════════════
-  const handleSelectRole = (role: Role) => {
-    if (selectedRole?.id === role.id) return;
-    const doSelect = () => {
-      setSelectedRole(role);
-      setPermSearch('');
-      loadRolePerms(role);
-    };
-    if (dirty) {
-      Modal.confirm({
-        title: 'Bạn có thay đổi chưa lưu',
-        content: 'Chuyển sang vai trò khác sẽ huỷ các thay đổi hiện tại. Tiếp tục?',
-        okText: 'Tiếp tục',
-        cancelText: 'Ở lại',
-        okButtonProps: { danger: true },
-        onOk: doSelect,
-      });
-      return;
-    }
-    doSelect();
+    setSelectedGuard('ADMIN');
+    setSelectedTab('ADMIN');
+    setSelectedPermIds(new Set());
+    setView('create');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const togglePerm = (permId: number, checked: boolean) => {
+  const handleOpenEdit = async (role: Role) => {
+    setEditingRole(role);
+    form.resetFields();
+
+    const guardVal = getRoleGuard(role).toUpperCase();
+    form.setFieldsValue({
+      code: role.code,
+      guard: guardVal,
+      prefix: '',
+      description: role.description || '',
+    });
+    setSelectedGuard(guardVal);
+    setSelectedTab(guardVal);
+
+    // Load active permissions for this role
+    let activeIds = new Set<number>();
+    try {
+      const list = (await adminRolePermissionApi.list(role.id)) as unknown as AccountPermissionResponse[];
+      activeIds = new Set(
+        list
+          .filter((item) => item.isEnabled !== false)
+          .map((item) => item.permissionId || (item as unknown as { id: number }).id)
+          .filter(Boolean)
+      );
+    } catch {
+      activeIds = new Set();
+    }
+    setSelectedPermIds(activeIds);
+    setView('edit');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleBackToList = () => {
+    setView('list');
+    setEditingRole(null);
+  };
+
+  // ══════════════════════════════════════════════════════════════
+  // PERMISSION SELECTION IN MATRIX
+  // ══════════════════════════════════════════════════════════════
+
+  const togglePermission = (permId: number) => {
     setSelectedPermIds((prev) => {
       const next = new Set(prev);
-      if (checked) next.add(permId);
-      else next.delete(permId);
+      if (next.has(permId)) next.delete(permId);
+      else next.add(permId);
       return next;
     });
   };
 
-  const toggleModuleAll = (checked: boolean) => {
-    if (!activeModule) return;
+  const toggleModulePermissions = (modulePerms: Permission[]) => {
+    const allSelected = modulePerms.every((p) => selectedPermIds.has(p.id));
     setSelectedPermIds((prev) => {
       const next = new Set(prev);
-      for (const p of currentModulePerms) {
-        if (checked) next.add(p.id);
-        else next.delete(p.id);
+      if (allSelected) {
+        modulePerms.forEach((p) => next.delete(p.id));
+      } else {
+        modulePerms.forEach((p) => next.add(p.id));
       }
       return next;
     });
   };
 
-  const handleSave = async () => {
-    if (!selectedRole) return;
-    setSaving(true);
+  const selectAllPermissions = () => {
+    setSelectedPermIds(new Set(allPerms.map((p) => p.id)));
+  };
 
-    // Diff: cái cần BẬT = tick mới; cái cần TẮT = bỏ tick
-    const added = Array.from(selectedPermIds).filter((id) => !originalPermIds.has(id));
-    const removed = Array.from(originalPermIds).filter((id) => !selectedPermIds.has(id));
+  const deselectAllPermissions = () => {
+    setSelectedPermIds(new Set());
+  };
 
-    let failAdded = 0;
-    let failRemoved = 0;
+  // ══════════════════════════════════════════════════════════════
+  // SUBMIT ROLE (CREATE / EDIT)
+  // ══════════════════════════════════════════════════════════════
 
+  const handleSaveRole = async () => {
     try {
-      // ─── BẬT: thử assignBatch trước (1 request, nếu BE upsert thì OK) ───
-      if (added.length > 0) {
+      const values = await form.validateFields();
+      setSaving(true);
+
+      const code = values.code.trim().toUpperCase();
+      const desc = values.description?.trim() || `guard:${values.guard.toLowerCase()}`;
+
+      let targetRole: Role;
+      if (editingRole) {
+        // Update role info
+        targetRole = await adminRoleApi.update(editingRole.id, {
+          code,
+          description: desc,
+        });
+        toast.success(`Cập nhật vai trò ${code} thành công`);
+      } else {
+        // Create new role
+        targetRole = await adminRoleApi.create({
+          code,
+          description: desc,
+        });
+        toast.success(`Tạo vai trò ${code} thành công`);
+      }
+
+      // Sync permissions
+      const permIdsToAssign = Array.from(selectedPermIds);
+      if (targetRole && targetRole.id) {
         try {
-          await adminRolePermissionApi.assignBatch(selectedRole.id, added);
-        } catch {
-          // Fallback 1: thử activate (trường hợp dòng đã tồn tại nhưng is_enabled=false)
-          for (const pid of added) {
+          if (editingRole) {
+            // Remove existing & assign new batch for clean sync
             try {
-              await adminRolePermissionApi.activate(selectedRole.id, pid);
+              await adminRolePermissionApi.removeAll(targetRole.id);
             } catch {
-              // Fallback 2: assign tạo mới
-              try {
-                await adminRolePermissionApi.assign(selectedRole.id, pid);
-              } catch {
-                failAdded++;
-              }
+              // ignore if empty
             }
           }
+          if (permIdsToAssign.length > 0) {
+            await adminRolePermissionApi.assignBatch(targetRole.id, permIdsToAssign);
+          }
+        } catch (syncErr) {
+          console.warn('Sync permissions partial/fail:', syncErr);
         }
       }
 
-      // ─── TẮT: deactivate từng cái — KHÔNG xoá dòng (giữ is_enabled=false) ───
-      for (const pid of removed) {
-        try {
-          await adminRolePermissionApi.deactivate(selectedRole.id, pid);
-        } catch {
-          failRemoved++;
-        }
-      }
-
-      setOriginalPermIds(new Set(selectedPermIds));
-
-      // Tổng kết
-      const okAdded = added.length - failAdded;
-      const okRemoved = removed.length - failRemoved;
-
-      if (added.length === 0 && removed.length === 0) {
-        toast.success('Không có thay đổi');
-      } else if (failAdded + failRemoved === 0) {
-        toast.success(
-          `Đã lưu · +${okAdded} bật, -${okRemoved} tắt (không xoá khỏi DB)`,
-        );
-      } else {
-        toast.warning(
-          `Lưu một phần · +${okAdded}/${added.length} bật, -${okRemoved}/${removed.length} tắt`,
-          { duration: 5000 },
-        );
-      }
+      await fetchRoles();
+      setView('list');
+      setEditingRole(null);
     } catch (err) {
-      toast.error((err as { message?: string })?.message || 'Lưu thất bại');
+      const e = err as { message?: string; errorFields?: unknown };
+      if (!e.errorFields) toast.error(e?.message || 'Lưu vai trò thất bại');
     } finally {
       setSaving(false);
     }
   };
 
-  const handleCancel = () => {
-    if (!dirty) return;
-    Modal.confirm({
-      title: 'Huỷ các thay đổi?',
-      content: 'Các thay đổi chưa lưu sẽ bị mất.',
-      okText: 'Huỷ thay đổi',
-      cancelText: 'Ở lại',
-      okButtonProps: { danger: true },
-      onOk: () => {
-        // Khi Huỷ, chỉ reset selection về baseline (disabled set giữ nguyên
-        // vì DB chưa đổi — disabled là trạng thái thực tế của server)
-        setSelectedPermIds(new Set(originalPermIds));
-      },
-    });
-  };
-
   // ══════════════════════════════════════════════════════════════
-  // ROLE CRUD
+  // DELETE ROLE
   // ══════════════════════════════════════════════════════════════
-  const openCreateRole = () => {
-    setEditingRole(null);
-    roleForm.resetFields();
-    setRoleModalOpen(true);
-  };
-
-  const openEditRole = (role: Role) => {
-    setEditingRole(role);
-    roleForm.setFieldsValue({ code: role.code, description: role.description });
-    setRoleModalOpen(true);
-  };
-
-  const handleSubmitRole = async () => {
-    try {
-      const values = await roleForm.validateFields();
-      setRoleFormSaving(true);
-      if (editingRole) {
-        await adminRoleApi.update(editingRole.id, values);
-        toast.success('Cập nhật vai trò thành công');
-      } else {
-        await adminRoleApi.create(values);
-        toast.success('Tạo vai trò thành công');
-      }
-      setRoleModalOpen(false);
-      fetchRoles();
-    } catch (err) {
-      const e = err as { message?: string; errorFields?: unknown };
-      if (!e.errorFields) toast.error(e.message || 'Lưu thất bại');
-    } finally {
-      setRoleFormSaving(false);
-    }
-  };
 
   const handleDeleteRole = async (role: Role) => {
     try {
       await adminRoleApi.delete(role.id);
-      toast.success('Xoá vai trò thành công');
-      if (selectedRole?.id === role.id) {
-        setSelectedRole(null);
-        setSelectedPermIds(new Set());
-        setOriginalPermIds(new Set());
-      }
+      toast.success(`Đã xóa vai trò ${role.code}`);
       fetchRoles();
     } catch (err) {
-      toast.error((err as { message?: string })?.message || 'Xoá thất bại');
+      toast.error((err as { message?: string })?.message || 'Xóa vai trò thất bại');
     }
   };
 
   // ══════════════════════════════════════════════════════════════
-  // RENDER
+  // RENDER: VIEW 1 — ROLE MANAGEMENT LIST (Image 1)
   // ══════════════════════════════════════════════════════════════
+
+  if (view === 'list') {
+    return (
+      <PageContainer>
+        <div className="max-w-[1400px] mx-auto py-2">
+          {/* Header */}
+          <div className="flex items-center justify-between mb-4 px-1">
+            <h1 className="text-xl font-bold text-slate-800 m-0">Role Management</h1>
+            <div className="flex items-center gap-2.5">
+              <Button
+                icon={<ReloadOutlined />}
+                onClick={() => {
+                  fetchRoles();
+                  fetchPermissions();
+                  toast.success('Đã làm mới dữ liệu');
+                }}
+                className="!h-9 !rounded-lg text-slate-600 hover:border-blue-500"
+              >
+                Làm mới
+              </Button>
+              <Button
+                type="primary"
+                icon={<PlusOutlined />}
+                onClick={handleOpenCreate}
+                className="!h-9 !rounded-lg !bg-[#0090ff] hover:!bg-blue-600 !font-semibold !px-4 shadow-sm"
+              >
+                + Create New Role
+              </Button>
+            </div>
+          </div>
+
+          {/* Table Container Card */}
+          <div className="bg-white rounded-xl border border-slate-200/90 shadow-xs overflow-hidden">
+            {rolesLoading && roles.length === 0 ? (
+              <div className="p-16 text-center">
+                <Spin size="large" />
+                <div className="text-xs text-slate-400 mt-3">Đang tải danh sách vai trò...</div>
+              </div>
+            ) : roles.length === 0 ? (
+              <div className="p-16 text-center">
+                <Empty description="Chưa có vai trò nào trong hệ thống" />
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-200 bg-white">
+                      <th className="py-3 px-4 text-xs font-bold text-slate-700 w-14 text-center">#</th>
+                      <th className="py-3 px-4 text-xs font-bold text-slate-700 w-44">
+                        Role Name<br />(code)
+                      </th>
+                      <th className="py-3 px-4 text-xs font-bold text-slate-700 w-40">Guard (scope)</th>
+                      <th className="py-3 px-4 text-xs font-bold text-slate-700">Permissions</th>
+                      <th className="py-3 px-4 text-xs font-bold text-slate-700 w-28 text-center">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {roles.map((role, idx) => {
+                      const guard = getRoleGuard(role);
+                      const perms = rolePermsMap[role.id] || [];
+                      const activePerms = perms.filter((p) => p.isEnabled !== false);
+
+                      return (
+                        <tr key={role.id} className="hover:bg-slate-50/60 transition-colors">
+                          {/* # */}
+                          <td className="py-4 px-4 text-xs font-medium text-slate-500 text-center align-top">
+                            {idx + 1}
+                          </td>
+
+                          {/* Role Name (code) */}
+                          <td className="py-4 px-4 align-top">
+                            <span className="inline-block bg-[#e0f2fe] text-[#0369a1] font-bold text-xs uppercase px-3 py-1 rounded tracking-wide border border-[#bae6fd]">
+                              {role.code}
+                            </span>
+                          </td>
+
+                          {/* Guard (scope) */}
+                          <td className="py-4 px-4 align-top">
+                            <span className="inline-block bg-[#ffe4e6] text-[#be123c] font-semibold text-xs px-2.5 py-0.5 rounded tracking-normal border border-[#fecdd3]">
+                              {guard}
+                            </span>
+                          </td>
+
+                          {/* Permissions */}
+                          <td className="py-4 px-4 align-top">
+                            {permsLoading || (rolesLoading && perms.length === 0) ? (
+                              <span className="text-xs text-slate-400 italic">Đang tải quyền...</span>
+                            ) : activePerms.length === 0 ? (
+                              <span className="text-xs text-slate-400 italic">Chưa được gán quyền</span>
+                            ) : (
+                              <div className="flex flex-wrap gap-1.5 items-center">
+                                {activePerms.map((p) => {
+                                  const { tagCode } = getPermissionAction(p);
+                                  return (
+                                    <Tooltip
+                                      key={p.permissionId || p.endpointPattern}
+                                      title={
+                                        <div className="text-xs">
+                                          <div className="font-bold text-emerald-300">
+                                            {p.method} {p.endpointPattern}
+                                          </div>
+                                          <div>{p.description || p.module}</div>
+                                        </div>
+                                      }
+                                      placement="top"
+                                    >
+                                      <span className="bg-[#ecfdf5] text-[#047857] border border-[#a7f3d0] rounded-md px-2 py-0.5 text-[11px] font-mono font-medium hover:bg-[#d1fae5] transition-colors cursor-default select-none">
+                                        {tagCode}
+                                      </span>
+                                    </Tooltip>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </td>
+
+                          {/* Actions */}
+                          <td className="py-4 px-4 align-top text-center">
+                            <div className="flex items-center justify-center gap-2">
+                              {/* Edit Button */}
+                              <Tooltip title="Chỉnh sửa vai trò & phân quyền">
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenEdit(role)}
+                                  className="w-8 h-8 rounded-lg bg-[#f59e0b] hover:bg-[#d97706] text-white flex items-center justify-center transition-colors shadow-xs cursor-pointer border-none"
+                                >
+                                  <EditOutlined className="text-sm" />
+                                </button>
+                              </Tooltip>
+
+                              {/* Delete Button */}
+                              <Popconfirm
+                                title={`Xóa vai trò ${role.code}?`}
+                                description="Các tài khoản đang gán vai trò này sẽ mất quyền tương ứng."
+                                okText="Xóa"
+                                cancelText="Hủy"
+                                okButtonProps={{ danger: true }}
+                                onConfirm={() => handleDeleteRole(role)}
+                              >
+                                <Tooltip title="Xóa vai trò">
+                                  <button
+                                    type="button"
+                                    className="w-8 h-8 rounded-lg bg-[#ef4444] hover:bg-[#dc2626] text-white flex items-center justify-center transition-colors shadow-xs cursor-pointer border-none"
+                                  >
+                                    <DeleteOutlined className="text-sm" />
+                                  </button>
+                                </Tooltip>
+                              </Popconfirm>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* Footer (matching Image 1) */}
+          <div className="text-center py-8 text-xs text-slate-400">
+            <div>© 2026 Tinovation. All rights reserved.</div>
+            <div className="mt-1 text-[11px] text-slate-400/80">v1.0.0</div>
+          </div>
+        </div>
+      </PageContainer>
+    );
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  // RENDER: VIEW 2 — CREATE / EDIT ROLE WITH MATRIX (Image 2)
+  // ══════════════════════════════════════════════════════════════
+
   return (
     <PageContainer>
-      <PageHeader
-        title="Quản lý vai trò & phân quyền"
-        subtitle="Chọn vai trò ở cột bên trái, sau đó tick các quyền mong muốn"
-        extra={
-          <>
-            <Button icon={<KeyOutlined />} onClick={() => navigate('/admin/permissions')}>
-              Quản lý Permissions
-            </Button>
-            <Button
-              icon={<ReloadOutlined />}
-              onClick={() => {
-                fetchRoles();
-                fetchPermissions();
-                if (selectedRole) loadRolePerms(selectedRole);
-                toast.success('Đã làm mới');
-              }}
+      <div className="max-w-[1400px] mx-auto py-2">
+        {/* Breadcrumb Header */}
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2 text-sm text-slate-500">
+            <span className="font-bold text-slate-800 text-base">Role Management</span>
+            <span className="text-slate-300">/</span>
+            <span
+              onClick={handleBackToList}
+              className="hover:text-blue-600 cursor-pointer flex items-center gap-1"
             >
-              Làm mới
-            </Button>
-            <Button type="primary" icon={<PlusOutlined />} onClick={openCreateRole}>
-              Tạo vai trò
-            </Button>
-          </>
-        }
-      />
+              <HomeOutlined className="text-xs" /> Home
+            </span>
+            <span className="text-slate-300">/</span>
+            <span className="text-blue-600 font-medium">Role Management</span>
+          </div>
 
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: '280px 1fr',
-          gap: 16,
-          minHeight: 'calc(100vh - 220px)',
-        }}
-      >
-        {/* ═══════ LEFT: ROLES ═══════ */}
-        <Card
-          title={<span>Vai trò ({roles.length})</span>}
-          bodyStyle={{ padding: 8, height: '100%', overflowY: 'auto' }}
-          style={{ height: '100%', overflow: 'hidden' }}
-        >
-          {rolesLoading && roles.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: 32 }}><Spin /></div>
-          ) : roles.length === 0 ? (
-            <Empty description="Chưa có vai trò nào" image={Empty.PRESENTED_IMAGE_SIMPLE} />
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              {roles.map((r) => {
-                const active = selectedRole?.id === r.id;
-                return (
-                  <div
-                    key={r.id}
-                    onClick={() => handleSelectRole(r)}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      padding: '10px 12px',
-                      borderRadius: 8,
-                      cursor: 'pointer',
-                      background: active ? '#e6f4ff' : 'transparent',
-                      border: active ? '1px solid #91caff' : '1px solid transparent',
-                      transition: 'all 0.15s ease',
-                    }}
-                    onMouseEnter={(e) => {
-                      if (!active) e.currentTarget.style.background = '#f8fafc';
-                    }}
-                    onMouseLeave={(e) => {
-                      if (!active) e.currentTarget.style.background = 'transparent';
-                    }}
-                  >
-                    <SafetyOutlined
-                      style={{ color: active ? '#1677ff' : '#94a3b8', flexShrink: 0 }}
-                    />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div
-                        style={{
-                          fontSize: 13,
-                          fontWeight: active ? 700 : 600,
-                          color: active ? '#1677ff' : '#0f172a',
-                          lineHeight: 1.3,
-                        }}
-                      >
-                        {r.code}
-                      </div>
-                      {r.description && (
-                        <div
-                          style={{
-                            fontSize: 11,
-                            color: '#64748b',
-                            marginTop: 2,
-                            lineHeight: 1.3,
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap',
-                          }}
-                        >
-                          {r.description}
-                        </div>
-                      )}
-                    </div>
-                    <Space size={0} onClick={(e) => e.stopPropagation()}>
-                      <Tooltip title="Sửa">
-                        <Button
-                          type="text"
-                          size="small"
-                          icon={<EditOutlined />}
-                          onClick={() => openEditRole(r)}
-                        />
-                      </Tooltip>
-                      <Popconfirm
-                        title="Xoá vai trò?"
-                        description={r.code}
-                        okText="Xoá"
-                        cancelText="Huỷ"
-                        okButtonProps={{ danger: true }}
-                        onConfirm={() => handleDeleteRole(r)}
-                      >
-                        <Tooltip title="Xoá">
-                          <Button
-                            type="text"
-                            size="small"
-                            danger
-                            icon={<DeleteOutlined />}
-                          />
-                        </Tooltip>
-                      </Popconfirm>
-                    </Space>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </Card>
-
-        {/* ═══════ RIGHT: PERMISSIONS ═══════ */}
-        <Card
-          bodyStyle={{
-            padding: 0,
-            height: '100%',
-            display: 'flex',
-            flexDirection: 'column',
-          }}
-          style={{ height: '100%', overflow: 'hidden' }}
-        >
-          {!selectedRole ? (
-            <div
-              style={{
-                flex: 1,
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#94a3b8',
-                padding: 40,
-              }}
-            >
-              <SafetyOutlined style={{ fontSize: 42, marginBottom: 12, opacity: 0.4 }} />
-              <div style={{ fontSize: 14, fontWeight: 600 }}>Chọn một vai trò bên trái</div>
-              <div style={{ fontSize: 12, marginTop: 4 }}>để xem & gán quyền</div>
-            </div>
-          ) : (
-            <>
-              {/* ── Header ── */}
-              <div
-                style={{
-                  padding: '12px 16px',
-                  borderBottom: '1px solid #e2e8f0',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: 12,
-                  background: '#fafbff',
-                  flexWrap: 'wrap',
-                }}
-              >
-                <div style={{ minWidth: 0 }}>
-                  <div
-                    style={{
-                      fontSize: 15,
-                      fontWeight: 700,
-                      color: '#0f172a',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                    }}
-                  >
-                    <SafetyOutlined style={{ color: '#1677ff' }} />
-                    <span>{selectedRole.code}</span>
-                    {dirty && (
-                      <Tag
-                        color="orange"
-                        style={{ margin: 0, fontSize: 11, borderRadius: 10 }}
-                      >
-                        Chưa lưu
-                      </Tag>
-                    )}
-                  </div>
-                  <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
-                    Đang bật <b>{selectedPermIds.size}</b> / {allPerms.length} quyền
-                    {disabledPermIds.size > 0 && (
-                      <>
-                        {' · '}
-                        <Tag
-                          color="default"
-                          style={{ margin: 0, fontSize: 10.5, lineHeight: '16px' }}
-                        >
-                          {disabledPermIds.size} đã tắt
-                        </Tag>
-                      </>
-                    )}
-                    {selectedRole.description && ` · ${selectedRole.description}`}
-                  </div>
-                </div>
-                <Space>
-                  <Button
-                    icon={<UndoOutlined />}
-                    onClick={handleCancel}
-                    disabled={!dirty || saving}
-                  >
-                    Huỷ
-                  </Button>
-                  <Button
-                    type="primary"
-                    icon={<SaveOutlined />}
-                    onClick={handleSave}
-                    loading={saving}
-                    disabled={!dirty}
-                  >
-                    Lưu
-                  </Button>
-                </Space>
-              </div>
-
-              {/* ── Body: 2 sub-columns ── */}
-              <div
-                style={{
-                  flex: 1,
-                  minHeight: 0,
-                  display: 'grid',
-                  gridTemplateColumns: '240px 1fr',
-                }}
-              >
-                {/* Module list */}
-                <div
-                  style={{
-                    borderRight: '1px solid #e2e8f0',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    minHeight: 0,
-                  }}
-                >
-                  <div style={{ padding: 8, borderBottom: '1px solid #f1f5f9' }}>
-                    <Input
-                      size="small"
-                      prefix={<SearchOutlined style={{ color: '#94a3b8' }} />}
-                      placeholder="Tìm module..."
-                      value={moduleSearch}
-                      onChange={(e) => setModuleSearch(e.target.value)}
-                      allowClear
-                    />
-                  </div>
-                  <div style={{ flex: 1, overflowY: 'auto', padding: 4 }}>
-                    {permsLoading ? (
-                      <div style={{ textAlign: 'center', padding: 24 }}><Spin /></div>
-                    ) : filteredModules.length === 0 ? (
-                      <Empty
-                        description="Không có module"
-                        image={Empty.PRESENTED_IMAGE_SIMPLE}
-                        style={{ marginTop: 24 }}
-                      />
-                    ) : (
-                      filteredModules.map(([mod]) => {
-                        const counts = countByModule.get(mod) ?? {
-                          selected: 0,
-                          total: 0,
-                        };
-                        const isActive = activeModule === mod;
-                        const full = counts.selected === counts.total && counts.total > 0;
-                        const partial = counts.selected > 0 && !full;
-                        return (
-                          <div
-                            key={mod}
-                            onClick={() => {
-                              setActiveModule(mod);
-                              setPermSearch('');
-                            }}
-                            style={{
-                              padding: '8px 10px',
-                              borderRadius: 6,
-                              cursor: 'pointer',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 8,
-                              marginBottom: 2,
-                              background: isActive ? '#e6f4ff' : 'transparent',
-                            }}
-                          >
-                            <span
-                              style={{
-                                flex: 1,
-                                minWidth: 0,
-                                fontSize: 12.5,
-                                fontWeight: isActive ? 700 : 500,
-                                color: isActive ? '#1677ff' : '#334155',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                whiteSpace: 'nowrap',
-                              }}
-                            >
-                              {mod}
-                            </span>
-                            <Tag
-                              color={full ? 'green' : partial ? 'orange' : 'default'}
-                              style={{
-                                margin: 0,
-                                fontSize: 10.5,
-                                lineHeight: '16px',
-                                padding: '0 6px',
-                              }}
-                            >
-                              {counts.selected}/{counts.total}
-                            </Tag>
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
-                </div>
-
-                {/* Permissions of active module */}
-                <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-                  <div
-                    style={{
-                      padding: '10px 14px',
-                      borderBottom: '1px solid #f1f5f9',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 12,
-                      flexWrap: 'wrap',
-                    }}
-                  >
-                    <Checkbox
-                      checked={currentModuleAllChecked}
-                      indeterminate={currentModuleIndeterminate}
-                      onChange={(e) => toggleModuleAll(e.target.checked)}
-                      disabled={loadingRolePerms || currentModulePerms.length === 0}
-                    >
-                      <span style={{ fontWeight: 600, fontSize: 12.5 }}>
-                        {activeModule || '—'}
-                      </span>
-                      <span style={{ color: '#94a3b8', fontSize: 11, marginLeft: 6 }}>
-                        ({currentModuleSelectedCount}/{currentModulePerms.length})
-                      </span>
-                    </Checkbox>
-                    <div style={{ flex: 1 }} />
-                    <Input
-                      size="small"
-                      prefix={<SearchOutlined style={{ color: '#94a3b8' }} />}
-                      placeholder="Tìm theo mô tả hoặc endpoint..."
-                      value={permSearch}
-                      onChange={(e) => setPermSearch(e.target.value)}
-                      allowClear
-                      style={{ width: 260 }}
-                    />
-                  </div>
-
-                  <div style={{ flex: 1, overflowY: 'auto', padding: 8 }}>
-                    {loadingRolePerms ? (
-                      <div style={{ textAlign: 'center', padding: 40 }}><Spin /></div>
-                    ) : filteredCurrentPerms.length === 0 ? (
-                      <Empty
-                        description={
-                          permSearch
-                            ? 'Không có quyền nào khớp'
-                            : 'Module này chưa có quyền'
-                        }
-                        image={Empty.PRESENTED_IMAGE_SIMPLE}
-                        style={{ marginTop: 40 }}
-                      />
-                    ) : (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                        {filteredCurrentPerms.map((p) => {
-                          const checked = selectedPermIds.has(p.id);
-                          return (
-                            <Tooltip
-                              key={p.id}
-                              title={
-                                <span style={{ fontFamily: 'monospace', fontSize: 12 }}>
-                                  {p.method} {p.endpointPattern}
-                                </span>
-                              }
-                              placement="topLeft"
-                              mouseEnterDelay={0.4}
-                            >
-                              <label
-                                style={{
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  gap: 10,
-                                  padding: '8px 10px',
-                                  borderRadius: 6,
-                                  cursor: 'pointer',
-                                  background: checked ? '#f0f7ff' : 'transparent',
-                                  border: '1px solid',
-                                  borderColor: checked ? '#bae0ff' : 'transparent',
-                                  transition: 'all 0.15s',
-                                }}
-                              >
-                                <Checkbox
-                                  checked={checked}
-                                  onChange={(e) => togglePerm(p.id, e.target.checked)}
-                                />
-                                <Tag
-                                  color={METHOD_COLOR[p.method] || 'default'}
-                                  style={{
-                                    margin: 0,
-                                    fontWeight: 700,
-                                    minWidth: 58,
-                                    textAlign: 'center',
-                                    fontSize: 11,
-                                  }}
-                                >
-                                  {p.method}
-                                </Tag>
-                                <span
-                                  style={{
-                                    fontSize: 13,
-                                    color: '#0f172a',
-                                    fontWeight: 500,
-                                    flex: 1,
-                                    minWidth: 0,
-                                    overflow: 'hidden',
-                                    textOverflow: 'ellipsis',
-                                    whiteSpace: 'nowrap',
-                                  }}
-                                >
-                                  {p.description || p.endpointPattern}
-                                </span>
-                                {disabledPermIds.has(p.id) && !checked && (
-                                  <Tag
-                                    style={{
-                                      margin: 0,
-                                      fontSize: 10,
-                                      lineHeight: '16px',
-                                      background: '#f1f5f9',
-                                      color: '#64748b',
-                                      border: '1px dashed #cbd5e1',
-                                    }}
-                                  >
-                                    đã tắt
-                                  </Tag>
-                                )}
-                              </label>
-                            </Tooltip>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </>
-          )}
-        </Card>
-      </div>
-
-      {/* ── Modal tạo/sửa role ── */}
-      <Modal
-        title={editingRole ? `Sửa vai trò #${editingRole.id}` : 'Tạo vai trò mới'}
-        open={roleModalOpen}
-        onCancel={() => setRoleModalOpen(false)}
-        onOk={handleSubmitRole}
-        confirmLoading={roleFormSaving}
-        okText={editingRole ? 'Cập nhật' : 'Tạo mới'}
-        cancelText="Huỷ"
-        destroyOnClose
-      >
-        <Form form={roleForm} layout="vertical" style={{ marginTop: 16 }}>
-          <Form.Item
-            name="code"
-            label="Mã vai trò"
-            rules={[
-              { required: true, message: 'Vui lòng nhập mã vai trò' },
-              { max: 50, message: 'Tối đa 50 ký tự' },
-              { pattern: /^[A-Z_]+$/, message: 'Chỉ chữ in hoa và dấu _' },
-            ]}
+          <Button
+            icon={<ArrowLeftOutlined />}
+            onClick={handleBackToList}
+            className="!h-9 !rounded-lg text-slate-600 hover:border-blue-500"
           >
-            <Input placeholder="VD: ADMIN, INSTRUCTOR, STUDENT" />
-          </Form.Item>
-          <Form.Item name="description" label="Mô tả" rules={[{ max: 255 }]}>
-            <Input.TextArea rows={3} placeholder="Mô tả vai trò này..." />
-          </Form.Item>
-        </Form>
-      </Modal>
+            Quay lại danh sách
+          </Button>
+        </div>
+
+        {/* Form Container Card */}
+        <div className="bg-white rounded-xl border border-slate-200/90 shadow-xs p-6 mb-6">
+          <h2 className="text-base font-bold text-slate-900 mb-6">
+            {editingRole ? `Edit Role: ${editingRole.code}` : 'Create New Role'}
+          </h2>
+
+          <Form form={form} layout="vertical">
+            {/* Row 1: Role Name & Guard */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
+              {/* Role Name (code) */}
+              <div>
+                <Form.Item
+                  name="code"
+                  label={
+                    <span className="text-xs font-bold text-slate-700">
+                      Role Name (code) <span className="text-red-500">*</span>
+                    </span>
+                  }
+                  rules={[
+                    { required: true, message: 'Vui lòng nhập tên vai trò' },
+                    { pattern: /^[A-Z0-9_]+$/, message: 'Chữ in hoa, số và dấu gạch dưới (VD: HR_MANAGER)' },
+                  ]}
+                  className="!mb-1"
+                >
+                  <Input
+                    placeholder="Enter role name (e.g., hr_manager)"
+                    size="large"
+                    className="!rounded-lg !border-slate-300 text-sm"
+                    onChange={(e) => {
+                      form.setFieldsValue({ code: e.target.value.toUpperCase() });
+                    }}
+                  />
+                </Form.Item>
+              </div>
+
+              {/* Guard (scope) */}
+              <div>
+                <Form.Item
+                  name="guard"
+                  label={<span className="text-xs font-bold text-slate-700">Guard (scope)</span>}
+                  className="!mb-1"
+                >
+                  <Select
+                    size="large"
+                    value={selectedGuard}
+                    onChange={(val) => {
+                      setSelectedGuard(val);
+                      setSelectedTab(val);
+                    }}
+                    className="!rounded-lg text-sm"
+                  >
+                    {GUARD_OPTIONS.map((opt) => (
+                      <Option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </Option>
+                    ))}
+                  </Select>
+                </Form.Item>
+                <div className="text-[11px] text-slate-400 mt-1">
+                  Guard will automatically change when you switch tabs below
+                </div>
+              </div>
+            </div>
+
+            {/* Row 2: Staff code prefix / Description */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+              <div>
+                <Form.Item
+                  name="prefix"
+                  label={<span className="text-xs font-bold text-slate-700">Staff code prefix</span>}
+                  className="!mb-1"
+                >
+                  <Input placeholder="FS" size="large" className="!rounded-lg !border-slate-300 text-sm" />
+                </Form.Item>
+                <div className="text-[11px] text-slate-400 mt-1">
+                  Used to build the staff code, e.g. FS -&gt; FS-0001. Optional.
+                </div>
+              </div>
+
+              <div>
+                <Form.Item
+                  name="description"
+                  label={<span className="text-xs font-bold text-slate-700">Mô tả vai trò</span>}
+                  className="!mb-1"
+                >
+                  <Input
+                    placeholder="Mô tả phạm vi quyền hạn của vai trò này"
+                    size="large"
+                    className="!rounded-lg !border-slate-300 text-sm"
+                  />
+                </Form.Item>
+                <div className="text-[11px] text-slate-400 mt-1">
+                  Mô tả ngắn gọn mục đích sử dụng trong hệ thống
+                </div>
+              </div>
+            </div>
+
+            {/* Scope Tabs (matching Image 2) */}
+            <div className="border-b border-slate-200 mb-6 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                {GUARD_OPTIONS.map((tab) => {
+                  const isActive = selectedTab === tab.value;
+                  return (
+                    <button
+                      key={tab.value}
+                      type="button"
+                      onClick={() => {
+                        setSelectedTab(tab.value);
+                        setSelectedGuard(tab.value);
+                        form.setFieldsValue({ guard: tab.value });
+                      }}
+                      className={`px-4 py-2 text-xs font-bold uppercase tracking-wider transition-all border-b-2 -mb-[1px] cursor-pointer bg-transparent border-t-0 border-l-0 border-r-0 ${
+                        isActive
+                          ? 'border-[#0090ff] text-[#0090ff] bg-blue-50/50 rounded-t-lg'
+                          : 'border-transparent text-slate-500 hover:text-slate-800'
+                      }`}
+                    >
+                      {tab.label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Quick Select Buttons */}
+              <div className="flex items-center gap-3 pb-2">
+                <span className="text-xs text-slate-500 font-medium">
+                  Đã chọn: <b className="text-blue-600">{selectedPermIds.size}</b> / {allPerms.length} quyền
+                </span>
+                <Button
+                  size="small"
+                  icon={<CheckSquareOutlined />}
+                  onClick={selectAllPermissions}
+                  className="!text-xs !rounded"
+                >
+                  Chọn tất cả
+                </Button>
+                <Button
+                  size="small"
+                  icon={<BorderOutlined />}
+                  onClick={deselectAllPermissions}
+                  className="!text-xs !rounded"
+                >
+                  Bỏ chọn tất cả
+                </Button>
+              </div>
+            </div>
+
+            {/* Matrix Table: Module | Permissions (matching Image 2) */}
+            <div className="border border-slate-200 rounded-lg overflow-hidden mb-6">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-slate-50/70 border-b border-slate-200">
+                    <th className="py-3 px-5 text-xs font-bold text-slate-700 w-56 uppercase">Module</th>
+                    <th className="py-3 px-5 text-xs font-bold text-slate-700 uppercase">Permissions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {permsLoading ? (
+                    <tr>
+                      <td colSpan={2} className="py-12 text-center">
+                        <Spin />
+                        <div className="text-xs text-slate-400 mt-2">Đang tải danh sách permissions...</div>
+                      </td>
+                    </tr>
+                  ) : groupedByModule.length === 0 ? (
+                    <tr>
+                      <td colSpan={2} className="py-8 text-center text-xs text-slate-400">
+                        Không có dữ liệu permission
+                      </td>
+                    </tr>
+                  ) : (
+                    groupedByModule.map(([moduleName, permsInModule]) => {
+                      const allModuleSelected = permsInModule.every((p) => selectedPermIds.has(p.id));
+                      const someModuleSelected =
+                        permsInModule.some((p) => selectedPermIds.has(p.id)) && !allModuleSelected;
+
+                      return (
+                        <tr key={moduleName} className="hover:bg-slate-50/50 transition-colors">
+                          {/* Module Column (Blue bold uppercase) */}
+                          <td className="py-4 px-5 align-top">
+                            <div className="flex items-center gap-2">
+                              <Checkbox
+                                checked={allModuleSelected}
+                                indeterminate={someModuleSelected}
+                                onChange={() => toggleModulePermissions(permsInModule)}
+                              />
+                              <span
+                                onClick={() => toggleModulePermissions(permsInModule)}
+                                className="text-[#0090ff] font-bold text-xs tracking-wider uppercase cursor-pointer hover:underline"
+                              >
+                                {moduleName}
+                              </span>
+                            </div>
+                            <div className="text-[10px] text-slate-400 pl-6 mt-0.5">
+                              {permsInModule.filter((p) => selectedPermIds.has(p.id)).length}/
+                              {permsInModule.length} quyền
+                            </div>
+                          </td>
+
+                          {/* Permissions Checkbox Grid */}
+                          <td className="py-4 px-5 align-middle">
+                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-y-2.5 gap-x-4">
+                              {permsInModule.map((p) => {
+                                const { action } = getPermissionAction(p);
+                                const isChecked = selectedPermIds.has(p.id);
+
+                                return (
+                                  <Tooltip
+                                    key={p.id}
+                                    title={
+                                      <div className="text-xs">
+                                        <div className="font-bold text-emerald-300">
+                                          {p.method} {p.endpointPattern}
+                                        </div>
+                                        <div>{p.description || p.module}</div>
+                                      </div>
+                                    }
+                                    placement="topLeft"
+                                  >
+                                    <label className="flex items-center gap-2 cursor-pointer select-none text-xs text-slate-700 hover:text-slate-900 transition-colors">
+                                      <Checkbox
+                                        checked={isChecked}
+                                        onChange={() => togglePermission(p.id)}
+                                      />
+                                      <span className={isChecked ? 'font-semibold text-slate-900' : 'text-slate-600'}>
+                                        {action}
+                                      </span>
+                                    </label>
+                                  </Tooltip>
+                                );
+                              })}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Bottom Form Actions */}
+            <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+              <Button
+                size="large"
+                onClick={handleBackToList}
+                className="!h-10 !rounded-lg text-slate-600 px-5"
+              >
+                Hủy bỏ
+              </Button>
+              <Button
+                type="primary"
+                size="large"
+                loading={saving}
+                icon={<SaveOutlined />}
+                onClick={handleSaveRole}
+                className="!h-10 !rounded-lg !bg-[#0090ff] hover:!bg-blue-600 !font-semibold px-6 shadow-sm"
+              >
+                {editingRole ? 'Lưu thay đổi' : 'Tạo vai trò mới'}
+              </Button>
+            </div>
+          </Form>
+        </div>
+
+        {/* Footer (matching Image 2) */}
+        <div className="text-center py-6 text-xs text-slate-400">
+          <div>© 2026 Tinovation. All rights reserved.</div>
+          <div className="mt-1 text-[11px] text-slate-400/80">v1.0.0</div>
+        </div>
+      </div>
     </PageContainer>
   );
 };
