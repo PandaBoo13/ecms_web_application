@@ -28,6 +28,8 @@ import SettingsPage from '@/pages/admin/settings/SettingsPage';
 import LeadListPage from '@/pages/admin/leads/LeadListPage';
 import StudentListPage from '@/pages/admin/students/StudentListPage';
 import CategoryListPage from '@/pages/admin/categories/CategoryListPage';
+import TuitionPage from '@/pages/admin/tuition/TuitionPage';
+import EnrollmentPage from '@/pages/admin/enrollment/EnrollmentPage';
 
 // ─── Instructor pages ───
 import InstructorDashboardPage from '@/pages/instructor/dashboard/InstructorDashboardPage';
@@ -38,6 +40,7 @@ import MyStudentsPage from '@/pages/instructor/students/MyStudentsPage';
 import StudentDetailPage from '@/pages/instructor/students/StudentDetailPage';
 import AssignmentListPage from '@/pages/instructor/assignments/AssignmentListPage';
 import ProfilePage from '@/pages/ProfilePage';
+import InstructorAttendancePage from '@/pages/instructor/attendance/InstructorAttendancePage';
 
 export default function AppRouter() {
   return (
@@ -64,6 +67,9 @@ export default function AppRouter() {
           <Route path="/admin/leads" element={<LeadListPage />} />
           <Route path="/admin/students" element={<StudentListPage />} />
           <Route path="/admin/categories" element={<CategoryListPage />} />
+          <Route path="/admin/tuition" element={<TuitionPage />} />
+          <Route path="/admin/enrollments" element={<EnrollmentPage />} />
+          <Route path="/admin/tuition-enrollment" element={<Navigate to="/admin/tuition" replace />} />
 
           <Route path="/admin/courses" element={<CourseListPage />} />
           <Route path="/admin/courses/:id" element={<CourseDetailPage />} />
@@ -90,6 +96,7 @@ export default function AppRouter() {
           <Route path="/instructor/courses/:id/edit" element={<CourseEditPage />} />
 
           <Route path="/instructor/students" element={<MyStudentsPage />} />
+          <Route path="/instructor/attendance" element={<InstructorAttendancePage />} />
           <Route path="/instructor/students/:id" element={<StudentDetailPage />} />
 
           <Route path="/instructor/assignments" element={<AssignmentListPage />} />

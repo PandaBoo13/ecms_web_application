@@ -13,13 +13,12 @@ import {
   Space,
 } from 'antd';
 import { useNavigate } from 'react-router-dom';
-import { SearchOutlined, BookOutlined, SendOutlined, EyeOutlined } from '@ant-design/icons';
+import { SearchOutlined, BookOutlined, SendOutlined, EyeOutlined, CreditCardOutlined } from '@ant-design/icons';
 import toast from 'react-hot-toast';
 
-// 🆕 Cập nhật lại đường dẫn import API theo cấu trúc mới
 import { courseApi } from '@/services/api/course';
-// Nếu báo lỗi không tìm thấy, đổi thành: import { courseApi } from '@/services/api/course/courseApi';
-
+import { tuitionApi } from '@/services/api/tuition-enrollment';
+import { useAuth } from '@/hooks/useAuth';
 import MoneyDisplay from '@/components/common/MoneyDisplay';
 import type { CourseResponse } from '@/services/types/course';
 import LeadRegistrationModal from '@/components/lead/LeadRegistrationModal';
@@ -28,6 +27,7 @@ const { Title, Paragraph, Text } = Typography;
 
 export default function CourseCatalogPage() {
   const navigate = useNavigate();
+  const { isAuthenticated, isStudent } = useAuth();
   const [courses, setCourses] = useState<CourseResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchText, setSearchText] = useState('');
@@ -59,8 +59,7 @@ export default function CourseCatalogPage() {
         c.title.toLowerCase().includes(searchText.toLowerCase()) ||
         c.shortDescription?.toLowerCase().includes(searchText.toLowerCase());
 
-      const matchType =
-        filterType === 'ALL' || c.courseType === filterType;
+      const matchType = filterType === 'ALL' || c.courseType === filterType;
 
       return matchSearch && matchType;
     });
@@ -73,6 +72,26 @@ export default function CourseCatalogPage() {
   const handleOpenConsult = (course: CourseResponse) => {
     setConsultCourse(course);
     setConsultModalOpen(true);
+  };
+
+  const handleOnlineCheckout = async (course: CourseResponse, event: React.MouseEvent) => {
+    event.stopPropagation();
+    if (!isAuthenticated) {
+      navigate('/login', { state: { from: '/courses' } });
+      return;
+    }
+    if (!isStudent()) {
+      toast.error('Chỉ tài khoản học viên mới được thanh toán khóa học.');
+      return;
+    }
+    try {
+      const invoice = await tuitionApi.createOnlineCheckout(course.id);
+      const paymentUrl = await tuitionApi.createVnpayPayment(invoice.invoiceId);
+      window.location.assign(paymentUrl);
+    } catch {
+      toast.error('Không tạo được thanh toán. Hóa đơn có thể đã được tạo; hãy kiểm tra mục Học phí & ghi danh.');
+      navigate('/student/tuition-enrollment');
+    }
   };
 
   return (
@@ -95,61 +114,41 @@ export default function CourseCatalogPage() {
           border: '1px solid #e2e8f0',
           boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
         }}
+        bodyStyle={{ padding: '16px 24px' }}
       >
         <Row gutter={[16, 16]} align="middle" justify="space-between">
-          <Col xs={24} md={10}>
+          <Col xs={24} md={12}>
             <Input
+              placeholder="Tìm kiếm theo tên khóa học hoặc nội dung..."
               prefix={<SearchOutlined style={{ color: '#94a3b8' }} />}
-              placeholder="Tìm kiếm khóa học theo tên hoặc chủ đề..."
               value={searchText}
               onChange={(e) => setSearchText(e.target.value)}
               allowClear
               size="large"
             />
           </Col>
-          <Col xs={24} md={14} style={{ textAlign: 'right' }}>
-            <Space wrap>
-              <Text strong style={{ marginRight: 8 }}>
-                Hình thức học:
-              </Text>
-              <Radio.Group
-                value={filterType}
-                onChange={(e) => setFilterType(e.target.value)}
-                buttonStyle="solid"
-                size="large"
-              >
-                <Radio.Button value="ALL">Tất cả ({courses.length})</Radio.Button>
-                <Radio.Button value="ONLINE">Trực tuyến</Radio.Button>
-                <Radio.Button value="OFFLINE">Tại trung tâm</Radio.Button>
-              </Radio.Group>
-            </Space>
+          <Col xs={24} md={12} style={{ textAlign: 'right' }}>
+            <Radio.Group
+              value={filterType}
+              onChange={(e) => setFilterType(e.target.value)}
+              buttonStyle="solid"
+              size="large"
+            >
+              <Radio.Button value="ALL">Tất cả hình thức</Radio.Button>
+              <Radio.Button value="OFFLINE">Trực tiếp (Offline)</Radio.Button>
+              <Radio.Button value="ONLINE">Trực tuyến (Online)</Radio.Button>
+            </Radio.Group>
           </Col>
         </Row>
       </Card>
 
       {/* Course List */}
       {loading ? (
-        <div style={{ textAlign: 'center', padding: '80px 0' }}>
+        <div style={{ textAlign: 'center', padding: '64px 0' }}>
           <Spin size="large" />
-          <Paragraph type="secondary" style={{ marginTop: 16 }}>
-            Đang tải danh mục khóa học...
-          </Paragraph>
         </div>
       ) : filteredCourses.length === 0 ? (
-        <Empty
-          image={Empty.PRESENTED_IMAGE_SIMPLE}
-          description="Không tìm thấy khóa học phù hợp với tìm kiếm của bạn"
-        >
-          <Button
-            type="primary"
-            onClick={() => {
-              setSearchText('');
-              setFilterType('ALL');
-            }}
-          >
-            Đặt lại bộ lọc
-          </Button>
-        </Empty>
+        <Empty description="Không tìm thấy khóa học phù hợp" style={{ padding: '48px 0' }} />
       ) : (
         <Row gutter={[24, 24]}>
           {filteredCourses.map((c) => (
@@ -163,14 +162,19 @@ export default function CourseCatalogPage() {
                   borderRadius: 12,
                   overflow: 'hidden',
                   border: '1px solid #e2e8f0',
-                  boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)',
+                }}
+                bodyStyle={{
+                  flex: 1,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  padding: 20,
                 }}
                 cover={
                   c.thumbnailUrl ? (
                     <img
-                      src={c.thumbnailUrl}
                       alt={c.title}
-                      style={{ height: 180, objectFit: 'cover' }}
+                      src={c.thumbnailUrl}
+                      style={{ height: 180, objectFit: 'cover', cursor: 'pointer' }}
                       onClick={() => handleOpenDetail(c)}
                     />
                   ) : (
@@ -243,15 +247,27 @@ export default function CourseCatalogPage() {
                     >
                       Chi tiết
                     </Button>
-                    <Button
-                      type="primary"
-                      size="middle"
-                      icon={<SendOutlined />}
-                      onClick={() => handleOpenConsult(c)}
-                      style={{ background: '#1677ff', fontWeight: 600 }}
-                    >
-                      Tư vấn
-                    </Button>
+                    {c.courseType === 'ONLINE' && !c.isFree ? (
+                      <Button
+                        type="primary"
+                        size="middle"
+                        icon={<CreditCardOutlined />}
+                        onClick={(e) => handleOnlineCheckout(c, e)}
+                        style={{ background: '#10b981', borderColor: '#10b981', fontWeight: 600 }}
+                      >
+                        Đăng ký
+                      </Button>
+                    ) : (
+                      <Button
+                        type="primary"
+                        size="middle"
+                        icon={<SendOutlined />}
+                        onClick={() => handleOpenConsult(c)}
+                        style={{ background: '#1677ff', fontWeight: 600 }}
+                      >
+                        Tư vấn
+                      </Button>
+                    )}
                   </Space>
                 </div>
               </Card>

@@ -212,6 +212,16 @@ export const API_ENDPOINT = {
   STUDENT_GUARDIAN_DETAIL: (id: number, guardianId: number) => `/api/students/${id}/guardians/${guardianId}`,
   STUDENT_ACADEMIC_HISTORIES: (id: number) => `/api/students/${id}/academic-histories`,
 
+  // TUITION & ENROLLMENT (student self-service)
+  TUITION_INVOICES: '/api/tuition/invoices',
+  TUITION_CHECKOUT: '/api/tuition/invoices/checkout',
+  TUITION_VNPAY_START: (id: number) => `/api/tuition/invoices/${id}/vnpay`,
+  TUITION_INVOICE_DETAIL: (id: number) => `/api/tuition/invoices/${id}`,
+  ENROLLMENTS: '/api/enrollments',
+  ENROLLMENT_DETAIL: (id: number) => `/api/enrollments/${id}`,
+  ENROLLMENT_ATTENDANCE_HISTORY: (id: number) => `/api/enrollments/${id}/attendance`,
+  ENROLLMENT_STATUS_HISTORY: (id: number) => `/api/enrollments/${id}/status-history`,
+
   // ══════════════════════════════════════════════════════════════
   // AI AGENT
   // ══════════════════════════════════════════════════════════════

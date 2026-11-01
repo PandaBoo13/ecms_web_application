@@ -10,6 +10,8 @@ import {
   ProfileOutlined,
   UserAddOutlined,
   FolderOutlined,
+  DollarOutlined,
+  SolutionOutlined,
 } from '@ant-design/icons';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
@@ -31,6 +33,8 @@ const ICON_MAP: Record<string, React.ReactNode> = {
   ProfileOutlined: <ProfileOutlined />,
   UserAddOutlined: <UserAddOutlined />,
   FolderOutlined: <FolderOutlined />,
+  DollarOutlined: <DollarOutlined />,
+  SolutionOutlined: <SolutionOutlined />,
 };
 
 const MENU_KEY_TRANSLATION_MAP: Record<string, string> = {
@@ -39,6 +43,10 @@ const MENU_KEY_TRANSLATION_MAP: Record<string, string> = {
   '/admin/leads': 'menu.leadList',
   'students': 'menu.students',
   '/admin/students': 'menu.studentList',
+  'tuition': 'Học phí',
+  '/admin/tuition': 'Quản lý học phí',
+  'enrollment': 'Ghi danh',
+  '/admin/enrollments': 'Quản lý ghi danh',
   'courses': 'menu.courses',
   '/admin/courses': 'menu.courseList',
   '/admin/categories': 'menu.categories',
@@ -52,6 +60,7 @@ const MENU_KEY_TRANSLATION_MAP: Record<string, string> = {
   '/instructor/dashboard': 'menu.dashboard',
   '/instructor/courses': 'menu.myCourses',
   '/instructor/students': 'menu.students',
+  '/instructor/attendance': 'Điểm danh',
   '/instructor/assignments': 'menu.assignments',
   '/instructor/profile': 'common.profile',
 };

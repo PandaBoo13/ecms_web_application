@@ -30,6 +30,22 @@ export const ADMIN_MENU: MenuItem[] = [
     ],
   },
   {
+    key: 'tuition',
+    label: 'Học phí',
+    icon: 'DollarOutlined',
+    children: [
+      { key: '/admin/tuition', label: 'Quản lý học phí', path: '/admin/tuition' },
+    ],
+  },
+  {
+    key: 'enrollment',
+    label: 'Ghi danh',
+    icon: 'SolutionOutlined',
+    children: [
+      { key: '/admin/enrollments', label: 'Quản lý ghi danh', path: '/admin/enrollments' },
+    ],
+  },
+  {
     key: 'courses',
     label: 'Khóa học',
     icon: 'BookOutlined',
@@ -86,6 +102,12 @@ export const INSTRUCTOR_MENU: MenuItem[] = [
     path: '/instructor/students',
   },
   {
+    key: '/instructor/attendance',
+    label: 'Điểm danh',
+    icon: 'ProfileOutlined',
+    path: '/instructor/attendance',
+  },
+  {
     key: '/instructor/assignments',
     label: 'Bài tập',
     icon: 'ProfileOutlined',
@@ -103,6 +125,9 @@ export const ROUTE_TITLE: Record<string, string> = {
   '/admin/dashboard': 'Tổng quan',
   '/admin/leads': 'Quản lý Lead (Tuyển sinh)',
   '/admin/students': 'Quản lý học viên',
+  '/admin/tuition': 'Quản lý học phí',
+  '/admin/enrollments': 'Quản lý ghi danh',
+  '/admin/tuition-enrollment': 'Học phí & ghi danh',
   '/admin/users': 'Quản lý tài khoản',
   '/admin/courses': 'Quản lý khóa học',
   '/admin/categories': 'Quản lý danh mục',
@@ -113,6 +138,7 @@ export const ROUTE_TITLE: Record<string, string> = {
   '/instructor/dashboard': 'Tổng quan',
   '/instructor/courses': 'Khóa học của tôi',
   '/instructor/students': 'Học viên',
+  '/instructor/attendance': 'Điểm danh',
   '/instructor/assignments': 'Bài tập',
   '/instructor/profile': 'Hồ sơ cá nhân',
 };
