@@ -1,8 +1,10 @@
 package com.ecms_web_application.OC01.controller;
 
+import com.ecms_web_application.OC01.dto.request.course.ProgressUpdateRequest;
 import com.ecms_web_application.OC01.dto.response.RequestResponse;
 import com.ecms_web_application.OC01.dto.response.course.ProgressResponse;
 import com.ecms_web_application.OC01.service.ProgressService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -47,10 +49,9 @@ public class ProgressController {
     @PatchMapping("/resources/{resourceId}")
     public ResponseEntity<RequestResponse> updateResourceProgress(
             @PathVariable Long resourceId,
-            @RequestParam(required = false) Integer percentage,
-            @RequestParam(required = false) Long timeSpentSeconds) {
+            @Valid @RequestBody ProgressUpdateRequest request) {
         ProgressResponse data = progressService.updateResourceProgress(
-                resourceId, percentage, timeSpentSeconds);
+                resourceId, request.getPercentage(), request.getTimeSpentSeconds());
         return ResponseEntity.ok(new RequestResponse(data, "Cập nhật tiến độ thành công"));
     }
 

@@ -45,4 +45,7 @@ public class CourseResponse {
     private LocalDateTime updatedAt;
     private String learningMode;
     private List<Long> allowedRoomIds;
+
+    // 🆕 BỔ SUNG
+    private Integer totalSessionsExpected;
 }

@@ -6,9 +6,12 @@ import com.ecms_web_application.OC01.dto.response.course.*;
 import com.ecms_web_application.OC01.entity.*;
 import com.ecms_web_application.OC01.entity.enums.*;
 import com.ecms_web_application.OC01.exception.ErrorHandler;
+import com.ecms_web_application.OC01.generic.mapper.CourseMapper;
+import com.ecms_web_application.OC01.generic.validator.CourseValidator;
 import com.ecms_web_application.OC01.repository.*;
 import com.ecms_web_application.OC01.service.AuditLogService;
 import com.ecms_web_application.OC01.service.CourseService;
+import com.ecms_web_application.OC01.service.SessionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -35,13 +38,17 @@ public class CourseServiceImpl implements CourseService {
     private final AccountRepository accountRepository;
     private final CategoryRepository categoryRepository;
     private final RoomRepository roomRepository;
+    private final QuestionRepository questionRepository;
     private final AuditLogService auditLogService;
-    private final com.ecms_web_application.OC01.service.SessionService sessionService;
-    private final com.ecms_web_application.OC01.repository.QuestionRepository questionRepository;
-    private final com.ecms_web_application.OC01.generic.validator.CourseValidator courseValidator;
+    private final SessionService sessionService;
+    private final CourseValidator courseValidator;
+    private final CourseMapper courseMapper;   // 🆕 inject mapper
 
     private static final Pattern NON_ALNUM = Pattern.compile("[^a-z0-9]+");
 
+    // ============================================================
+    // CREATE
+    // ============================================================
     @Override
     @Transactional
     public CourseResponse create(CourseCreateRequest request) {
@@ -60,8 +67,15 @@ public class CourseServiceImpl implements CourseService {
         c.setDescription(request.getDescription());
         c.setThumbnailUrl(request.getThumbnailUrl());
         c.setOutcomes(request.getOutcomes());
-        c.setLearningMode(request.getLearningMode());
+
+        // 🆕 Default learning_mode theo loại khóa
+        String learningMode = StringUtils.hasText(request.getLearningMode())
+                ? request.getLearningMode()
+                : (request.getCourseType() == CourseType.OFFLINE ? "SEQUENTIAL" : "AUTONOMOUS");
+        c.setLearningMode(learningMode);
+
         c.setAllowedRoomIds(request.getAllowedRoomIds());
+        c.setTotalSessionsExpected(request.getTotalSessionsExpected());
         c.setPrice(request.getPrice() == null ? BigDecimal.ZERO : request.getPrice());
         c.setOldPrice(request.getOldPrice());
         c.setIsFree(Boolean.TRUE.equals(request.getIsFree()));
@@ -83,23 +97,24 @@ public class CourseServiceImpl implements CourseService {
         Course saved = courseRepository.save(c);
         auditLogService.log("CREATE", "COURSE", saved.getId(), "Tạo khóa: " + saved.getTitle());
         log.info("Tạo course id={}, code={}", saved.getId(), saved.getCode());
-        return toResponse(saved);
+        return courseMapper.toResponse(saved);
     }
 
+    // ============================================================
+    // GET BY ID
+    // ============================================================
     @Override
     @Transactional(readOnly = true)
     public CourseDetailResponse getById(Long id) {
         Course c = courseRepository.findByIdWithRelations(id)
                 .orElseThrow(() -> new ErrorHandler(HttpStatus.NOT_FOUND, "Khóa học không tồn tại"));
-        CourseDetailResponse res = new CourseDetailResponse();
-        copyToResponse(c, res);
-        res.setDescription(c.getDescription());
-        res.setOutcomes(c.getOutcomes());
-        res.setResources(resourceRepository.findByCourse_IdOrderByOrderIndexAsc(id)
-                .stream().map(this::toResourceResponse).toList());
-        return res;
+        List<CourseResource> resources = resourceRepository.findByCourse_IdOrderByOrderIndexAsc(id);
+        return courseMapper.toDetailResponse(c, resources);
     }
 
+    // ============================================================
+    // SEARCH
+    // ============================================================
     @Override
     @Transactional(readOnly = true)
     public Page<CourseResponse> search(String status, String type, Long teacherId,
@@ -108,9 +123,12 @@ public class CourseServiceImpl implements CourseService {
         CourseType tp = StringUtils.hasText(type) ? CourseType.valueOf(type.toUpperCase()) : null;
         String kw = StringUtils.hasText(search) ? search.trim() : "";
         return courseRepository.searchCourses(st, tp, teacherId, categoryId, kw, pageable)
-                .map(this::toResponse);
+                .map(courseMapper::toResponse);
     }
 
+    // ============================================================
+    // UPDATE
+    // ============================================================
     @Override
     @Transactional
     public CourseResponse update(Long id, CourseUpdateRequest request) {
@@ -133,6 +151,7 @@ public class CourseServiceImpl implements CourseService {
         if (request.getOutcomes() != null) c.setOutcomes(request.getOutcomes());
         if (request.getLearningMode() != null)    c.setLearningMode(request.getLearningMode());
         if (request.getAllowedRoomIds() != null)  c.setAllowedRoomIds(request.getAllowedRoomIds());
+        if (request.getTotalSessionsExpected() != null) c.setTotalSessionsExpected(request.getTotalSessionsExpected());
         if (request.getPrice() != null) {
             if (request.getPrice().signum() < 0) {
                 throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Giá phải >= 0");
@@ -152,9 +171,12 @@ public class CourseServiceImpl implements CourseService {
 
         Course saved = courseRepository.save(c);
         auditLogService.log("UPDATE", "COURSE", id, "Cập nhật khóa học");
-        return toResponse(saved);
+        return courseMapper.toResponse(saved);
     }
 
+    // ============================================================
+    // UPDATE OFFLINE INFO
+    // ============================================================
     @Override
     @Transactional
     public CourseResponse updateOfflineInfo(Long id, CourseOfflineInfoRequest request) {
@@ -184,7 +206,7 @@ public class CourseServiceImpl implements CourseService {
         c.setSessionEndTime(request.getSessionEndTime());
         c.setCourseType(CourseType.OFFLINE);
         c.setProgressType(ProgressType.SESSION_BASED);
-        c.setClassStatus(ClassStatus.PLANNED);
+        // ❌ ĐÃ XÓA: c.setClassStatus(ClassStatus.PLANNED);
         if (c.getLearningMode() == null) c.setLearningMode("SEQUENTIAL");
         if (request.getTeacherId() != null) {
             c.setTeacher(accountRepository.findById(request.getTeacherId())
@@ -197,7 +219,6 @@ public class CourseServiceImpl implements CourseService {
 
         Course saved = courseRepository.save(c);
         auditLogService.log("UPDATE_OFFLINE", "COURSE", id, "Chuyển OFFLINE");
-        // Auto generate session nếu course chưa có session (best-effort)
         try {
             if (saved.getCourseType() == CourseType.OFFLINE) {
                 sessionService.generateSessions(id);
@@ -206,9 +227,12 @@ public class CourseServiceImpl implements CourseService {
             log.warn("[AutoGenerate] Không sinh được session cho course {}: {}",
                     id, ex.getMessage());
         }
-        return toResponse(saved);
+        return courseMapper.toResponse(saved);
     }
 
+    // ============================================================
+    // SUBMIT FOR REVIEW
+    // ============================================================
     @Override
     @Transactional
     public CourseResponse submitForReview(Long id) {
@@ -220,9 +244,12 @@ public class CourseServiceImpl implements CourseService {
         c.setStatus(CourseStatus.PENDING_REVIEW);
         Course saved = courseRepository.save(c);
         auditLogService.log("SUBMIT_REVIEW", "COURSE", id, null);
-        return toResponse(saved);
+        return courseMapper.toResponse(saved);
     }
 
+    // ============================================================
+    // REVIEW
+    // ============================================================
     @Override
     @Transactional
     public CourseResponse review(Long id, CourseReviewRequest request) {
@@ -232,9 +259,7 @@ public class CourseServiceImpl implements CourseService {
         }
         if (Boolean.TRUE.equals(request.getApproved())) {
             c.setStatus(CourseStatus.PUBLISHED);
-            if (c.getCourseType() == CourseType.OFFLINE && c.getClassStatus() == null) {
-                c.setClassStatus(ClassStatus.PLANNED);
-            }
+            // ❌ ĐÃ XÓA block gán classStatus cho OFFLINE
         } else {
             if (!StringUtils.hasText(request.getRejectReason())) {
                 throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Lý do từ chối là bắt buộc");
@@ -244,9 +269,12 @@ public class CourseServiceImpl implements CourseService {
         Course saved = courseRepository.save(c);
         auditLogService.log(Boolean.TRUE.equals(request.getApproved()) ? "APPROVE" : "REJECT",
                 "COURSE", id, request.getRejectReason());
-        return toResponse(saved);
+        return courseMapper.toResponse(saved);
     }
 
+    // ============================================================
+    // ARCHIVE
+    // ============================================================
     @Override
     @Transactional
     public CourseResponse archive(Long id) {
@@ -254,9 +282,12 @@ public class CourseServiceImpl implements CourseService {
         c.setStatus(CourseStatus.ARCHIVED);
         Course saved = courseRepository.save(c);
         auditLogService.log("ARCHIVE", "COURSE", id, null);
-        return toResponse(saved);
+        return courseMapper.toResponse(saved);
     }
 
+    // ============================================================
+    // CANCEL
+    // ============================================================
     @Override
     @Transactional
     public CourseResponse cancel(Long id, String reason) {
@@ -268,12 +299,15 @@ public class CourseServiceImpl implements CourseService {
             throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Lý do hủy là bắt buộc");
         }
         c.setStatus(CourseStatus.CANCELLED);
-        if (c.getCourseType() == CourseType.OFFLINE) c.setClassStatus(ClassStatus.CANCELLED);
+        // ❌ ĐÃ XÓA: if (OFFLINE) c.setClassStatus(ClassStatus.CANCELLED);
         Course saved = courseRepository.save(c);
         auditLogService.log("CANCEL", "COURSE", id, reason);
-        return toResponse(saved);
+        return courseMapper.toResponse(saved);
     }
 
+    // ============================================================
+    // COPY
+    // ============================================================
     @Override
     @Transactional
     public CourseDetailResponse copy(Long sourceCourseId, CourseCopyRequest request) {
@@ -298,6 +332,7 @@ public class CourseServiceImpl implements CourseService {
         copy.setOutcomes(src.getOutcomes());
         copy.setLearningMode(src.getLearningMode());
         copy.setAllowedRoomIds(src.getAllowedRoomIds());
+        copy.setTotalSessionsExpected(src.getTotalSessionsExpected());
         copy.setPrice(Boolean.TRUE.equals(request.getResetPrice()) ? BigDecimal.ZERO : src.getPrice());
         copy.setOldPrice(src.getOldPrice());
         copy.setIsFree(src.getIsFree());
@@ -344,11 +379,9 @@ public class CourseServiceImpl implements CourseService {
         }
 
         // Copy Question pool — remap lesson_id qua idMap
-        java.util.List<com.ecms_web_application.OC01.entity.Question> srcQuestions =
-                questionRepository.findByCourse_Id(src.getId());
-        for (com.ecms_web_application.OC01.entity.Question sq : srcQuestions) {
-            com.ecms_web_application.OC01.entity.Question nq =
-                    new com.ecms_web_application.OC01.entity.Question();
+        List<Question> srcQuestions = questionRepository.findByCourse_Id(src.getId());
+        for (Question sq : srcQuestions) {
+            Question nq = new Question();
             nq.setCourse(savedCopy);
             if (sq.getLesson() != null) {
                 nq.setLesson(idMap.get(sq.getLesson().getId()));
@@ -369,6 +402,9 @@ public class CourseServiceImpl implements CourseService {
         return getById(savedCopy.getId());
     }
 
+    // ============================================================
+    // SOFT / HARD DELETE
+    // ============================================================
     @Override
     @Transactional
     public void softDelete(Long id) {
@@ -392,6 +428,9 @@ public class CourseServiceImpl implements CourseService {
         auditLogService.log("HARD_DELETE", "COURSE", id, null);
     }
 
+    // ============================================================
+    // CHANGE TEACHER
+    // ============================================================
     @Override
     @Transactional
     public CourseResponse changeTeacher(Long courseId, Long newTeacherId) {
@@ -402,9 +441,12 @@ public class CourseServiceImpl implements CourseService {
         }
         sessionService.changeCourseMainTeacher(courseId, newTeacherId);
         Course updated = getCourseOrThrow(courseId);
-        return toResponse(updated);
+        return courseMapper.toResponse(updated);
     }
 
+    // ============================================================
+    // PRIVATE HELPERS (giữ lại — không liên quan mapping)
+    // ============================================================
     private Course getCourseOrThrow(Long id) {
         return courseRepository.findById(id)
                 .filter(c -> c.getDeletedAt() == null)
