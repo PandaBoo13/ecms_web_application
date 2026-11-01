@@ -25,8 +25,11 @@ public interface CourseRepository extends IRepository<Course, Long> {
     boolean existsBySlugAndIdNot(String slug, Long id);
     boolean existsByDisplayCodeAndIdNot(String displayCode, Long id);
 
-    // ✅ Sử dụng JPQL với categoryId kiểu Long (Lọc chính xác 100%)
-    @Query("""
+    // ══════════════════════════════════════════════════════════════
+    // ✅ FIX: Khai báo countQuery tường minh để tránh lỗi
+    //         "No argument for named parameter ':categoryId_1'"
+    // ══════════════════════════════════════════════════════════════
+    @Query(value = """
         SELECT c FROM Course c
         LEFT JOIN FETCH c.teacher t
         LEFT JOIN FETCH c.category cat
@@ -38,6 +41,17 @@ public interface CourseRepository extends IRepository<Course, Long> {
           AND (:categoryId IS NULL OR cat.id = :categoryId)
           AND (:search = '' OR LOWER(c.title) LIKE LOWER(CONCAT('%', :search, '%')))
         ORDER BY c.createdAt DESC
+    """, countQuery = """
+        SELECT COUNT(c) FROM Course c
+        LEFT JOIN c.teacher t
+        LEFT JOIN c.category cat
+        LEFT JOIN c.room r
+        WHERE c.deletedAt IS NULL
+          AND (:status IS NULL OR c.status = :status)
+          AND (:type IS NULL OR c.courseType = :type)
+          AND (:teacherId IS NULL OR t.id = :teacherId)
+          AND (:categoryId IS NULL OR cat.id = :categoryId)
+          AND (:search = '' OR LOWER(c.title) LIKE LOWER(CONCAT('%', :search, '%')))
     """)
     Page<Course> searchCourses(
             @Param("status") CourseStatus status,
