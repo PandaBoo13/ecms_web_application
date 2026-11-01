@@ -63,6 +63,7 @@ public class StudentController {
     public ResponseEntity<RequestResponse> getAll(
             @RequestParam(required = false) String search,
             @RequestParam(required = false) String status,
+            @RequestParam(required = false) Long courseId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(defaultValue = "createdAt") String sortBy,
@@ -73,7 +74,7 @@ public class StudentController {
                 : Sort.by(sortBy).descending();
         Pageable pageable = PageRequest.of(page, size, sort);
 
-        Page<StudentResponse> data = studentService.search(search, status, pageable);
+        Page<StudentResponse> data = studentService.search(search, status, courseId, pageable);
         return ResponseEntity.ok(new RequestResponse(data, "Lấy danh sách học viên thành công"));
     }
 

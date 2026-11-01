@@ -29,8 +29,10 @@ public class LeadTools {
             LeadCreateRequest request = new LeadCreateRequest();
             request.setFullName(fullName);
             request.setPhone(phone);
-            request.setEmail(email);
-            request.setCourseId(courseId);
+            request.setEmail(email != null && !email.isBlank() ? email : ("lead_" + phone.replaceAll("[^0-9]", "") + "@ecms.local"));
+            request.setCourseId(courseId != null ? courseId : 1L);
+            request.setSourceName("AI Agent");
+            request.setChannelType("CHATBOT");
 
             LeadResponse response = leadService.create(request);
 

@@ -61,9 +61,21 @@ public class LeadController {
             @RequestParam(defaultValue = "createdAt") String sortBy,
             @RequestParam(defaultValue = "desc") String direction
     ) {
+        String sortProperty = switch (sortBy.toLowerCase()) {
+            case "created_at", "createdat" -> "createdAt";
+            case "updated_at", "updatedat" -> "updatedAt";
+            case "full_name", "fullname" -> "fullName";
+            case "course_id", "courseid" -> "courseId";
+            case "student_id", "studentid" -> "studentId";
+            case "email" -> "email";
+            case "phone" -> "phone";
+            case "status" -> "status";
+            case "id" -> "id";
+            default -> sortBy;
+        };
         Sort sort = "asc".equalsIgnoreCase(direction)
-                ? Sort.by(sortBy).ascending()
-                : Sort.by(sortBy).descending();
+                ? Sort.by(sortProperty).ascending()
+                : Sort.by(sortProperty).descending();
         Pageable pageable = PageRequest.of(page, size, sort);
 
         Page<LeadResponse> data = leadService.search(search, status, courseId, sourceId, consultantId, inQueue, pageable);

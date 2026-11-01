@@ -35,5 +35,10 @@ lerna-debug.log*
 *.ntvs*
 *.njsproj
 *.sln
-*.sw?OC01/env
+*.sw?
 OC01/env
+
+# AI & Trae Documents
+.trae/
+**/.trae/
+

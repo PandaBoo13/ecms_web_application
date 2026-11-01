@@ -72,6 +72,12 @@ public class Course {
     @Column(name = "session_start_time") private LocalTime sessionStartTime;
     @Column(name = "session_end_time")   private LocalTime sessionEndTime;
 
+    @Transient
+    private ClassStatus classStatus;
+
+    @Column(name = "total_sessions_expected")
+    private Integer totalSessionsExpected;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private CourseStatus status = CourseStatus.DRAFT;

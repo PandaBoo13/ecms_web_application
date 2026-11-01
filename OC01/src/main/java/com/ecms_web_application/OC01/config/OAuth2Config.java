@@ -1,3 +1,4 @@
+
 package com.ecms_web_application.OC01.config;
 
 import com.ecms_web_application.OC01.service.impl.CustomOAuth2UserService;
@@ -41,6 +42,7 @@ public class OAuth2Config {
      * - Được sử dụng cho các OAuth2 providers như Facebook, GitHub, v.v.
      * - `CustomOAuth2UserService` sẽ chịu trách nhiệm xử lý thông tin người dùng.
      */
+    
     @Bean
     public OAuth2UserService<OAuth2UserRequest, OAuth2User> oAuth2UserService() {
         return customOAuth2UserService;

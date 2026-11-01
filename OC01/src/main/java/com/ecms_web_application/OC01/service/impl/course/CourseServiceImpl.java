@@ -504,4 +504,93 @@ public class CourseServiceImpl implements CourseService {
         temp = NON_ALNUM.matcher(temp).replaceAll("-");
         return temp.replaceAll("^-+|-+$", "");
     }
+
+    private CourseResponse toResponse(Course c) {
+        CourseResponse r = new CourseResponse();
+        copyToResponse(c, r);
+        return r;
+    }
+
+    private void copyToResponse(Course c, CourseResponse r) {
+        r.setId(c.getId());
+        r.setCode(c.getCode());
+        r.setSlug(c.getSlug());
+        r.setDisplayCode(c.getDisplayCode());
+        r.setTitle(c.getTitle());
+        r.setShortDescription(c.getShortDescription());
+        r.setThumbnailUrl(c.getThumbnailUrl());
+        r.setPrice(c.getPrice());
+        r.setOldPrice(c.getOldPrice());
+        r.setIsFree(c.getIsFree());
+        r.setCourseType(c.getCourseType() != null ? c.getCourseType().name() : null);
+        r.setProgressType(c.getProgressType() != null ? c.getProgressType().name() : null);
+        r.setStatus(c.getStatus() != null ? c.getStatus().name() : null);
+        r.setClassStatus(c.getClassStatus() != null ? c.getClassStatus().name() : null);
+        r.setTotalSessionsExpected(c.getTotalSessionsExpected());
+        if (c.getTeacher() != null) {
+            r.setTeacherId(c.getTeacher().getId());
+            if (c.getTeacher().getUserProfile() != null) {
+                r.setTeacherName(c.getTeacher().getUserProfile().getFullName());
+            }
+        }
+        if (c.getCreatedBy() != null) r.setCreatedById(c.getCreatedBy().getId());
+        if (c.getCategory() != null) {
+            r.setCategoryId(c.getCategory().getId());
+            r.setCategoryName(c.getCategory().getName());
+        }
+        if (c.getRoom() != null) {
+            r.setRoomId(c.getRoom().getId());
+            r.setRoomName(c.getRoom().getName());
+        }
+        r.setMinStudents(c.getMinStudents());
+        r.setMaxStudents(c.getMaxStudents());
+        r.setCurrentStudents(c.getCurrentStudents());
+        r.setStartDate(c.getStartDate());
+        r.setEndDate(c.getEndDate());
+        r.setScheduleDays(c.getScheduleDays());
+        r.setSessionStartTime(c.getSessionStartTime());
+        r.setSessionEndTime(c.getSessionEndTime());
+        r.setCopiedFromCourseId(c.getCopiedFromCourseId());
+        r.setLearningMode(c.getLearningMode());
+        r.setAllowedRoomIds(c.getAllowedRoomIds());
+        r.setCreatedAt(c.getCreatedAt());
+        r.setUpdatedAt(c.getUpdatedAt());
+    }
+
+    private CourseResourceResponse toResourceResponse(CourseResource r) {
+        CourseResourceResponse res = new CourseResourceResponse();
+        res.setId(r.getId());
+        res.setCourseId(r.getCourse().getId());
+        res.setParentId(r.getParent() != null ? r.getParent().getId() : null);
+        res.setResourceType(r.getResourceType().name());
+        res.setTitle(r.getTitle());
+        res.setDescription(r.getDescription());
+        res.setOrderIndex(r.getOrderIndex());
+        res.setIsRequired(r.getIsRequired());
+        res.setIsFreePreview(r.getIsFreePreview());
+        res.setDuration(r.getDuration());
+        res.setContent(r.getContent());
+        res.setThumbnailUrl(r.getThumbnailUrl());
+        res.setFileName(r.getFileName());
+        res.setFileUrl(r.getFileUrl());
+        res.setFileSize(r.getFileSize());
+        res.setFileFormat(r.getFileFormat());
+        res.setMimeType(r.getMimeType());
+        res.setMaxAttempts(r.getMaxAttempts());
+        res.setPassingScore(r.getPassingScore());
+        res.setTimeLimit(r.getTimeLimit());
+        res.setPoints(r.getPoints());
+        res.setDeadline(r.getDeadline());
+        res.setSettings(r.getSettings());
+        res.setStatus(r.getStatus() != null ? r.getStatus().name() : null);
+        res.setAvailableFrom(r.getAvailableFrom());
+        res.setAvailableUntil(r.getAvailableUntil());
+        res.setQuizCategory(r.getQuizCategory() != null ? r.getQuizCategory().name() : null);
+        res.setHashtagFilter(r.getHashtagFilter());
+        res.setTotalQuestions(r.getTotalQuestions());
+        res.setShuffleQuestions(r.getShuffleQuestions());
+        res.setCreatedAt(r.getCreatedAt());
+        res.setUpdatedAt(r.getUpdatedAt());
+        return res;
+    }
 }

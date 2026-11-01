@@ -25,6 +25,10 @@ public class LeadUpdateRequest {
 
     private Long sourceId;
 
+    private String sourceName;
+
+    private String channelType;
+
     private Long studentId;
 
     private Long assignedConsultantId;

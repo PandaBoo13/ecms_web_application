@@ -25,19 +25,19 @@ public class Student {
     @Column(name = "student_code", nullable = false, unique = true, length = 20)
     private String studentCode;
 
-    @Column(name = "lead_id", unique = true)
+    @Column(name = "lead_id", nullable = false, unique = true)
     private Long leadId;
 
-    @Column(name = "user_id")
+    @Column(name = "user_id", unique = true)
     private Long userId;
 
     @Column(name = "full_name", nullable = false, length = 255)
     private String fullName;
 
-    @Column(name = "email", length = 255)
+    @Column(name = "email", nullable = false, unique = true, length = 255)
     private String email;
 
-    @Column(name = "phone", length = 20)
+    @Column(name = "phone", nullable = false, length = 20)
     private String phone;
 
     @Column(name = "dob")

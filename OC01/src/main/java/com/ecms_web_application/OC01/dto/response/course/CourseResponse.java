@@ -23,9 +23,8 @@ public class CourseResponse {
     private String courseType;
     private String progressType;
     private String status;
-
-    // ❌ ĐÃ XÓA: classStatus (DB không có cột)
-
+    private String classStatus;
+    private Integer totalSessionsExpected;
     private Long teacherId;
     private String teacherName;
     private Long createdById;
