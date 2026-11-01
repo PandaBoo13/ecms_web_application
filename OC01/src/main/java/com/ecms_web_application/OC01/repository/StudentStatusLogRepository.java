@@ -8,6 +8,9 @@ import java.util.List;
 
 @Repository
 public interface StudentStatusLogRepository extends IRepository<StudentStatusLog, Long> {
-    List<StudentStatusLog> findByStudentIdOrderByChangedAtDesc(Long studentId);
-}
+    List<StudentStatusLog> findByStudentIdOrderByUpdatedAtDesc(Long studentId);
 
+    default List<StudentStatusLog> findByStudentIdOrderByChangedAtDesc(Long studentId) {
+        return findByStudentIdOrderByUpdatedAtDesc(studentId);
+    }
+}

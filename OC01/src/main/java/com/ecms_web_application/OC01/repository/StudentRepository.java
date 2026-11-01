@@ -35,6 +35,9 @@ public interface StudentRepository extends IRepository<Student, Long> {
     @Query("""
         SELECT s FROM Student s
         WHERE (:status IS NULL OR :status = '' OR s.status = :status)
+          AND (:courseId IS NULL OR EXISTS (
+              SELECT 1 FROM AcademicHistory ah WHERE ah.studentId = s.id AND ah.courseId = :courseId
+          ))
           AND (:search IS NULL OR :search = ''
                OR LOWER(s.fullName) LIKE LOWER(CONCAT('%', :search, '%'))
                OR LOWER(s.studentCode) LIKE LOWER(CONCAT('%', :search, '%'))
@@ -44,6 +47,7 @@ public interface StudentRepository extends IRepository<Student, Long> {
     """)
     Page<Student> searchStudents(
             @Param("status") String status,
+            @Param("courseId") Long courseId,
             @Param("search") String search,
             Pageable pageable
     );

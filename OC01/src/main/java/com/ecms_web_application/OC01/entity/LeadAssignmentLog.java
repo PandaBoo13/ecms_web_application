@@ -36,6 +36,9 @@ public class LeadAssignmentLog {
     @Column(name = "changed_by")
     private Long changedBy;
 
+    @Column(name = "changed_by_type", nullable = false, length = 20)
+    private String changedByType = "SYSTEM";
+
     @Column(name = "changed_at", nullable = false, updatable = false)
     private LocalDateTime changedAt;
 
@@ -44,6 +47,8 @@ public class LeadAssignmentLog {
         if (this.changedAt == null) {
             this.changedAt = LocalDateTime.now();
         }
+        if (this.changedByType == null || this.changedByType.isBlank()) {
+            this.changedByType = (this.changedBy != null) ? "USER" : "SYSTEM";
+        }
     }
 }
-

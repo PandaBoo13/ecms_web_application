@@ -484,6 +484,7 @@ public class CourseServiceImpl implements CourseService {
         r.setProgressType(c.getProgressType() != null ? c.getProgressType().name() : null);
         r.setStatus(c.getStatus() != null ? c.getStatus().name() : null);
         r.setClassStatus(c.getClassStatus() != null ? c.getClassStatus().name() : null);
+        r.setTotalSessionsExpected(c.getTotalSessionsExpected());
         if (c.getTeacher() != null) {
             r.setTeacherId(c.getTeacher().getId());
             if (c.getTeacher().getUserProfile() != null) {

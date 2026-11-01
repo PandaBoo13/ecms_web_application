@@ -13,24 +13,23 @@ import com.ecms_web_application.OC01.dto.response.LeadResponse;
 import com.ecms_web_application.OC01.entity.Lead;
 import com.ecms_web_application.OC01.entity.LeadAssignmentLog;
 import com.ecms_web_application.OC01.entity.LeadInteraction;
-import com.ecms_web_application.OC01.entity.LeadPlacementTest;
-import com.ecms_web_application.OC01.entity.LeadStatusLog;
 import com.ecms_web_application.OC01.exception.ErrorHandler;
 import com.ecms_web_application.OC01.repository.LeadAssignmentLogRepository;
-import com.ecms_web_application.OC01.repository.LeadInteractionRepository;
-import com.ecms_web_application.OC01.repository.LeadPlacementTestRepository;
 import com.ecms_web_application.OC01.repository.LeadRepository;
-import com.ecms_web_application.OC01.repository.LeadStatusLogRepository;
 import com.ecms_web_application.OC01.service.LeadService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -40,16 +39,16 @@ import java.util.Objects;
 public class LeadServiceImpl implements LeadService {
 
     private final LeadRepository leadRepository;
-    private final LeadInteractionRepository interactionRepository;
-    private final LeadPlacementTestRepository placementTestRepository;
-    private final LeadStatusLogRepository statusLogRepository;
     private final LeadAssignmentLogRepository assignmentLogRepository;
 
     @Override
     @Transactional(readOnly = true)
     public Page<LeadResponse> search(String search, String status, Long courseId, Long sourceId, Long consultantId, Boolean inQueue, Pageable pageable) {
+        if (pageable.getSort().isUnsorted()) {
+            pageable = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), Sort.by("createdAt").descending());
+        }
         return leadRepository
-                .searchLeads(emptyToNull(status), courseId, sourceId, consultantId, inQueue, emptyToNull(search), pageable)
+                .searchLeads(emptyToNull(status), courseId, consultantId, inQueue, emptyToNull(search), pageable)
                 .map(this::toResponse);
     }
 
@@ -67,17 +66,14 @@ public class LeadServiceImpl implements LeadService {
         LeadDetailResponse detail = new LeadDetailResponse();
         copyPropertiesToResponse(lead, detail);
 
-        List<LeadInteractionResponse> interactions = interactionRepository.findByLeadIdOrderByCreatedAtDesc(id)
-                .stream().map(this::toInteractionResponse).toList();
-        List<LeadPlacementTestResponse> placementTests = placementTestRepository.findByLeadIdOrderByCreatedAtDesc(id)
-                .stream().map(this::toPlacementTestResponse).toList();
-        List<LeadStatusLog> statusLogs = statusLogRepository.findByLeadIdOrderByChangedAtDesc(id);
+        List<LeadInteractionResponse> interactions = getInteractions(id);
+        List<LeadPlacementTestResponse> placementTests = getPlacementTests(id);
         List<LeadAssignmentLog> assignmentLogs = assignmentLogRepository.findByLeadIdOrderByChangedAtDesc(id);
 
         detail.setInteractions(interactions);
         detail.setPlacementTests(placementTests);
-        detail.setStatusLogs(statusLogs);
         detail.setAssignmentLogs(assignmentLogs);
+        detail.setStatusLogs(new ArrayList<>());
         return detail;
     }
 
@@ -86,23 +82,53 @@ public class LeadServiceImpl implements LeadService {
     public LeadResponse create(LeadCreateRequest request) {
         Lead lead = new Lead();
         lead.setFullName(request.getFullName().trim());
-        lead.setEmail(request.getEmail() != null ? request.getEmail().trim().toLowerCase() : null);
-        lead.setPhone(emptyToNull(request.getPhone()));
+
+        String email = request.getEmail() != null ? request.getEmail().trim().toLowerCase() : null;
+        if (email == null || email.isBlank()) {
+            throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Email không được để trống");
+        }
+        lead.setEmail(email);
+
+        String phone = emptyToNull(request.getPhone());
+        if (phone == null) {
+            throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Số điện thoại không được để trống");
+        }
+        lead.setPhone(phone);
+
+        if (request.getCourseId() == null) {
+            throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Khóa học quan tâm (courseId) là bắt buộc");
+        }
         lead.setCourseId(request.getCourseId());
-        lead.setSourceId(request.getSourceId());
+
+        String sourceName = (request.getSourceName() != null && !request.getSourceName().isBlank())
+                ? request.getSourceName().trim()
+                : "Website";
+        lead.setSourceName(sourceName);
+
+        String channelType = (request.getChannelType() != null && !request.getChannelType().isBlank())
+                ? request.getChannelType().trim().toUpperCase()
+                : "ONLINE";
+        lead.setChannelType(channelType);
+
         lead.setAssignedConsultantId(request.getAssignedConsultantId());
         lead.setNote(emptyToNull(request.getNote()));
 
         String status = (request.getStatus() != null && !request.getStatus().isBlank())
                 ? request.getStatus().trim().toUpperCase()
                 : "NEW";
+        if (!"NEW".equals(status) && !"CONSULTED".equals(status)) {
+            status = "NEW";
+        }
         lead.setStatus(status);
+        if ("CONSULTED".equals(status)) {
+            lead.setConsultedAt(LocalDateTime.now());
+        } else {
+            lead.setConsultedAt(null);
+        }
+        lead.setInteractions(new ArrayList<>());
 
         Lead saved = leadRepository.save(lead);
         Long currentUserId = SecurityUtils.getCurrentAccountId();
-
-        // Ghi log trạng thái ban đầu
-        recordStatusLog(saved.getId(), null, saved.getStatus(), "Khởi tạo Lead mới", currentUserId);
 
         // Ghi log phân công nếu đã chọn người phụ trách ban đầu
         if (saved.getAssignedConsultantId() != null) {
@@ -122,17 +148,20 @@ public class LeadServiceImpl implements LeadService {
         if (request.getFullName() != null && !request.getFullName().isBlank()) {
             lead.setFullName(request.getFullName().trim());
         }
-        if (request.getEmail() != null) {
-            lead.setEmail(emptyToNull(request.getEmail().toLowerCase()));
+        if (request.getEmail() != null && !request.getEmail().isBlank()) {
+            lead.setEmail(request.getEmail().trim().toLowerCase());
         }
-        if (request.getPhone() != null) {
-            lead.setPhone(emptyToNull(request.getPhone()));
+        if (request.getPhone() != null && !request.getPhone().isBlank()) {
+            lead.setPhone(request.getPhone().trim());
         }
         if (request.getCourseId() != null) {
             lead.setCourseId(request.getCourseId());
         }
-        if (request.getSourceId() != null) {
-            lead.setSourceId(request.getSourceId());
+        if (request.getSourceName() != null && !request.getSourceName().isBlank()) {
+            lead.setSourceName(request.getSourceName().trim());
+        }
+        if (request.getChannelType() != null && !request.getChannelType().isBlank()) {
+            lead.setChannelType(request.getChannelType().trim().toUpperCase());
         }
         if (request.getStudentId() != null) {
             lead.setStudentId(request.getStudentId());
@@ -157,7 +186,11 @@ public class LeadServiceImpl implements LeadService {
             }
             if (!newStatus.equalsIgnoreCase(oldStatus)) {
                 lead.setStatus(newStatus);
-                recordStatusLog(lead.getId(), oldStatus, newStatus, "Cập nhật trạng thái qua API", currentUserId);
+                if ("CONSULTED".equals(newStatus)) {
+                    lead.setConsultedAt(LocalDateTime.now());
+                } else {
+                    lead.setConsultedAt(null);
+                }
             }
         }
 
@@ -192,7 +225,6 @@ public class LeadServiceImpl implements LeadService {
         Lead lead = findLeadById(id);
 
         String result = request.getResult().trim().toUpperCase();
-        // Ràng buộc: reject_reason bắt buộc khi result = REJECTED (hoặc TỪ CHỐI)
         if ("REJECTED".equalsIgnoreCase(result) || "TỪ CHỐI".equalsIgnoreCase(result)) {
             if (request.getRejectReason() == null || request.getRejectReason().isBlank()) {
                 throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Quy tắc nghiệp vụ: Bắt buộc cung cấp lý do từ chối (rejectReason) khi kết quả tư vấn là Từ chối");
@@ -201,75 +233,103 @@ public class LeadServiceImpl implements LeadService {
 
         Long currentUserId = SecurityUtils.getCurrentAccountId();
 
+        if (lead.getInteractions() == null) {
+            lead.setInteractions(new ArrayList<>());
+        }
+
         LeadInteraction interaction = new LeadInteraction();
+        interaction.setId((long) (lead.getInteractions().size() + 1));
         interaction.setLeadId(id);
         interaction.setInteractionType(request.getInteractionType().trim().toUpperCase());
         interaction.setNotes(emptyToNull(request.getNotes()));
         interaction.setResult(result);
         interaction.setRejectReason(emptyToNull(request.getRejectReason()));
         interaction.setPerformedBy(currentUserId);
-        LeadInteraction savedInteraction = interactionRepository.save(interaction);
+        interaction.setCreatedAt(LocalDateTime.now());
 
-        // Bất biến & Tác dụng phụ: Nếu Lead đang ở trạng thái NEW -> tự động chuyển sang CONSULTED
+        lead.getInteractions().add(interaction);
+
+        // Bất biến: Nếu Lead đang ở trạng thái NEW -> tự động chuyển sang CONSULTED
         if ("NEW".equalsIgnoreCase(lead.getStatus())) {
             lead.setStatus("CONSULTED");
-            leadRepository.save(lead);
-            recordStatusLog(lead.getId(), "NEW", "CONSULTED", "Tự động chuyển CONSULTED khi ghi nhận tương tác tư vấn đầu tiên", currentUserId);
+            lead.setConsultedAt(LocalDateTime.now());
             log.info("Tự động chuyển trạng thái Lead id={} từ NEW sang CONSULTED", id);
         }
 
-        return toInteractionResponse(savedInteraction);
+        leadRepository.save(lead);
+        return toInteractionResponse(interaction);
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<LeadInteractionResponse> getInteractions(Long id) {
-        findLeadById(id);
-        return interactionRepository.findByLeadIdOrderByCreatedAtDesc(id)
-                .stream().map(this::toInteractionResponse).toList();
+        Lead lead = findLeadById(id);
+        if (lead.getInteractions() == null) {
+            return Collections.emptyList();
+        }
+        return lead.getInteractions().stream()
+                .sorted((a, b) -> {
+                    if (a.getCreatedAt() == null || b.getCreatedAt() == null) return 0;
+                    return b.getCreatedAt().compareTo(a.getCreatedAt());
+                })
+                .map(this::toInteractionResponse)
+                .toList();
     }
 
     @Override
     @Transactional
     public LeadPlacementTestResponse recordPlacementTest(Long id, LeadPlacementTestCreateRequest request) {
-        findLeadById(id);
+        Lead lead = findLeadById(id);
         String testStatus = request.getTestStatus().trim().toUpperCase();
 
-        // Ràng buộc: test_score chỉ có khi test_status = COMPLETED
-        if (!"COMPLETED".equalsIgnoreCase(testStatus) && request.getTestScore() != null) {
-            throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Quy tắc nghiệp vụ: Điểm đánh giá (testScore) chỉ được phép ghi nhận khi trạng thái bài test là COMPLETED");
+        if ("COMPLETED".equals(testStatus)) {
+            if (request.getTestScore() == null) {
+                throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Điểm đánh giá (testScore) là bắt buộc khi trạng thái là COMPLETED");
+            }
+            lead.setPlacementTestStatus("COMPLETED");
+            lead.setPlacementTestScore(request.getTestScore());
+            lead.setPlacementRecommendedLevel(emptyToNull(request.getRecommendedLevel()));
+            lead.setPlacementTestNotes(emptyToNull(request.getNotes()));
+            lead.setPlacementEvaluatedAt(request.getEvaluatedAt() != null ? request.getEvaluatedAt() : LocalDateTime.now());
+        } else if ("REFUSED".equals(testStatus) || "NO_SHOW".equals(testStatus)) {
+            lead.setPlacementTestStatus(testStatus);
+            lead.setPlacementTestScore(null);
+            String notes = emptyToNull(request.getNotes());
+            if (notes == null) {
+                notes = "REFUSED".equals(testStatus) ? "Khách hàng từ chối làm bài kiểm tra" : "Khách hàng vắng mặt";
+            }
+            lead.setPlacementTestNotes(notes);
+            lead.setPlacementRecommendedLevel(null);
+            lead.setPlacementEvaluatedAt(request.getEvaluatedAt() != null ? request.getEvaluatedAt() : LocalDateTime.now());
+        } else {
+            throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Trạng thái đánh giá đầu vào chỉ chấp nhận: COMPLETED, REFUSED, NO_SHOW");
         }
 
-        LeadPlacementTest test = new LeadPlacementTest();
-        test.setLeadId(id);
-        test.setTestStatus(testStatus);
-        test.setScheduledAt(request.getScheduledAt());
-        test.setTestScore(request.getTestScore());
-        test.setRecommendedLevel(emptyToNull(request.getRecommendedLevel()));
-        test.setNotes(emptyToNull(request.getNotes()));
-        test.setEvaluatedAt(request.getEvaluatedAt() != null ? request.getEvaluatedAt() : ("COMPLETED".equalsIgnoreCase(testStatus) ? LocalDateTime.now() : null));
-
-        LeadPlacementTest saved = placementTestRepository.save(test);
-        log.info("Ghi nhận đánh giá đầu vào cho Lead id={}, status={}", id, saved.getTestStatus());
+        lead.setPlacementTestCreatedAt(LocalDateTime.now());
+        Lead saved = leadRepository.save(lead);
+        log.info("Ghi nhận đánh giá đầu vào cho Lead id={}, status={}", id, saved.getPlacementTestStatus());
         return toPlacementTestResponse(saved);
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<LeadPlacementTestResponse> getPlacementTests(Long id) {
-        findLeadById(id);
-        return placementTestRepository.findByLeadIdOrderByCreatedAtDesc(id)
-                .stream().map(this::toPlacementTestResponse).toList();
+        Lead lead = findLeadById(id);
+        if (lead.getPlacementTestStatus() == null) {
+            return Collections.emptyList();
+        }
+        return List.of(toPlacementTestResponse(lead));
     }
 
     @Override
     @Transactional
     public void delete(Long id) {
         Lead lead = findLeadById(id);
-        // Chuyển trạng thái kết thúc tư vấn / ghi log
-        recordStatusLog(lead.getId(), lead.getStatus(), "CONSULTED", "Đóng tư vấn Lead", SecurityUtils.getCurrentAccountId());
-        lead.setStatus("CONSULTED");
-        leadRepository.save(lead);
+        if ("NEW".equalsIgnoreCase(lead.getStatus())) {
+            lead.setStatus("CONSULTED");
+            lead.setConsultedAt(LocalDateTime.now());
+            leadRepository.save(lead);
+        }
         log.info("Đã cập nhật đóng tư vấn Lead id={}", id);
     }
 
@@ -280,16 +340,6 @@ public class LeadServiceImpl implements LeadService {
                 .orElseThrow(() -> new ErrorHandler(HttpStatus.NOT_FOUND, "Không tìm thấy Lead với ID: " + id));
     }
 
-    private void recordStatusLog(Long leadId, String oldStatus, String newStatus, String reason, Long changedBy) {
-        LeadStatusLog logEntity = new LeadStatusLog();
-        logEntity.setLeadId(leadId);
-        logEntity.setOldStatus(oldStatus);
-        logEntity.setNewStatus(newStatus);
-        logEntity.setReason(reason);
-        logEntity.setChangedBy(changedBy);
-        statusLogRepository.save(logEntity);
-    }
-
     private void recordAssignmentLog(Long leadId, Long oldConsultantId, Long newConsultantId, String reason, Long changedBy) {
         LeadAssignmentLog logEntity = new LeadAssignmentLog();
         logEntity.setLeadId(leadId);
@@ -297,6 +347,8 @@ public class LeadServiceImpl implements LeadService {
         logEntity.setNewConsultantId(newConsultantId);
         logEntity.setReason(reason);
         logEntity.setChangedBy(changedBy);
+        logEntity.setChangedByType(changedBy != null ? "USER" : "SYSTEM");
+        logEntity.setChangedAt(LocalDateTime.now());
         assignmentLogRepository.save(logEntity);
     }
 
@@ -308,10 +360,19 @@ public class LeadServiceImpl implements LeadService {
         response.setCourseId(lead.getCourseId());
         response.setStudentId(lead.getStudentId());
         response.setStatus(lead.getStatus());
+        response.setConsultedAt(lead.getConsultedAt());
         response.setConvertedAt(lead.getConvertedAt());
+        response.setSourceName(lead.getSourceName());
+        response.setChannelType(lead.getChannelType());
         response.setSourceId(lead.getSourceId());
         response.setAssignedConsultantId(lead.getAssignedConsultantId());
         response.setNote(lead.getNote());
+        response.setPlacementTestStatus(lead.getPlacementTestStatus());
+        response.setPlacementTestScore(lead.getPlacementTestScore());
+        response.setPlacementRecommendedLevel(lead.getPlacementRecommendedLevel());
+        response.setPlacementTestNotes(lead.getPlacementTestNotes());
+        response.setPlacementEvaluatedAt(lead.getPlacementEvaluatedAt());
+        response.setPlacementTestCreatedAt(lead.getPlacementTestCreatedAt());
         response.setCreatedAt(lead.getCreatedAt());
         response.setUpdatedAt(lead.getUpdatedAt());
     }
@@ -328,24 +389,24 @@ public class LeadServiceImpl implements LeadService {
         response.setLeadId(interaction.getLeadId());
         response.setInteractionType(interaction.getInteractionType());
         response.setNotes(interaction.getNotes());
-        response.setResult(interaction.getResult());
+        response.setResult(interaction.getResult() != null ? interaction.getResult() : "INTERESTED");
         response.setRejectReason(interaction.getRejectReason());
         response.setPerformedBy(interaction.getPerformedBy());
         response.setCreatedAt(interaction.getCreatedAt());
         return response;
     }
 
-    private LeadPlacementTestResponse toPlacementTestResponse(LeadPlacementTest test) {
+    private LeadPlacementTestResponse toPlacementTestResponse(Lead lead) {
         LeadPlacementTestResponse response = new LeadPlacementTestResponse();
-        response.setId(test.getId());
-        response.setLeadId(test.getLeadId());
-        response.setTestStatus(test.getTestStatus());
-        response.setScheduledAt(test.getScheduledAt());
-        response.setTestScore(test.getTestScore());
-        response.setRecommendedLevel(test.getRecommendedLevel());
-        response.setNotes(test.getNotes());
-        response.setEvaluatedAt(test.getEvaluatedAt());
-        response.setCreatedAt(test.getCreatedAt());
+        response.setId(lead.getId());
+        response.setLeadId(lead.getId());
+        response.setTestStatus(lead.getPlacementTestStatus());
+        response.setScheduledAt(lead.getPlacementTestCreatedAt());
+        response.setTestScore(lead.getPlacementTestScore());
+        response.setRecommendedLevel(lead.getPlacementRecommendedLevel());
+        response.setNotes(lead.getPlacementTestNotes());
+        response.setEvaluatedAt(lead.getPlacementEvaluatedAt());
+        response.setCreatedAt(lead.getPlacementTestCreatedAt() != null ? lead.getPlacementTestCreatedAt() : lead.getCreatedAt());
         return response;
     }
 

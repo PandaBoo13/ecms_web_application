@@ -2,6 +2,7 @@ package com.ecms_web_application.OC01.dto.request;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
@@ -15,17 +16,24 @@ public class LeadCreateRequest {
     @Size(max = 255, message = "Họ và tên tối đa 255 ký tự")
     private String fullName;
 
+    @NotBlank(message = "Email không được để trống")
     @Email(message = "Email không đúng định dạng")
     @Size(max = 255, message = "Email tối đa 255 ký tự")
     private String email;
 
+    @NotBlank(message = "Số điện thoại không được để trống")
     @Pattern(regexp = "^$|^[0-9+()\\s.-]{8,20}$", message = "Số điện thoại không hợp lệ")
     @Size(max = 20, message = "Số điện thoại tối đa 20 ký tự")
     private String phone;
 
+    @NotNull(message = "Khóa học quan tâm (courseId) là bắt buộc")
     private Long courseId;
 
     private Long sourceId;
+
+    private String sourceName;
+
+    private String channelType;
 
     private Long assignedConsultantId;
 

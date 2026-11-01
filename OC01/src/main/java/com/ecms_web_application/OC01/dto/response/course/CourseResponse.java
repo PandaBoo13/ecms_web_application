@@ -24,6 +24,7 @@ public class CourseResponse {
     private String progressType;
     private String status;
     private String classStatus;
+    private Integer totalSessionsExpected;
     private Long teacherId;
     private String teacherName;
     private Long createdById;
