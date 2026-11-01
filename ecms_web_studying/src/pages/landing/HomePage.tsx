@@ -23,7 +23,11 @@ import {
   EyeOutlined,
   UsergroupAddOutlined,
 } from '@ant-design/icons';
-import { courseApi } from '@/services/api/courses';
+
+// 🆕 Cập nhật lại đường dẫn import API theo cấu trúc mới
+import { courseApi } from '@/services/api/course';
+// Nếu báo lỗi không tìm thấy, đổi thành: import { courseApi } from '@/services/api/course/courseApi';
+
 import type { CourseResponse } from '@/services/types/course';
 import MoneyDisplay from '@/components/common/MoneyDisplay';
 import LeadRegistrationModal from '@/components/lead/LeadRegistrationModal';
