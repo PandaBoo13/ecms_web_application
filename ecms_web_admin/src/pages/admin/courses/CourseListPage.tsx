@@ -1,16 +1,11 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button, Space, Select, Tooltip, Popconfirm, Image, Typography, Row, Col } from 'antd';
 import {
-  PlusOutlined,
-  EyeOutlined,
-  ReloadOutlined,
-  EditOutlined,
-  DeleteOutlined,
-  BookOutlined,
-  CheckCircleOutlined,
-  ClockCircleOutlined,
-  FileTextOutlined,
+  Button, Space, Select, TreeSelect, Tooltip, Popconfirm, Image, Typography, Row, Col,
+} from 'antd';
+import {
+  PlusOutlined, EyeOutlined, ReloadOutlined, EditOutlined, DeleteOutlined,
+  BookOutlined, CheckCircleOutlined, ClockCircleOutlined, FileTextOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import toast from 'react-hot-toast';
@@ -24,10 +19,8 @@ import MoneyDisplay from '@/components/common/MoneyDisplay';
 import StatsCard from '@/components/common/StatsCard';
 import { useTranslation } from '@/hooks/useTranslation';
 
-// 🆕 Import thêm categoryApi để lấy danh sách danh mục
 import { courseApi, categoryApi } from '@/services/api/course';
-
-import type { CourseResponse } from '@/services/types/course';
+import type { CourseResponse, CategoryResponse } from '@/services/types/course';
 
 const { Text } = Typography;
 
@@ -42,9 +35,6 @@ const CourseListPage = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
 
-  // ══════════════════════════════════════════════════════════════
-  // STATE
-  // ══════════════════════════════════════════════════════════════
   const [data, setData] = useState<CourseResponse[]>([]);
   const [loading, setLoading] = useState(false);
   const [total, setTotal] = useState(0);
@@ -53,16 +43,13 @@ const CourseListPage = () => {
   const [keyword, setKeyword] = useState('');
   const [statusFilter, setStatusFilter] = useState<string | undefined>();
   const [typeFilter, setTypeFilter] = useState<string | undefined>();
-  const [categoryFilter, setCategoryFilter] = useState<number | undefined>(); // 🆕 Thêm state lọc danh mục
+  const [categoryFilter, setCategoryFilter] = useState<number | undefined>();
 
-  // 🆕 State lưu danh sách danh mục cho dropdown
-  const [categories, setCategories] = useState<{ id: number; name: string }[]>([]);
+  // 🆕 Lưu danh sách categories gốc (không map nữa, để build tree)
+  const [categories, setCategories] = useState<CategoryResponse[]>([]);
 
   const [stats, setStats] = useState<CourseStats>({
-    total: 0,
-    published: 0,
-    pending: 0,
-    draft: 0,
+    total: 0, published: 0, pending: 0, draft: 0,
   });
 
   // ══════════════════════════════════════════════════════════════
@@ -73,14 +60,39 @@ const CourseListPage = () => {
       .list({ page: 0, size: 1000, sortBy: 'name', sortDir: 'asc' })
       .then((res) => {
         if (res?.content) {
-          setCategories(res.content.map((c) => ({ id: c.id, name: c.name })));
+          setCategories(res.content);
+          console.log('📂 [CATEGORY] Loaded:', res.content.length, 'items');
         }
       })
-      .catch(() => toast.error('Không thể tải danh sách danh mục'));
+      .catch((err) => {
+        console.error('❌ [CATEGORY] Load failed:', err);
+        toast.error('Không thể tải danh sách danh mục');
+      });
   }, []);
 
+  // 🆕 BUILD TREE cho TreeSelect
+  const categoryTreeData = useMemo(() => {
+    const buildTree = (
+      items: CategoryResponse[],
+      parentId: number | null = null,
+      depth: number = 0
+    ): any[] => {
+      return items
+        .filter((item) => (item.parentId ?? null) === parentId)
+        .map((item) => ({
+          title: item.name,
+          value: item.id,
+          key: item.id,
+          children: buildTree(items, item.id, depth + 1),
+        }));
+    };
+    const tree = buildTree(categories);
+    console.log('🌳 [CATEGORY] Tree built:', tree.length, 'root nodes');
+    return tree;
+  }, [categories]);
+
   // ══════════════════════════════════════════════════════════════
-  // FETCH DATA & STATS
+  // FETCH STATS
   // ══════════════════════════════════════════════════════════════
   const fetchStats = useCallback(async () => {
     try {
@@ -96,11 +108,14 @@ const CourseListPage = () => {
         pending: pendingRes.totalElements,
         draft: draftRes.totalElements,
       });
-    } catch {
-      // Bỏ qua lỗi fetch stats
+    } catch (err) {
+      console.warn('[STATS] fetch failed:', err);
     }
   }, []);
 
+  // ══════════════════════════════════════════════════════════════
+  // FETCH DATA
+  // ══════════════════════════════════════════════════════════════
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
@@ -113,12 +128,27 @@ const CourseListPage = () => {
       if (keyword.trim()) params.search = keyword.trim();
       if (statusFilter) params.status = statusFilter;
       if (typeFilter) params.type = typeFilter;
-      if (categoryFilter) params.categoryId = categoryFilter; // 🆕 Thêm param categoryId
+      // ✅ Dùng !== undefined để không bỏ sót id = 0
+      if (categoryFilter !== undefined && categoryFilter !== null) {
+        params.categoryId = categoryFilter;
+      }
+
+      // 🆕 DEBUG: Xem params thực sự gửi đi
+      console.log('🚀 [COURSE-FETCH] Params:', params);
 
       const res = await courseApi.search(params);
+
+      // 🆕 DEBUG: Xem response thực sự nhận về
+      console.log('📥 [COURSE-FETCH] Response:', {
+        totalElements: res.totalElements,
+        contentLength: res.content?.length,
+        sampleIds: res.content?.slice(0, 3).map((c) => c.id),
+      });
+
       setData(res.content);
       setTotal(res.totalElements);
     } catch (err) {
+      console.error('❌ [COURSE-FETCH] Error:', err);
       const e = err as { message?: string };
       toast.error(e?.message || 'Không thể tải danh sách khóa học');
       setData([]);
@@ -136,14 +166,27 @@ const CourseListPage = () => {
     fetchStats();
   }, [fetchStats]);
 
-  // Reset page khi filter thay đổi
-  useEffect(() => {
+  // ══════════════════════════════════════════════════════════════
+  // HANDLERS — reset page ngay trong onChange
+  // ══════════════════════════════════════════════════════════════
+  const handleKeywordChange = (v: string) => {
+    setKeyword(v);
     setPage(0);
-  }, [keyword, statusFilter, typeFilter, categoryFilter]);
+  };
+  const handleStatusChange = (v: string | undefined) => {
+    setStatusFilter(v);
+    setPage(0);
+  };
+  const handleTypeChange = (v: string | undefined) => {
+    setTypeFilter(v);
+    setPage(0);
+  };
+  const handleCategoryChange = (v: number | undefined) => {
+    console.log('🎯 [CATEGORY-CHANGE] Selected:', v);
+    setCategoryFilter(v);
+    setPage(0);
+  };
 
-  // ══════════════════════════════════════════════════════════════
-  // HANDLERS
-  // ══════════════════════════════════════════════════════════════
   const handleRefresh = () => {
     fetchData();
     fetchStats();
@@ -155,7 +198,7 @@ const CourseListPage = () => {
       await courseApi.softDelete(id);
       toast.success('Đã xóa khóa học');
       fetchData();
-      fetchStats(); // Cập nhật lại số liệu sau khi xóa
+      fetchStats();
     } catch (err) {
       const e = err as { message?: string };
       toast.error(e?.message || 'Xóa thất bại');
@@ -175,13 +218,7 @@ const CourseListPage = () => {
   // ══════════════════════════════════════════════════════════════
   const columns: ColumnsType<CourseResponse> = useMemo(
     () => [
-      {
-        title: 'ID',
-        dataIndex: 'id',
-        key: 'id',
-        width: 70,
-        align: 'center',
-      },
+      { title: 'ID', dataIndex: 'id', key: 'id', width: 70, align: 'center' },
       {
         title: t('course.name'),
         key: 'course',
@@ -294,11 +331,10 @@ const CourseListPage = () => {
     [t, navigate]
   );
 
-  const hasActiveFilters = Boolean(keyword || statusFilter || typeFilter || categoryFilter !== undefined);
+  const hasActiveFilters = Boolean(
+    keyword || statusFilter || typeFilter || categoryFilter !== undefined
+  );
 
-  // ══════════════════════════════════════════════════════════════
-  // RENDER
-  // ══════════════════════════════════════════════════════════════
   return (
     <PageContainer>
       <PageHeader
@@ -320,7 +356,6 @@ const CourseListPage = () => {
         }
       />
 
-      {/* ── KPI Metric Cards ── */}
       <Row gutter={[16, 16]} style={{ marginBottom: 20 }}>
         <Col xs={24} sm={12} lg={6}>
           <StatsCard
@@ -330,9 +365,7 @@ const CourseListPage = () => {
             color="#2563eb"
             bgColor="#eff6ff"
             active={!statusFilter && !typeFilter && categoryFilter === undefined}
-            onClick={() => {
-              handleResetFilters();
-            }}
+            onClick={handleResetFilters}
             tooltip="Nhấn để xem toàn bộ khóa học"
           />
         </Col>
@@ -344,10 +377,7 @@ const CourseListPage = () => {
             color="#10b981"
             bgColor="#ecfdf5"
             active={statusFilter === 'PUBLISHED'}
-            onClick={() => {
-              setStatusFilter(statusFilter === 'PUBLISHED' ? undefined : 'PUBLISHED');
-              setPage(0);
-            }}
+            onClick={() => handleStatusChange(statusFilter === 'PUBLISHED' ? undefined : 'PUBLISHED')}
             tagText="PUBLISHED"
             tagColor="success"
             tooltip="Nhấn để lọc các khóa học đã xuất bản"
@@ -361,10 +391,9 @@ const CourseListPage = () => {
             color="#f59e0b"
             bgColor="#fffbeb"
             active={statusFilter === 'PENDING_REVIEW'}
-            onClick={() => {
-              setStatusFilter(statusFilter === 'PENDING_REVIEW' ? undefined : 'PENDING_REVIEW');
-              setPage(0);
-            }}
+            onClick={() =>
+              handleStatusChange(statusFilter === 'PENDING_REVIEW' ? undefined : 'PENDING_REVIEW')
+            }
             tagText="PENDING"
             tagColor="warning"
             tooltip="Nhấn để lọc các khóa học đang chờ duyệt"
@@ -378,10 +407,7 @@ const CourseListPage = () => {
             color="#64748b"
             bgColor="#f8fafc"
             active={statusFilter === 'DRAFT'}
-            onClick={() => {
-              setStatusFilter(statusFilter === 'DRAFT' ? undefined : 'DRAFT');
-              setPage(0);
-            }}
+            onClick={() => handleStatusChange(statusFilter === 'DRAFT' ? undefined : 'DRAFT')}
             tagText="DRAFT"
             tagColor="default"
             tooltip="Nhấn để lọc các khóa học đang ở trạng thái nháp"
@@ -402,7 +428,8 @@ const CourseListPage = () => {
             setPage(p);
             setPageSize(ps);
           }}
-          onSearch={(v) => setKeyword(v)}
+          onSearch={handleKeywordChange}
+          searchValue={keyword}
           searchPlaceholder={t('course.searchPlaceholder')}
           onRow={(record) => ({
             onDoubleClick: () => navigate(`/admin/courses/${record.id}`),
@@ -410,19 +437,18 @@ const CourseListPage = () => {
           })}
           extra={
             <Space wrap>
-              {/* 🆕 Bộ lọc theo Danh mục */}
-              <Select
+              {/* 🆕 TREE SELECT — hiển thị dạng cây có thụt lề */}
+              <TreeSelect
                 placeholder="Lọc theo danh mục"
                 allowClear
-                style={{ width: 180 }}
+                style={{ width: 240 }}
                 value={categoryFilter}
-                onChange={setCategoryFilter}
+                onChange={handleCategoryChange}
+                treeData={categoryTreeData}
                 showSearch
-                optionFilterProp="label"
-                options={categories.map((c) => ({
-                  value: c.id,
-                  label: c.name,
-                }))}
+                treeNodeFilterProp="title"
+                treeDefaultExpandAll
+                dropdownStyle={{ maxHeight: 400, overflow: 'auto' }}
               />
 
               <Select
@@ -430,7 +456,7 @@ const CourseListPage = () => {
                 allowClear
                 style={{ width: 160 }}
                 value={statusFilter}
-                onChange={setStatusFilter}
+                onChange={handleStatusChange}
                 options={[
                   { value: 'DRAFT', label: t('status.DRAFT') },
                   { value: 'PENDING_REVIEW', label: t('status.PENDING_REVIEW') },
@@ -448,18 +474,14 @@ const CourseListPage = () => {
                 allowClear
                 style={{ width: 130 }}
                 value={typeFilter}
-                onChange={setTypeFilter}
+                onChange={handleTypeChange}
                 options={[
                   { value: 'ONLINE', label: t('status.ONLINE') },
                   { value: 'OFFLINE', label: t('status.OFFLINE') },
                 ]}
               />
 
-              {hasActiveFilters && (
-                <Button onClick={handleResetFilters}>
-                  Xóa bộ lọc
-                </Button>
-              )}
+              {hasActiveFilters && <Button onClick={handleResetFilters}>Xóa bộ lọc</Button>}
             </Space>
           }
         />
