@@ -1,12 +1,16 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button, Space, Select, Tooltip, Popconfirm, Image, Typography } from 'antd';
+import { Button, Space, Select, Tooltip, Popconfirm, Image, Typography, Row, Col } from 'antd';
 import {
   PlusOutlined,
   EyeOutlined,
   ReloadOutlined,
   EditOutlined,
   DeleteOutlined,
+  BookOutlined,
+  CheckCircleOutlined,
+  ClockCircleOutlined,
+  FileTextOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import toast from 'react-hot-toast';
@@ -17,15 +21,22 @@ import DataTable from '@/components/common/DataTable';
 import StatusTag from '@/components/common/StatusTag';
 import DateDisplay from '@/components/common/DateDisplay';
 import MoneyDisplay from '@/components/common/MoneyDisplay';
+import StatsCard from '@/components/common/StatsCard';
 import { useTranslation } from '@/hooks/useTranslation';
 
-// 🆕 Cập nhật lại đường dẫn import API theo cấu trúc mới
-import { courseApi } from '@/services/api/course'; 
-// Nếu báo lỗi không tìm thấy, hãy đổi thành: import { courseApi } from '@/services/api/course/courseApi';
+// 🆕 Import thêm categoryApi để lấy danh sách danh mục
+import { courseApi, categoryApi } from '@/services/api/course';
 
 import type { CourseResponse } from '@/services/types/course';
 
 const { Text } = Typography;
+
+interface CourseStats {
+  total: number;
+  published: number;
+  pending: number;
+  draft: number;
+}
 
 const CourseListPage = () => {
   const { t } = useTranslation();
@@ -42,10 +53,54 @@ const CourseListPage = () => {
   const [keyword, setKeyword] = useState('');
   const [statusFilter, setStatusFilter] = useState<string | undefined>();
   const [typeFilter, setTypeFilter] = useState<string | undefined>();
+  const [categoryFilter, setCategoryFilter] = useState<number | undefined>(); // 🆕 Thêm state lọc danh mục
+
+  // 🆕 State lưu danh sách danh mục cho dropdown
+  const [categories, setCategories] = useState<{ id: number; name: string }[]>([]);
+
+  const [stats, setStats] = useState<CourseStats>({
+    total: 0,
+    published: 0,
+    pending: 0,
+    draft: 0,
+  });
 
   // ══════════════════════════════════════════════════════════════
-  // FETCH
+  // FETCH CATEGORIES
   // ══════════════════════════════════════════════════════════════
+  useEffect(() => {
+    categoryApi
+      .list({ page: 0, size: 1000, sortBy: 'name', sortDir: 'asc' })
+      .then((res) => {
+        if (res?.content) {
+          setCategories(res.content.map((c) => ({ id: c.id, name: c.name })));
+        }
+      })
+      .catch(() => toast.error('Không thể tải danh sách danh mục'));
+  }, []);
+
+  // ══════════════════════════════════════════════════════════════
+  // FETCH DATA & STATS
+  // ══════════════════════════════════════════════════════════════
+  const fetchStats = useCallback(async () => {
+    try {
+      const [allRes, publishedRes, pendingRes, draftRes] = await Promise.all([
+        courseApi.search({ page: 0, size: 1 }),
+        courseApi.search({ page: 0, size: 1, status: 'PUBLISHED' }),
+        courseApi.search({ page: 0, size: 1, status: 'PENDING_REVIEW' }),
+        courseApi.search({ page: 0, size: 1, status: 'DRAFT' }),
+      ]);
+      setStats({
+        total: allRes.totalElements,
+        published: publishedRes.totalElements,
+        pending: pendingRes.totalElements,
+        draft: draftRes.totalElements,
+      });
+    } catch {
+      // Bỏ qua lỗi fetch stats
+    }
+  }, []);
+
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
@@ -58,6 +113,7 @@ const CourseListPage = () => {
       if (keyword.trim()) params.search = keyword.trim();
       if (statusFilter) params.status = statusFilter;
       if (typeFilter) params.type = typeFilter;
+      if (categoryFilter) params.categoryId = categoryFilter; // 🆕 Thêm param categoryId
 
       const res = await courseApi.search(params);
       setData(res.content);
@@ -70,22 +126,27 @@ const CourseListPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, keyword, statusFilter, typeFilter]);
+  }, [page, pageSize, keyword, statusFilter, typeFilter, categoryFilter]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
+  useEffect(() => {
+    fetchStats();
+  }, [fetchStats]);
+
   // Reset page khi filter thay đổi
   useEffect(() => {
     setPage(0);
-  }, [keyword, statusFilter, typeFilter]);
+  }, [keyword, statusFilter, typeFilter, categoryFilter]);
 
   // ══════════════════════════════════════════════════════════════
   // HANDLERS
   // ══════════════════════════════════════════════════════════════
   const handleRefresh = () => {
     fetchData();
+    fetchStats();
     toast.success('Đã làm mới dữ liệu');
   };
 
@@ -94,10 +155,19 @@ const CourseListPage = () => {
       await courseApi.softDelete(id);
       toast.success('Đã xóa khóa học');
       fetchData();
+      fetchStats(); // Cập nhật lại số liệu sau khi xóa
     } catch (err) {
       const e = err as { message?: string };
       toast.error(e?.message || 'Xóa thất bại');
     }
+  };
+
+  const handleResetFilters = () => {
+    setKeyword('');
+    setStatusFilter(undefined);
+    setTypeFilter(undefined);
+    setCategoryFilter(undefined);
+    setPage(0);
   };
 
   // ══════════════════════════════════════════════════════════════
@@ -224,6 +294,8 @@ const CourseListPage = () => {
     [t, navigate]
   );
 
+  const hasActiveFilters = Boolean(keyword || statusFilter || typeFilter || categoryFilter !== undefined);
+
   // ══════════════════════════════════════════════════════════════
   // RENDER
   // ══════════════════════════════════════════════════════════════
@@ -248,6 +320,75 @@ const CourseListPage = () => {
         }
       />
 
+      {/* ── KPI Metric Cards ── */}
+      <Row gutter={[16, 16]} style={{ marginBottom: 20 }}>
+        <Col xs={24} sm={12} lg={6}>
+          <StatsCard
+            title="Tổng số khóa học"
+            value={stats.total}
+            icon={<BookOutlined />}
+            color="#2563eb"
+            bgColor="#eff6ff"
+            active={!statusFilter && !typeFilter && categoryFilter === undefined}
+            onClick={() => {
+              handleResetFilters();
+            }}
+            tooltip="Nhấn để xem toàn bộ khóa học"
+          />
+        </Col>
+        <Col xs={24} sm={12} lg={6}>
+          <StatsCard
+            title="Đang xuất bản"
+            value={stats.published}
+            icon={<CheckCircleOutlined />}
+            color="#10b981"
+            bgColor="#ecfdf5"
+            active={statusFilter === 'PUBLISHED'}
+            onClick={() => {
+              setStatusFilter(statusFilter === 'PUBLISHED' ? undefined : 'PUBLISHED');
+              setPage(0);
+            }}
+            tagText="PUBLISHED"
+            tagColor="success"
+            tooltip="Nhấn để lọc các khóa học đã xuất bản"
+          />
+        </Col>
+        <Col xs={24} sm={12} lg={6}>
+          <StatsCard
+            title="Chờ duyệt"
+            value={stats.pending}
+            icon={<ClockCircleOutlined />}
+            color="#f59e0b"
+            bgColor="#fffbeb"
+            active={statusFilter === 'PENDING_REVIEW'}
+            onClick={() => {
+              setStatusFilter(statusFilter === 'PENDING_REVIEW' ? undefined : 'PENDING_REVIEW');
+              setPage(0);
+            }}
+            tagText="PENDING"
+            tagColor="warning"
+            tooltip="Nhấn để lọc các khóa học đang chờ duyệt"
+          />
+        </Col>
+        <Col xs={24} sm={12} lg={6}>
+          <StatsCard
+            title="Bản nháp"
+            value={stats.draft}
+            icon={<FileTextOutlined />}
+            color="#64748b"
+            bgColor="#f8fafc"
+            active={statusFilter === 'DRAFT'}
+            onClick={() => {
+              setStatusFilter(statusFilter === 'DRAFT' ? undefined : 'DRAFT');
+              setPage(0);
+            }}
+            tagText="DRAFT"
+            tagColor="default"
+            tooltip="Nhấn để lọc các khóa học đang ở trạng thái nháp"
+          />
+        </Col>
+      </Row>
+
       <div style={{ background: '#fff', padding: 16, borderRadius: 8 }}>
         <DataTable<CourseResponse>
           columns={columns}
@@ -268,7 +409,22 @@ const CourseListPage = () => {
             style: { cursor: 'pointer' },
           })}
           extra={
-            <Space>
+            <Space wrap>
+              {/* 🆕 Bộ lọc theo Danh mục */}
+              <Select
+                placeholder="Lọc theo danh mục"
+                allowClear
+                style={{ width: 180 }}
+                value={categoryFilter}
+                onChange={setCategoryFilter}
+                showSearch
+                optionFilterProp="label"
+                options={categories.map((c) => ({
+                  value: c.id,
+                  label: c.name,
+                }))}
+              />
+
               <Select
                 placeholder={t('course.filterStatus')}
                 allowClear
@@ -276,7 +432,6 @@ const CourseListPage = () => {
                 value={statusFilter}
                 onChange={setStatusFilter}
                 options={[
-                  // 🆕 Cập nhật đầy đủ 8 trạng thái mới từ BE
                   { value: 'DRAFT', label: t('status.DRAFT') },
                   { value: 'PENDING_REVIEW', label: t('status.PENDING_REVIEW') },
                   { value: 'PLANNED', label: t('status.PLANNED') },
@@ -287,6 +442,7 @@ const CourseListPage = () => {
                   { value: 'ARCHIVED', label: t('status.ARCHIVED') },
                 ]}
               />
+
               <Select
                 placeholder={t('course.type')}
                 allowClear
@@ -298,6 +454,12 @@ const CourseListPage = () => {
                   { value: 'OFFLINE', label: t('status.OFFLINE') },
                 ]}
               />
+
+              {hasActiveFilters && (
+                <Button onClick={handleResetFilters}>
+                  Xóa bộ lọc
+                </Button>
+              )}
             </Space>
           }
         />
