@@ -88,4 +88,16 @@ public interface CategoryRepository extends IRepository<Category, Long> {
 
     @Query("SELECT COUNT(c) > 0 FROM Category c WHERE c.parent.id = :categoryId")
     boolean hasChildren(@Param("categoryId") Long categoryId);
+
+    // 🆕 HÀM LẤY TẤT CẢ ID CON CHÁU (BAO GỒM CHÍNH NÓ)
+    @Query(value = """
+        WITH RECURSIVE descendants AS (
+            SELECT id FROM category WHERE id = :categoryId
+            UNION ALL
+            SELECT c.id FROM category c
+            INNER JOIN descendants d ON c.parent_id = d.id
+        )
+        SELECT id FROM descendants
+    """, nativeQuery = true)
+    List<Long> findAllCategoryAndDescendantIds(@Param("categoryId") Long categoryId);
 }
