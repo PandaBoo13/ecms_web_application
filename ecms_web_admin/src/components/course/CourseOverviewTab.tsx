@@ -1,9 +1,7 @@
 import { Divider } from 'antd';
-
-import CourseOverviewForm from './CourseOverviewForm';
+import CourseGeneralInfoTab from './CourseGeneralInfoTab';
 import CourseProgressStats from './CourseProgressStats';
 import CourseProgressCharts from './CourseProgressCharts';
-
 import type { CourseDetailResponse } from '@/services/types/course';
 
 interface Props {
@@ -11,22 +9,19 @@ interface Props {
   onRefresh: () => void;
 }
 
-/**
- * Tab "Tổng quan" — dùng chung admin + instructor.
- * Gộp: Form thông tin + Stats (mock) + Charts (mock).
- */
 const CourseOverviewTab = ({ course, onRefresh }: Props) => {
   return (
-    <div>
-      <CourseOverviewForm course={course} onRefresh={onRefresh} />
+    <div className="flex flex-col gap-6">
+      {/* 1. Form thông tin chi tiết khóa học */}
+      <CourseGeneralInfoTab course={course} onRefresh={onRefresh} />
 
-      <Divider style={{ margin: '20px 0' }} />
+      <Divider className="!my-0 border-slate-200" />
 
+      {/* 2. Thẻ thống kê chỉ số tiến độ */}
       <CourseProgressStats courseId={course.id} />
 
-      <div style={{ marginTop: 20 }}>
-        <CourseProgressCharts courseId={course.id} />
-      </div>
+      {/* 3. Biểu đồ tiến độ Line & Doughnut */}
+      <CourseProgressCharts courseId={course.id} />
     </div>
   );
 };

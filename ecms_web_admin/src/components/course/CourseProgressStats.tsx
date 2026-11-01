@@ -22,8 +22,7 @@ interface Props {
 }
 
 const CourseProgressStats = ({ courseId }: Props) => {
-  // TODO: thay bằng hook/API thật
-  // const { data } = useProgress(courseId);
+  // TODO: thay bằng hook/API thật khi có BE
   const s = MOCK_PROGRESS_STATS;
 
   const cards = [
@@ -34,7 +33,7 @@ const CourseProgressStats = ({ courseId }: Props) => {
       icon: <TeamOutlined />,
       color: '#1677ff',
       bg: '#e6f4ff',
-      suffix: undefined as string | undefined,
+      suffix: undefined,
     },
     {
       key: 'active',
@@ -67,22 +66,15 @@ const CourseProgressStats = ({ courseId }: Props) => {
 
   return (
     <div>
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-          marginBottom: 10,
-        }}
-      >
-        <span style={{ fontSize: 14, fontWeight: 600, color: '#0f172a' }}>
+      <div className="flex items-center gap-2 mb-2.5">
+        <span className="text-[14px] font-semibold text-slate-900">
           Tiến độ học tập
         </span>
-        <Tag color="orange" style={{ margin: 0, fontSize: 10, lineHeight: '16px' }}>
+        <Tag color="orange" className="!m-0 !text-[10px] !leading-[16px]">
           MOCK
         </Tag>
         <Tooltip title="Dữ liệu đang là mock, sẽ thay bằng API khi BE sẵn sàng">
-          <InfoCircleOutlined style={{ fontSize: 12, color: '#94a3b8' }} />
+          <InfoCircleOutlined className="text-[12px] text-slate-400" />
         </Tooltip>
       </div>
 
@@ -96,7 +88,7 @@ const CourseProgressStats = ({ courseId }: Props) => {
               bodyStyle={{ padding: '14px 16px' }}
               data-course-id={courseId}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div className="flex items-center gap-3">
                 <div
                   style={{
                     width: 40,
@@ -113,11 +105,9 @@ const CourseProgressStats = ({ courseId }: Props) => {
                 >
                   {c.icon}
                 </div>
-                <div style={{ minWidth: 0 }}>
+                <div className="min-w-0">
                   <Statistic
-                    title={
-                      <span style={{ fontSize: 12, color: '#64748b' }}>{c.title}</span>
-                    }
+                    title={<span className="text-[12px] text-slate-500">{c.title}</span>}
                     value={c.value}
                     suffix={c.suffix}
                     valueStyle={{

@@ -25,20 +25,6 @@ interface Props<T = unknown> {
   required?: boolean;
 }
 
-/**
- * Inline editor với draft pattern + visual affordance:
- *
- *  ┌─ Read mode ─────────────────────────────────────────────┐
- *  │ Hover  → nền xanh nhạt + gạch chân đứt + icon ✏️ bên phải│
- *  │ Dirty  → nền vàng + viền trái cam                        │
- *  │ Dbl-clk → vào edit mode                                  │
- *  ├─ Edit mode ─────────────────────────────────────────────┤
- *  │ Enter            → commit vào draft, thoát edit          │
- *  │ Shift+Enter (ta) → xuống dòng                            │
- *  │ Esc / click ngoài → huỷ, revert về draft trước đó        │
- *  │ Select / Switch  → chọn/toggle = commit luôn             │
- *  └─────────────────────────────────────────────────────────┘
- */
 const InlineDraftField = <T,>({
   value,
   onCommit,
@@ -153,9 +139,6 @@ const InlineDraftField = <T,>({
       : showHoverCue
         ? '#eff6ff'
         : 'transparent';
-    const borderBottom = showHoverCue
-      ? '1px dashed #94a3b8'
-      : '1px dashed transparent';
 
     return (
       <div
@@ -171,8 +154,8 @@ const InlineDraftField = <T,>({
           width: '100%',
           background: bg,
           boxShadow: isDirty ? 'inset 3px 0 0 #f59e0b' : 'none',
-          borderBottom,
-          transition: 'background 0.15s, border-color 0.15s',
+          borderBottom: 'none', // Đã xóa viền răng cưa nét đứt
+          transition: 'background 0.15s',
         }}
         title={disabled ? undefined : 'Nhấp đúp để sửa'}
       >
@@ -229,7 +212,7 @@ const InlineDraftField = <T,>({
   if (type === 'textarea') {
     input = (
       <Input.TextArea
-        ref={inputRef as React.RefObject<HTMLTextAreaElement>}
+        ref={inputRef as any}
         value={localValue as unknown as string}
         onChange={(e) => setLocalValue(e.target.value as unknown as T)}
         onKeyDown={handleKeyDown}
@@ -240,7 +223,7 @@ const InlineDraftField = <T,>({
   } else if (type === 'number') {
     input = (
       <InputNumber
-        ref={inputRef as React.RefObject<HTMLInputElement>}
+        ref={inputRef as any}
         value={localValue as unknown as number}
         onChange={(v) => setLocalValue(v as unknown as T)}
         onKeyDown={handleKeyDown}
@@ -257,14 +240,14 @@ const InlineDraftField = <T,>({
   } else if (type === 'select') {
     input = (
       <Select
-        ref={inputRef as React.RefObject<unknown>}
+        ref={inputRef as any}
         value={localValue as string | number | undefined}
         onChange={(v) => {
           onCommit(v as T);
           setEditing(false);
         }}
         options={options}
-        style={{ width: '100%', minWidth: 200 }}
+        style={{ width: '100%' }}
         placeholder={placeholder}
         allowClear={allowClear}
         autoFocus
@@ -285,7 +268,7 @@ const InlineDraftField = <T,>({
   } else {
     input = (
       <Input
-        ref={inputRef as React.RefObject<HTMLInputElement>}
+        ref={inputRef as any}
         value={localValue as unknown as string}
         onChange={(e) => setLocalValue(e.target.value as unknown as T)}
         onKeyDown={handleKeyDown}
@@ -295,14 +278,34 @@ const InlineDraftField = <T,>({
   }
 
   return (
-    <div ref={wrapperRef} onClick={(e) => e.stopPropagation()}>
+    <div
+      ref={wrapperRef}
+      onClick={(e) => e.stopPropagation()}
+      style={{ position: 'relative', width: '100%', display: 'flex', alignItems: 'center' }}
+    >
       {input}
-      <div style={{ fontSize: 11, color: '#888', marginTop: 4 }}>
+
+      <div
+        style={{
+          position: 'absolute',
+          top: '100%',
+          left: 0,
+          zIndex: 1000,
+          fontSize: 10,
+          color: '#64748b',
+          backgroundColor: '#ffffff',
+          padding: '2px 6px',
+          borderRadius: 4,
+          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.12)',
+          border: '1px solid #e2e8f0',
+          whiteSpace: 'nowrap',
+          marginTop: 4,
+          pointerEvents: 'none',
+        }}
+      >
         {type === 'textarea'
-          ? 'Enter để lưu tạm · Shift+Enter xuống dòng · Esc / click ra ngoài để huỷ'
-          : type === 'select' || type === 'switch'
-            ? 'Chọn để lưu tạm · Esc / click ra ngoài để huỷ'
-            : 'Enter để lưu tạm · Esc / click ra ngoài để huỷ'}
+          ? 'Enter lưu · Shift+Enter xuống dòng · Esc huỷ'
+          : 'Enter / Chọn để lưu · Esc huỷ'}
       </div>
     </div>
   );
