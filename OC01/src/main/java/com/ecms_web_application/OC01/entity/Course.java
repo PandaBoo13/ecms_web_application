@@ -1,5 +1,6 @@
 package com.ecms_web_application.OC01.entity;
 
+import com.ecms_web_application.OC01.entity.enums.ClassStatus;
 import com.ecms_web_application.OC01.entity.enums.CourseStatus;
 import com.ecms_web_application.OC01.entity.enums.CourseType;
 import com.ecms_web_application.OC01.entity.enums.ProgressType;
@@ -72,11 +73,13 @@ public class Course {
     @Column(name = "session_start_time") private LocalTime sessionStartTime;
     @Column(name = "session_end_time")   private LocalTime sessionEndTime;
 
+    /**
+     * ⚠️ @Transient — cột class_status KHÔNG tồn tại trong DB.
+     * Giá trị sẽ luôn null sau khi load từ DB (chỉ giữ để không vỡ code cũ).
+     * Nếu nghiệp vụ cần persist: thêm cột class_status vào DB rồi bỏ @Transient.
+     */
     @Transient
     private ClassStatus classStatus;
-
-    @Column(name = "total_sessions_expected")
-    private Integer totalSessionsExpected;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
