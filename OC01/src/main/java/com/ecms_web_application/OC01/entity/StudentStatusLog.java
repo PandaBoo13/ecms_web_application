@@ -33,17 +33,42 @@ public class StudentStatusLog {
     @Column(name = "reason", columnDefinition = "TEXT")
     private String reason;
 
-    @Column(name = "changed_by")
-    private Long changedBy;
+    @Column(name = "enrollment_id")
+    private Long enrollmentId;
 
-    @Column(name = "changed_at", nullable = false, updatable = false)
-    private LocalDateTime changedAt;
+    @Column(name = "updated_by")
+    private Long updatedBy;
+
+    @Column(name = "updated_by_type", nullable = false, length = 20)
+    private String updatedByType = "SYSTEM";
+
+    @Column(name = "updated_at", nullable = false, updatable = false)
+    private LocalDateTime updatedAt;
+
+    // Helper getters/setters for backward compatibility
+    public Long getChangedBy() {
+        return this.updatedBy;
+    }
+
+    public void setChangedBy(Long changedBy) {
+        this.updatedBy = changedBy;
+    }
+
+    public LocalDateTime getChangedAt() {
+        return this.updatedAt;
+    }
+
+    public void setChangedAt(LocalDateTime changedAt) {
+        this.updatedAt = changedAt;
+    }
 
     @PrePersist
     void onCreate() {
-        if (this.changedAt == null) {
-            this.changedAt = LocalDateTime.now();
+        if (this.updatedAt == null) {
+            this.updatedAt = LocalDateTime.now();
+        }
+        if (this.updatedByType == null || this.updatedByType.isBlank()) {
+            this.updatedByType = (this.updatedBy != null) ? "USER" : "SYSTEM";
         }
     }
 }
-

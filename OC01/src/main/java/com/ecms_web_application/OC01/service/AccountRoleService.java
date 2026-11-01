@@ -3,6 +3,9 @@ package com.ecms_web_application.OC01.service;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import com.ecms_web_application.OC01.dto.request.AccountLockRequest;
+import com.ecms_web_application.OC01.dto.request.rbac.AccountCreateRequest;
+import com.ecms_web_application.OC01.dto.request.rbac.AccountResetPasswordRequest;
+import com.ecms_web_application.OC01.dto.request.rbac.AccountUpdateRequest;
 import com.ecms_web_application.OC01.dto.request.rbac.AssignRoleRequest;
 import com.ecms_web_application.OC01.dto.response.rbac.AccountResponse;
 import com.ecms_web_application.OC01.dto.response.rbac.AccountRoleResponse;
@@ -31,4 +34,12 @@ public interface AccountRoleService {
     List<AccountResponse> getTeacherAccounts();
 
     void lockAccount(Long accountId, AccountLockRequest request);
+
+    AccountResponse createAccount(AccountCreateRequest request);
+
+    AccountResponse updateAccount(Long accountId, AccountUpdateRequest request);
+
+    void resetPassword(Long accountId, AccountResetPasswordRequest request);
+
+    void deleteAccount(Long accountId);
 }

@@ -21,7 +21,7 @@ public interface StudentService {
 
     StudentResponse convertFromLead(StudentConvertFromLeadRequest request);
 
-    Page<StudentResponse> search(String search, String status, Pageable pageable);
+    Page<StudentResponse> search(String search, String status, Long courseId, Pageable pageable);
 
     StudentResponse getById(Long id);
 

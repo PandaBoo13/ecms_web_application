@@ -1,28 +1,23 @@
 package com.ecms_web_application.OC01.entity;
 
-import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.io.Serializable;
+
 /**
- * Entity đại diện cho nguồn Lead (LeadSources).
- * Bảng: lead_sources
+ * Lớp đại diện cho nguồn Lead (Model / DTO).
  */
 @Getter
 @Setter
-@Entity
-@Table(name = "lead_sources")
-public class LeadSource {
+@NoArgsConstructor
+@AllArgsConstructor
+public class LeadSource implements Serializable {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "id")
     private Long id;
-
-    @Column(name = "source_name", nullable = false, length = 255)
     private String sourceName;
-
-    @Column(name = "channel_type", nullable = false, length = 50)
     private String channelType;
+    private String description;
 }
-

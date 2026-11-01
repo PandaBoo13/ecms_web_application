@@ -55,9 +55,9 @@ public class StudentServiceImpl implements StudentService {
 
     @Override
     @Transactional(readOnly = true)
-    public Page<StudentResponse> search(String search, String status, Pageable pageable) {
+    public Page<StudentResponse> search(String search, String status, Long courseId, Pageable pageable) {
         return studentRepository
-                .searchStudents(emptyToNull(status), emptyToNull(search), pageable)
+                .searchStudents(emptyToNull(status), courseId, emptyToNull(search), pageable)
                 .map(this::toResponse);
     }
 
@@ -79,7 +79,7 @@ public class StudentServiceImpl implements StudentService {
                 .stream().map(this::toGuardianResponse).toList();
         List<AcademicHistoryResponse> academicHistories = academicHistoryRepository.findByStudentIdOrderByCreatedAtDesc(id)
                 .stream().map(this::toAcademicHistoryResponse).toList();
-        List<StudentStatusLog> statusLogs = statusLogRepository.findByStudentIdOrderByChangedAtDesc(id);
+        List<StudentStatusLog> statusLogs = statusLogRepository.findByStudentIdOrderByUpdatedAtDesc(id);
 
         detail.setGuardians(guardians);
         detail.setAcademicHistories(academicHistories);
@@ -109,19 +109,38 @@ public class StudentServiceImpl implements StudentService {
             }
         }
 
-        // 2. Kiểm tra leadId duy nhất (uk_students_lead)
-        if (request.getLeadId() != null && studentRepository.existsByLeadId(request.getLeadId())) {
-            throw new ErrorHandler(HttpStatus.CONFLICT, "Lead này đã được liên kết với một học viên khác");
+        // 2. Kiểm tra hoặc tự động sinh leadId (bắt buộc NOT NULL và duy nhất theo uk_students_lead)
+        Long leadId = request.getLeadId();
+        if (leadId != null) {
+            if (studentRepository.existsByLeadId(leadId)) {
+                throw new ErrorHandler(HttpStatus.CONFLICT, "Lead này đã được liên kết với một học viên khác");
+            }
+        } else {
+            // Tự động tạo bản ghi Lead tương ứng nếu tạo học viên trực tiếp
+            Lead autoLead = new Lead();
+            autoLead.setFullName(request.getFullName().trim());
+            String autoEmail = request.getEmail() != null ? request.getEmail().trim().toLowerCase() : ("std_" + code.toLowerCase() + "@ecms.local");
+            autoLead.setEmail(autoEmail);
+            autoLead.setPhone(request.getPhone() != null && !request.getPhone().isBlank() ? request.getPhone().trim() : "0000000000");
+            autoLead.setCourseId(1L);
+            autoLead.setStatus("CONSULTED");
+            autoLead.setConsultedAt(LocalDateTime.now());
+            autoLead.setConvertedAt(LocalDateTime.now());
+            autoLead.setSourceName("Trực tiếp");
+            autoLead.setChannelType("OFFLINE");
+            autoLead.setNote("Tự động tạo từ thêm mới học viên trực tiếp");
+            Lead savedLead = leadRepository.save(autoLead);
+            leadId = savedLead.getId();
         }
 
         Student student = new Student();
         student.setStudentCode(code);
         student.setFullName(request.getFullName().trim());
-        student.setEmail(request.getEmail() != null ? request.getEmail().trim().toLowerCase() : null);
-        student.setPhone(emptyToNull(request.getPhone()));
+        student.setEmail(request.getEmail() != null ? request.getEmail().trim().toLowerCase() : ("std_" + code.toLowerCase() + "@ecms.local"));
+        student.setPhone(request.getPhone() != null && !request.getPhone().isBlank() ? request.getPhone().trim() : "0000000000");
         student.setDob(request.getDateOfBirth());
         student.setAddress(emptyToNull(request.getAddress()));
-        student.setLeadId(request.getLeadId());
+        student.setLeadId(leadId);
         student.setUserId(request.getUserId());
 
         String status = (request.getStatus() != null && !request.getStatus().isBlank())
@@ -140,7 +159,7 @@ public class StudentServiceImpl implements StudentService {
     }
 
     /**
-     * Chuyển đổi Lead thành Student sau khi đóng cọc thành công (Hỗ trợ Idempotent)
+     * Chuyển đổi Lead thành Student sau khi thanh toán học phí thành công (Hỗ trợ Idempotent)
      */
     @Override
     @Transactional
@@ -185,6 +204,10 @@ public class StudentServiceImpl implements StudentService {
         // 4. Cập nhật Lead (gán student_id và converted_at)
         lead.setStudentId(savedStudent.getId());
         lead.setConvertedAt(now);
+        if (!"CONSULTED".equalsIgnoreCase(lead.getStatus())) {
+            lead.setStatus("CONSULTED");
+            lead.setConsultedAt(now);
+        }
         leadRepository.save(lead);
 
         // 5. Thêm bản ghi AcademicHistories ban đầu nếu có khóa học
@@ -386,7 +409,9 @@ public class StudentServiceImpl implements StudentService {
         logEntity.setOldStatus(oldStatus);
         logEntity.setNewStatus(newStatus);
         logEntity.setReason(reason);
-        logEntity.setChangedBy(changedBy);
+        logEntity.setUpdatedBy(changedBy);
+        logEntity.setUpdatedByType(changedBy != null ? "USER" : "SYSTEM");
+        logEntity.setUpdatedAt(LocalDateTime.now());
         statusLogRepository.save(logEntity);
     }
 

@@ -24,26 +24,38 @@ public interface LeadRepository extends IRepository<Lead, Long> {
 
     List<Lead> findByStudentId(Long studentId);
 
-    @Query("""
+    @Query(value = """
         SELECT l FROM Lead l
         WHERE (:status IS NULL OR :status = '' OR l.status = :status)
           AND (:courseId IS NULL OR l.courseId = :courseId)
-          AND (:sourceId IS NULL OR l.sourceId = :sourceId)
           AND (:consultantId IS NULL OR l.assignedConsultantId = :consultantId)
           AND (:inQueue IS NULL OR (:inQueue = true AND l.assignedConsultantId IS NULL) OR (:inQueue = false AND l.assignedConsultantId IS NOT NULL))
           AND (:search IS NULL OR :search = ''
                OR LOWER(l.fullName) LIKE LOWER(CONCAT('%', :search, '%'))
                OR LOWER(l.email) LIKE LOWER(CONCAT('%', :search, '%'))
                OR l.phone LIKE CONCAT('%', :search, '%'))
-        ORDER BY l.createdAt DESC
+    """,
+    countQuery = """
+        SELECT COUNT(l) FROM Lead l
+        WHERE (:status IS NULL OR :status = '' OR l.status = :status)
+          AND (:courseId IS NULL OR l.courseId = :courseId)
+          AND (:consultantId IS NULL OR l.assignedConsultantId = :consultantId)
+          AND (:inQueue IS NULL OR (:inQueue = true AND l.assignedConsultantId IS NULL) OR (:inQueue = false AND l.assignedConsultantId IS NOT NULL))
+          AND (:search IS NULL OR :search = ''
+               OR LOWER(l.fullName) LIKE LOWER(CONCAT('%', :search, '%'))
+               OR LOWER(l.email) LIKE LOWER(CONCAT('%', :search, '%'))
+               OR l.phone LIKE CONCAT('%', :search, '%'))
     """)
     Page<Lead> searchLeads(
             @Param("status") String status,
             @Param("courseId") Long courseId,
-            @Param("sourceId") Long sourceId,
             @Param("consultantId") Long consultantId,
             @Param("inQueue") Boolean inQueue,
             @Param("search") String search,
             Pageable pageable
     );
+
+    long countByStatus(String status);
+
+    long countByAssignedConsultantIdIsNull();
 }

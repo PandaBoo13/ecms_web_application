@@ -1,52 +1,58 @@
 package com.ecms_web_application.OC01.entity;
 
-import jakarta.persistence.*;
+import com.ecms_web_application.OC01.config.FlexibleLocalDateTimeDeserializer;
+import com.fasterxml.jackson.annotation.JsonAlias;
+import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import lombok.AllArgsConstructor;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.io.Serializable;
 import java.time.LocalDateTime;
 
 /**
- * Entity đại diện cho nhật ký tương tác với Lead (LeadInteractions).
- * Bảng: lead_interactions
+ * Lớp đại diện cho một tương tác trong danh sách tương tác của Lead (lưu dưới dạng jsonb trong bảng leads).
  */
 @Getter
 @Setter
-@Entity
-@Table(name = "lead_interactions")
-public class LeadInteraction {
+@NoArgsConstructor
+@AllArgsConstructor
+@JsonIgnoreProperties(ignoreUnknown = true)
+public class LeadInteraction implements Serializable {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "id")
     private Long id;
 
-    @Column(name = "lead_id", nullable = false)
     private Long leadId;
 
-    @Column(name = "interaction_type", nullable = false, length = 50)
+    @JsonProperty("interactionType")
+    @JsonAlias({"type", "interaction_type"})
     private String interactionType;
 
-    @Column(name = "notes", columnDefinition = "TEXT")
+    @JsonProperty("notes")
+    @JsonAlias({"note", "notes"})
     private String notes;
 
-    @Column(name = "result", length = 50)
+    @JsonProperty("result")
     private String result;
 
-    @Column(name = "reject_reason", columnDefinition = "TEXT")
+    @JsonProperty("rejectReason")
+    @JsonAlias({"reject_reason"})
     private String rejectReason;
 
-    @Column(name = "performed_by")
+    @JsonProperty("performedBy")
+    @JsonAlias({"consultant_id", "performed_by"})
     private Long performedBy;
 
-    @Column(name = "created_at", nullable = false, updatable = false)
+    @JsonProperty("channel")
+    private String channel;
+
+    @JsonProperty("createdAt")
+    @JsonAlias({"date", "created_at"})
+    @JsonDeserialize(using = FlexibleLocalDateTimeDeserializer.class)
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime createdAt;
-
-    @PrePersist
-    void onCreate() {
-        if (this.createdAt == null) {
-            this.createdAt = LocalDateTime.now();
-        }
-    }
 }
-

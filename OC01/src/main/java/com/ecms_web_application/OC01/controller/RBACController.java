@@ -218,4 +218,37 @@ public class RBACController {
                 : "Mở khóa tài khoản thành công";
         return ResponseEntity.ok(new RequestResponse(msg));
     }
+
+    @PostMapping("/accounts")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<RequestResponse> createAccount(@Valid @RequestBody AccountCreateRequest request) {
+        AccountResponse data = accountRoleService.createAccount(request);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(new RequestResponse(data, "Tạo tài khoản thành công"));
+    }
+
+    @PutMapping("/accounts/{accountId}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<RequestResponse> updateAccount(
+            @PathVariable Long accountId,
+            @Valid @RequestBody AccountUpdateRequest request) {
+        AccountResponse data = accountRoleService.updateAccount(accountId, request);
+        return ResponseEntity.ok(new RequestResponse(data, "Cập nhật tài khoản thành công"));
+    }
+
+    @PatchMapping("/accounts/{accountId}/reset-password")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<RequestResponse> resetPassword(
+            @PathVariable Long accountId,
+            @Valid @RequestBody AccountResetPasswordRequest request) {
+        accountRoleService.resetPassword(accountId, request);
+        return ResponseEntity.ok(new RequestResponse("Đặt lại mật khẩu thành công"));
+    }
+
+    @DeleteMapping("/accounts/{accountId}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<RequestResponse> deleteAccount(@PathVariable Long accountId) {
+        accountRoleService.deleteAccount(accountId);
+        return ResponseEntity.ok(new RequestResponse("Xóa tài khoản thành công"));
+    }
 }
