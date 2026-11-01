@@ -155,7 +155,7 @@ public class SessionServiceImpl implements SessionService {
         if (s.getStatus() == SessionStatus.CANCELLED) {
             throw new ErrorHandler(HttpStatus.CONFLICT, "Session đã hủy");
         }
-        if (s.getStatus() == SessionStatus.DONE) {
+        if (s.getStatus() == SessionStatus.COMPLETED) {
             throw new ErrorHandler(HttpStatus.CONFLICT, "Không thể hủy session đã DONE");
         }
         s.setStatus(SessionStatus.CANCELLED);
@@ -173,13 +173,10 @@ public class SessionServiceImpl implements SessionService {
         if (s.getStatus() == SessionStatus.CANCELLED) {
             throw new ErrorHandler(HttpStatus.CONFLICT, "Session đã hủy");
         }
-        if (s.getStatus() == SessionStatus.RESCHEDULED) {
-            throw new ErrorHandler(HttpStatus.CONFLICT, "Session đã được thay thế");
-        }
-        if (s.getStatus() == SessionStatus.DONE) {
+if (s.getStatus() == SessionStatus.COMPLETED) {
             return toResponse(s); // idempotent
         }
-        s.setStatus(SessionStatus.DONE);
+        s.setStatus(SessionStatus.COMPLETED);
         Session saved = sessionRepository.save(s);
         auditLogService.log("MARK_DONE", "SESSION", sessionId, null);
         progressCalculationService.onSessionChanged(s.getCourse().getId());
@@ -190,7 +187,7 @@ public class SessionServiceImpl implements SessionService {
     @Transactional
     public SessionResponse assignSubstituteTeacher(Long sessionId, Long substituteTeacherId) {
         Session s = getOrThrow(sessionId);
-        if (s.getStatus() == SessionStatus.CANCELLED || s.getStatus() == SessionStatus.DONE) {
+        if (s.getStatus() == SessionStatus.CANCELLED || s.getStatus() == SessionStatus.COMPLETED) {
             throw new ErrorHandler(HttpStatus.CONFLICT,
                     "Không thể gán GV dạy thay cho session đã " + s.getStatus());
         }
@@ -282,7 +279,7 @@ public class SessionServiceImpl implements SessionService {
     @Transactional
     public void delete(Long id) {
         Session s = getOrThrow(id);
-        if (s.getStatus() == SessionStatus.DONE) {
+        if (s.getStatus() == SessionStatus.COMPLETED) {
             throw new ErrorHandler(HttpStatus.CONFLICT, "Không thể xóa session đã DONE");
         }
         sessionRepository.delete(s);

@@ -24,8 +24,15 @@ public class CourseCreateRequest {
     private Long categoryId;
     private Long teacherId;
     private Long roomId;
+
     @Size(max = 20)
+    @Pattern(regexp = "^$|^(AUTONOMOUS|SEQUENTIAL)$",
+            message = "learning_mode chỉ chấp nhận AUTONOMOUS hoặc SEQUENTIAL")
     private String learningMode;
 
     private List<Long> allowedRoomIds;
+
+    // 🆕 BỔ SUNG: map với cột DB total_sessions_expected
+    @Min(value = 0, message = "total_sessions_expected phải >= 0")
+    private Integer totalSessionsExpected;
 }

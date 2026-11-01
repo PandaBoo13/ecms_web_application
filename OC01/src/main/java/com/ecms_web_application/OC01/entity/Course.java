@@ -1,6 +1,5 @@
 package com.ecms_web_application.OC01.entity;
 
-import com.ecms_web_application.OC01.entity.enums.ClassStatus;
 import com.ecms_web_application.OC01.entity.enums.CourseStatus;
 import com.ecms_web_application.OC01.entity.enums.CourseType;
 import com.ecms_web_application.OC01.entity.enums.ProgressType;
@@ -18,11 +17,11 @@ import java.util.List;
 @Setter @Getter
 @Entity
 @Table(name = "course",
-    uniqueConstraints = {
-        @UniqueConstraint(name = "uk_course_code",         columnNames = "code"),
-        @UniqueConstraint(name = "uk_course_slug",         columnNames = "slug"),
-        @UniqueConstraint(name = "uk_course_display_code", columnNames = "display_code")
-    })
+        uniqueConstraints = {
+                @UniqueConstraint(name = "uk_course_code",         columnNames = "code"),
+                @UniqueConstraint(name = "uk_course_slug",         columnNames = "slug"),
+                @UniqueConstraint(name = "uk_course_display_code", columnNames = "display_code")
+        })
 public class Course {
 
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -74,9 +73,6 @@ public class Course {
     @Column(name = "session_end_time")   private LocalTime sessionEndTime;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "class_status", length = 20) private ClassStatus classStatus;
-
-    @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private CourseStatus status = CourseStatus.DRAFT;
 
@@ -92,6 +88,9 @@ public class Course {
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "allowed_room_ids", columnDefinition = "jsonb") private List<Long> allowedRoomIds;
+
+    @Column(name = "total_sessions_expected")
+    private Integer totalSessionsExpected;
 
     @PrePersist void onCreate() {
         LocalDateTime now = LocalDateTime.now();

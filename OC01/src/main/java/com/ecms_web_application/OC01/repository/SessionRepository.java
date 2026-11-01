@@ -44,10 +44,11 @@ public interface SessionRepository extends IRepository<Session, Long> {
             @Param("courseId") Long courseId,
             @Param("fromTime") LocalDateTime fromTime);
 
+    // ⚠️ FIX: block SCHEDULED + ONGOING (bỏ 'RESCHEDULED' không tồn tại trong DB)
     @Query("""
         SELECT s FROM Session s
         WHERE s.effectiveTeacherId = :teacherId
-          AND s.status IN ('SCHEDULED', 'RESCHEDULED')
+          AND s.status IN ('SCHEDULED', 'ONGOING')
           AND s.startTime < :endTime
           AND s.endTime   > :startTime
           AND (:excludeId IS NULL OR s.id <> :excludeId)
@@ -58,10 +59,11 @@ public interface SessionRepository extends IRepository<Session, Long> {
             @Param("endTime")   LocalDateTime endTime,
             @Param("excludeId") Long excludeId);
 
+    // ⚠️ FIX: block SCHEDULED + ONGOING
     @Query("""
         SELECT s FROM Session s
         WHERE s.effectiveRoomId = :roomId
-          AND s.status IN ('SCHEDULED', 'RESCHEDULED')
+          AND s.status IN ('SCHEDULED', 'ONGOING')
           AND s.startTime < :endTime
           AND s.endTime   > :startTime
           AND (:excludeId IS NULL OR s.id <> :excludeId)
@@ -75,11 +77,12 @@ public interface SessionRepository extends IRepository<Session, Long> {
     List<Session> findBySubstituteTeacher_IdAndStatusIn(
             Long substituteTeacherId, Collection<SessionStatus> statuses);
 
+    // ⚠️ FIX: SCHEDULED + ONGOING
     @Query("""
         SELECT s FROM Session s
         WHERE s.effectiveTeacherId = :teacherId
           AND s.sessionDate BETWEEN :from AND :to
-          AND s.status IN ('SCHEDULED', 'RESCHEDULED')
+          AND s.status IN ('SCHEDULED', 'ONGOING')
         ORDER BY s.startTime ASC
     """)
     List<Session> findTeachingSchedule(
@@ -87,11 +90,12 @@ public interface SessionRepository extends IRepository<Session, Long> {
             @Param("from") LocalDate from,
             @Param("to")   LocalDate to);
 
+    // ⚠️ FIX: SCHEDULED + ONGOING
     @Query("""
         SELECT s FROM Session s
         WHERE s.effectiveRoomId = :roomId
           AND s.sessionDate BETWEEN :from AND :to
-          AND s.status IN ('SCHEDULED', 'RESCHEDULED')
+          AND s.status IN ('SCHEDULED', 'ONGOING')
         ORDER BY s.startTime ASC
     """)
     List<Session> findRoomBusySchedule(
@@ -107,9 +111,12 @@ public interface SessionRepository extends IRepository<Session, Long> {
     """)
     List<Session> findScheduledSessionsWithoutSubstitute(@Param("courseId") Long courseId);
 
-    @Query("SELECT COUNT(s) FROM Session s WHERE s.course.id = :courseId AND s.status <> 'CANCELLED'")
+    // ⚠️ FIX: DRAFT không tính vào "số buổi cần dạy"
+    @Query("SELECT COUNT(s) FROM Session s WHERE s.course.id = :courseId " +
+            "AND s.status <> 'CANCELLED' AND s.status <> 'DRAFT'")
     long countActiveSessions(@Param("courseId") Long courseId);
 
-    @Query("SELECT COUNT(s) FROM Session s WHERE s.course.id = :courseId AND s.status = 'DONE'")
+    // ⚠️ FIX: 'DONE' → 'COMPLETED'
+    @Query("SELECT COUNT(s) FROM Session s WHERE s.course.id = :courseId AND s.status = 'COMPLETED'")
     long countDoneSessions(@Param("courseId") Long courseId);
 }

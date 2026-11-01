@@ -23,7 +23,9 @@ public class CourseResponse {
     private String courseType;
     private String progressType;
     private String status;
-    private String classStatus;
+
+    // ❌ ĐÃ XÓA: classStatus (DB không có cột)
+
     private Long teacherId;
     private String teacherName;
     private Long createdById;
@@ -44,4 +46,7 @@ public class CourseResponse {
     private LocalDateTime updatedAt;
     private String learningMode;
     private List<Long> allowedRoomIds;
+
+    // 🆕 BỔ SUNG
+    private Integer totalSessionsExpected;
 }
