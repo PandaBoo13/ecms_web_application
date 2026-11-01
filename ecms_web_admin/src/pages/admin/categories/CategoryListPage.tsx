@@ -17,7 +17,10 @@ import PageHeader from '@/components/common/PageHeader';
 import DateDisplay from '@/components/common/DateDisplay';
 import { useDebounce } from '@/hooks/useDebounce';
 
-import { categoryApi } from '@/services/api/courses';
+// 🆕 Cập nhật lại đường dẫn import API theo cấu trúc mới
+import { categoryApi } from '@/services/api/course';
+// Nếu báo lỗi không tìm thấy, đổi thành: import { categoryApi } from '@/services/api/course/categoryApi';
+
 import type {
   CategoryResponse, CategoryCreateRequest, CategoryUpdateRequest,
 } from '@/services/types/course';

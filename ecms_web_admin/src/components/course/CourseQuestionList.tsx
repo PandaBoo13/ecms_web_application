@@ -4,7 +4,11 @@ import type { ColumnsType } from 'antd/es/table';
 import toast from 'react-hot-toast';
 
 import StatusTag from '@/components/common/StatusTag';
-import { questionApi } from '@/services/api/courses';
+
+// 🆕 Cập nhật lại đường dẫn import API theo cấu trúc mới
+import { questionApi } from '@/services/api/course'; 
+// Nếu báo lỗi không tìm thấy, đổi thành: import { questionApi } from '@/services/api/course/questionApi';
+
 import type { QuestionResponse, QuestionType } from '@/services/types/course';
 
 const { Text } = Typography;

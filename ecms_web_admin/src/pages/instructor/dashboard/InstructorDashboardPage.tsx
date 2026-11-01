@@ -13,7 +13,10 @@ import StatusTag from '@/components/common/StatusTag';
 import DateDisplay from '@/components/common/DateDisplay';
 import MoneyDisplay from '@/components/common/MoneyDisplay';
 
-import { courseApi } from '@/services/api/courses';
+// 🆕 Cập nhật lại đường dẫn import API theo cấu trúc mới
+import { courseApi } from '@/services/api/course';
+// Nếu báo lỗi không tìm thấy, đổi thành: import { courseApi } from '@/services/api/course/courseApi';
+
 import { useAuth } from '@/hooks/useAuth';
 import type { CourseResponse } from '@/services/types/course';
 
@@ -47,10 +50,14 @@ const InstructorDashboardPage = () => {
       setCourses(res.content);
 
       // Tính stats
-      const published = res.content.filter((c) => c.status === 'PUBLISHED').length;
+      // ⚠️ Cập nhật: Các trạng thái PUBLISHED, ONGOING, FINISHED đều được tính là khóa đang hoạt động/đã hoàn thành
+      const activeStatuses = ['PUBLISHED', 'ONGOING', 'FINISHED'];
+      const published = res.content.filter((c) => activeStatuses.includes(c.status)).length;
+      
       const students = res.content.reduce((sum, c) => sum + (c.currentStudents || 0), 0);
+      
       const revenue = res.content
-        .filter((c) => c.status === 'PUBLISHED')
+        .filter((c) => activeStatuses.includes(c.status))
         .reduce((sum, c) => sum + (c.isFree ? 0 : Number(c.price) * (c.currentStudents || 0)), 0);
 
       setStats({
@@ -105,7 +112,7 @@ const InstructorDashboardPage = () => {
             <Col xs={24} sm={12} lg={6}>
               <Card>
                 <Statistic
-                  title="Đã xuất bản"
+                  title="Đã xuất bản / Đang chạy"
                   value={stats.publishedCourses}
                   prefix={<FileTextOutlined />}
                   valueStyle={{ color: '#52c41a' }}

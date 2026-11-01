@@ -9,7 +9,11 @@ import toast from 'react-hot-toast';
 
 import DateDisplay from '@/components/common/DateDisplay';
 import InlineEdit from '@/components/common/InlineEdit';
-import { quizApi } from '@/services/api/courses';
+
+// 🆕 Cập nhật lại đường dẫn import API theo cấu trúc mới
+import { quizApi } from '@/services/api/course';
+// Nếu báo lỗi không tìm thấy, đổi thành: import { quizApi } from '@/services/api/course/quizApi';
+
 import type { QuizResponse, QuizCreateRequest } from '@/services/types/course';
 
 interface Props {

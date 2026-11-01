@@ -1,4 +1,4 @@
-import { Button, Space, Popconfirm, Modal, Input, Typography, Select, Dropdown } from 'antd';
+import { Button, Space, Modal, Input, Typography, Select, Dropdown } from 'antd';
 import type { MenuProps } from 'antd';
 import {
   SendOutlined,
@@ -11,12 +11,16 @@ import {
   ThunderboltOutlined,
   CopyOutlined,
   DownOutlined,
+  PlayCircleOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 
-import { courseApi, sessionApi } from '@/services/api/courses';
+// 🆕 Cập nhật lại đường dẫn import API theo cấu trúc mới
+import { courseApi } from '@/services/api/course';
+import { sessionApi } from '@/services/api/course';
+
 import { adminUserApi } from '@/services/api/admin';
 import type { CourseDetailResponse } from '@/services/types/course';
 import type { AccountResponse } from '@/services/types/user';
@@ -76,11 +80,27 @@ const CourseDetailActions = ({ course, onRefresh }: Props) => {
   const handleApprove = async () => {
     setSubmitting(true);
     try {
+      // Gọi API duyệt. (Nếu là OFFLINE và BE xử lý đúng logic, nó sẽ chuyển sang PLANNED).
+      // Nếu là ONLINE, nó sẽ chuyển sang PUBLISHED.
       await courseApi.review(course.id, true);
-      toast.success('Đã phê duyệt khóa học');
+      toast.success(course.courseType === 'OFFLINE' ? 'Đã duyệt nội dung khóa học' : 'Đã phê duyệt và xuất bản khóa học');
       onRefresh();
     } catch (err) {
       toast.error((err as { message?: string })?.message || 'Phê duyệt thất bại');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handlePublish = async () => {
+    setSubmitting(true);
+    try {
+      // Dùng tạm API review(id, true) để Publish khóa OFFLINE đang ở PLANNED
+      await courseApi.review(course.id, true);
+      toast.success('Đã phát hành khóa học chính thức');
+      onRefresh();
+    } catch (err) {
+      toast.error((err as { message?: string })?.message || 'Phát hành thất bại');
     } finally {
       setSubmitting(false);
     }
@@ -246,7 +266,7 @@ const CourseDetailActions = ({ course, onRefresh }: Props) => {
       {
         key: 'approve',
         icon: <CheckOutlined style={{ color: '#16a34a' }} />,
-        label: 'Phê duyệt',
+        label: course.courseType === 'OFFLINE' ? 'Duyệt nội dung' : 'Phê duyệt & Xuất bản',
         onClick: handleApprove,
       },
       {
@@ -259,18 +279,28 @@ const CourseDetailActions = ({ course, onRefresh }: Props) => {
     );
   }
 
-  if (course.status === 'PUBLISHED') {
-    menuItems.push({
-      key: 'archive',
-      icon: <InboxOutlined />,
-      label: 'Lưu trữ',
-      onClick: handleArchive,
-    });
+  if (course.status === 'PLANNED') {
+    menuItems.push(
+      {
+        key: 'publish',
+        icon: <PlayCircleOutlined style={{ color: '#16a34a' }} />,
+        label: 'Phát hành chính thức',
+        onClick: handlePublish,
+      },
+      {
+        key: 'reject',
+        icon: <CloseOutlined style={{ color: '#dc2626' }} />,
+        label: 'Hủy duyệt',
+        danger: true,
+        onClick: handleReject,
+      }
+    );
   }
 
+  // Sinh session cho khóa OFFLINE (DRAFT, PENDING_REVIEW, PLANNED, hoặc ONGOING nếu cần bù)
   if (
     course.courseType === 'OFFLINE' &&
-    ['DRAFT', 'PENDING_REVIEW', 'PUBLISHED'].includes(course.status)
+    ['DRAFT', 'PENDING_REVIEW', 'PLANNED', 'PUBLISHED', 'ONGOING'].includes(course.status)
   ) {
     menuItems.push({
       key: 'generate',
@@ -289,7 +319,8 @@ const CourseDetailActions = ({ course, onRefresh }: Props) => {
     });
   }
 
-  if (['DRAFT', 'PUBLISHED', 'ARCHIVED'].includes(course.status)) {
+  // Có thể copy ở nhiều trạng thái
+  if (['DRAFT', 'PLANNED', 'PUBLISHED', 'ONGOING', 'FINISHED', 'ARCHIVED', 'CANCELLED'].includes(course.status)) {
     menuItems.push({
       key: 'copy',
       icon: <CopyOutlined />,
@@ -298,13 +329,24 @@ const CourseDetailActions = ({ course, onRefresh }: Props) => {
     });
   }
 
-  if (['DRAFT', 'PUBLISHED', 'PENDING_REVIEW'].includes(course.status)) {
+  // Có thể hủy ở DRAFT, PENDING_REVIEW, PLANNED, PUBLISHED, ONGOING
+  if (['DRAFT', 'PENDING_REVIEW', 'PLANNED', 'PUBLISHED', 'ONGOING'].includes(course.status)) {
     menuItems.push({
       key: 'cancel',
       icon: <StopOutlined style={{ color: '#dc2626' }} />,
       label: 'Hủy khóa',
       danger: true,
       onClick: handleCancel,
+    });
+  }
+
+  // Có thể lưu trữ ở PUBLISHED, ONGOING, FINISHED, CANCELLED
+  if (['PUBLISHED', 'ONGOING', 'FINISHED', 'CANCELLED'].includes(course.status)) {
+    menuItems.push({
+      key: 'archive',
+      icon: <InboxOutlined />,
+      label: 'Lưu trữ',
+      onClick: handleArchive,
     });
   }
 
