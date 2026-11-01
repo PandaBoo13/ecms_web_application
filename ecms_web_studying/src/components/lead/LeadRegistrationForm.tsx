@@ -1,34 +1,36 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { Form, Input, Button, Select, Checkbox, Typography, Modal, Space, Tag } from 'antd';
 import {
   UserOutlined,
   PhoneOutlined,
   MailOutlined,
   BookOutlined,
+  AppstoreOutlined,
   CheckCircleOutlined,
   ClockCircleOutlined,
   SendOutlined,
 } from '@ant-design/icons';
 import toast from 'react-hot-toast';
 import { leadApi } from '@/services/api/leads';
-import { courseApi } from '@/services/api/courses';
-import type { CourseResponse } from '@/services/types/course';
+import { courseApi, categoryApi } from '@/services/api/courses';
+import type { CourseResponse, CategoryResponse } from '@/services/types/course';
 import type { LeadCreatePayload } from '@/services/types/lead';
 import {
   normalizeEmail,
   normalizePhone,
-  phoneFormRule,
-  emailFormRule,
+  VIETNAMESE_PHONE_REGEX,
+  EMAIL_REGEX,
 } from '@/utils/leadValidators';
 
 const { Title, Paragraph, Text } = Typography;
-const { Option } = Select;
+const { Option, OptGroup } = Select;
 
 interface FormValues {
   fullName: string;
-  phone: string;
-  email: string;
-  courseId?: number;
+  phone?: string;
+  email?: string;
+  categoryId?: number | 'ALL';
+  courseId: number;
   isPlacementTest?: boolean;
   note?: string;
 }
@@ -39,6 +41,19 @@ interface LeadRegistrationFormProps {
   onSuccess?: () => void;
 }
 
+interface CategoryOption {
+  id: number;
+  name: string;
+}
+
+const DEFAULT_CATEGORIES: CategoryOption[] = [
+  { id: 1, name: 'Luyện thi IELTS' },
+  { id: 2, name: 'Luyện thi TOEIC' },
+  { id: 3, name: 'Tiếng Anh Giao tiếp' },
+  { id: 4, name: 'Tiếng Anh Trẻ em' },
+  { id: 5, name: 'Tiếng Anh Doanh nghiệp' },
+];
+
 export default function LeadRegistrationForm({
   initialCourseId,
   compact = false,
@@ -47,6 +62,8 @@ export default function LeadRegistrationForm({
   const [form] = Form.useForm<FormValues>();
   const [loading, setLoading] = useState(false);
   const [courses, setCourses] = useState<CourseResponse[]>([]);
+  const [categories, setCategories] = useState<CategoryOption[]>(DEFAULT_CATEGORIES);
+  const [selectedCategory, setSelectedCategory] = useState<number | 'ALL'>('ALL');
   const [loadingCourses, setLoadingCourses] = useState(false);
   const [successModalVisible, setSuccessModalVisible] = useState(false);
   const [submittedLead, setSubmittedLead] = useState<{
@@ -57,19 +74,49 @@ export default function LeadRegistrationForm({
     isPlacementTest?: boolean;
   } | null>(null);
 
-  // Load danh sách khóa học đang mở (PUBLISHED)
+  // 1. Tải danh sách khóa học (PUBLISHED) và danh mục đào tạo (Categories)
   useEffect(() => {
     let mounted = true;
     setLoadingCourses(true);
-    courseApi
-      .search({ status: 'PUBLISHED', page: 0, size: 50 })
-      .then((res) => {
-        if (mounted && res?.content) {
-          setCourses(res.content);
+
+    Promise.allSettled([
+      courseApi.search({ status: 'PUBLISHED', page: 0, size: 50 }),
+      categoryApi.list({ size: 100 }),
+    ])
+      .then(([coursesRes, categoriesRes]) => {
+        if (!mounted) return;
+
+        let loadedCourses: CourseResponse[] = [];
+        if (coursesRes.status === 'fulfilled' && coursesRes.value?.content) {
+          loadedCourses = coursesRes.value.content;
+          setCourses(loadedCourses);
+        }
+
+        // Lấy danh mục từ API hoặc trích xuất từ các khóa học
+        const catMap = new Map<number, string>();
+
+        if (categoriesRes.status === 'fulfilled' && categoriesRes.value?.content) {
+          categoriesRes.value.content.forEach((cat: CategoryResponse) => {
+            if (cat.id && cat.name) {
+              catMap.set(cat.id, cat.name);
+            }
+          });
+        }
+
+        // Trích xuất bổ sung từ danh sách khóa học để không bị sót
+        loadedCourses.forEach((c) => {
+          if (c.categoryId && c.categoryName) {
+            catMap.set(c.categoryId, c.categoryName);
+          }
+        });
+
+        if (catMap.size > 0) {
+          const list = Array.from(catMap.entries()).map(([id, name]) => ({ id, name }));
+          setCategories(list);
         }
       })
       .catch((err) => {
-        console.warn('Không thể tải danh sách khóa học từ API:', err);
+        console.warn('Không thể nạp danh mục/khóa học:', err);
       })
       .finally(() => {
         if (mounted) setLoadingCourses(false);
@@ -80,21 +127,99 @@ export default function LeadRegistrationForm({
     };
   }, []);
 
-  // Set initial courseId if provided
+  // 2. Tự động đồng bộ khi có initialCourseId truyền vào từ trang chi tiết
   useEffect(() => {
-    if (initialCourseId) {
-      form.setFieldsValue({ courseId: initialCourseId });
+    if (initialCourseId && courses.length > 0) {
+      const targetCourse = courses.find((c) => c.id === initialCourseId);
+      if (targetCourse?.categoryId) {
+        setSelectedCategory(targetCourse.categoryId);
+        form.setFieldsValue({
+          categoryId: targetCourse.categoryId,
+          courseId: initialCourseId,
+        });
+      } else {
+        form.setFieldsValue({ courseId: initialCourseId });
+      }
     }
-  }, [initialCourseId, form]);
+  }, [initialCourseId, courses, form]);
 
+  // 3. Lọc danh sách khóa học theo danh mục đã chọn
+  const filteredCourses = useMemo(() => {
+    if (!selectedCategory || selectedCategory === 'ALL') {
+      return courses;
+    }
+    return courses.filter((c) => c.categoryId === selectedCategory);
+  }, [courses, selectedCategory]);
+
+  // 4. Nhóm các khóa học theo danh mục khi chọn "Tất cả danh mục"
+  const groupedCourses = useMemo(() => {
+    const map = new Map<string, CourseResponse[]>();
+    courses.forEach((c) => {
+      const groupName = c.categoryName || 'Khóa học khác';
+      if (!map.has(groupName)) {
+        map.set(groupName, []);
+      }
+      map.get(groupName)!.push(c);
+    });
+    return Array.from(map.entries());
+  }, [courses]);
+
+  // 5. Validator nghiệp vụ: Bắt buộc cung cấp ít nhất SĐT hoặc Email
+  const validatePhone = (_: unknown, value?: string) => {
+    const emailValue = form.getFieldValue('email');
+    const hasEmail = Boolean(emailValue && emailValue.trim() !== '');
+    const phoneTrimmed = value ? value.trim() : '';
+
+    if (!phoneTrimmed && !hasEmail) {
+      return Promise.reject(new Error('Vui lòng nhập Số điện thoại hoặc Email'));
+    }
+
+    if (phoneTrimmed) {
+      const cleaned = normalizePhone(phoneTrimmed);
+      if (!VIETNAMESE_PHONE_REGEX.test(cleaned)) {
+        return Promise.reject(
+          new Error('Số điện thoại không đúng định dạng (+84 hoặc 03x, 05x, 07x, 08x, 09x)')
+        );
+      }
+    }
+    return Promise.resolve();
+  };
+
+  const validateEmail = (_: unknown, value?: string) => {
+    const phoneValue = form.getFieldValue('phone');
+    const hasPhone = Boolean(phoneValue && phoneValue.trim() !== '');
+    const emailTrimmed = value ? value.trim() : '';
+
+    if (!emailTrimmed && !hasPhone) {
+      return Promise.reject(new Error('Vui lòng nhập Email hoặc Số điện thoại'));
+    }
+
+    if (emailTrimmed) {
+      const normalized = normalizeEmail(emailTrimmed);
+      if (!EMAIL_REGEX.test(normalized)) {
+        return Promise.reject(new Error('Email không đúng định dạng (vd: user@example.com)'));
+      }
+    }
+    return Promise.resolve();
+  };
+
+  // 6. Xử lý gửi Form đăng ký Lead
   const handleSubmit = async (values: FormValues) => {
     setLoading(true);
     try {
-      // 1. Chuẩn hóa dữ liệu theo FR_02
-      const cleanedEmail = normalizeEmail(values.email);
-      const cleanedPhone = normalizePhone(values.phone);
+      const cleanedEmail = values.email && values.email.trim() ? normalizeEmail(values.email) : undefined;
+      const cleanedPhone = values.phone && values.phone.trim() ? normalizePhone(values.phone) : undefined;
 
-      // 2. Chuẩn bị ghi chú (kèm thông tin đăng ký kiểm tra trình độ đầu vào nếu có)
+      if (!cleanedEmail && !cleanedPhone) {
+        toast.error('Vui lòng nhập ít nhất Số điện thoại hoặc Email để liên hệ');
+        return;
+      }
+
+      if (!values.courseId) {
+        toast.error('Vui lòng chọn khóa học bạn muốn đăng ký tư vấn');
+        return;
+      }
+
       const noteParts: string[] = [];
       if (values.isPlacementTest) {
         noteParts.push('[YÊU CẦU ĐÁNH GIÁ ĐẦU VÀO - PLACEMENT TEST]');
@@ -108,27 +233,26 @@ export default function LeadRegistrationForm({
         fullName: values.fullName.trim(),
         email: cleanedEmail,
         phone: cleanedPhone,
-        courseId: values.courseId ? Number(values.courseId) : undefined,
-        sourceId: 1, // Form Web (kênh trực tuyến từ Landing Page)
+        courseId: Number(values.courseId),
+        sourceId: 1, // Kênh Form Web
         note: combinedNote || undefined,
       };
 
-      // 3. Gọi API tạo Lead
       await leadApi.create(payload);
 
-      // Tìm tên khóa học đã chọn để hiển thị
-      const selectedCourse = courses.find((c) => c.id === values.courseId);
+      const selectedCourseObj = courses.find((c) => c.id === values.courseId);
 
       setSubmittedLead({
         fullName: values.fullName.trim(),
-        email: cleanedEmail,
-        phone: cleanedPhone,
-        courseName: selectedCourse ? selectedCourse.title : 'Tư vấn lộ trình học tổng quát',
+        email: cleanedEmail || 'Chưa cung cấp (chờ liên hệ qua SĐT)',
+        phone: cleanedPhone || 'Chưa cung cấp (chờ liên hệ qua Email)',
+        courseName: selectedCourseObj ? selectedCourseObj.title : 'Khóa học đã chọn',
         isPlacementTest: values.isPlacementTest,
       });
 
       setSuccessModalVisible(true);
       form.resetFields();
+      setSelectedCategory('ALL');
       if (onSuccess) {
         onSuccess();
       }
@@ -153,10 +277,11 @@ export default function LeadRegistrationForm({
         onFinish={handleSubmit}
         initialValues={{
           isPlacementTest: false,
+          categoryId: 'ALL',
           courseId: initialCourseId,
         }}
-        requiredMark="optional"
       >
+        {/* HỌ VÀ TÊN (BẮT BUỘC) */}
         <Form.Item
           name="fullName"
           label={<span style={{ fontWeight: 600 }}>Họ và tên</span>}
@@ -172,12 +297,18 @@ export default function LeadRegistrationForm({
           />
         </Form.Item>
 
+        {/* SĐT HOẶC EMAIL (BẮT BUỘC ÍT NHẤT 1 TRONG 2) */}
         <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : '1fr 1fr', gap: 12 }}>
           <Form.Item
             name="phone"
-            label={<span style={{ fontWeight: 600 }}>Số điện thoại</span>}
-            rules={[phoneFormRule]}
-            tooltip="Hệ thống tự động loại bỏ khoảng trắng và chuẩn hóa dạng +84 hoặc 0xxx"
+            label={
+              <span style={{ fontWeight: 600 }}>
+                Số điện thoại <Text type="danger">*</Text>
+              </span>
+            }
+            dependencies={['email']}
+            rules={[{ validator: validatePhone }]}
+            tooltip="Bắt buộc nhập Số điện thoại hoặc Email để tư vấn viên liên hệ hỗ trợ"
           >
             <Input
               prefix={<PhoneOutlined style={{ color: '#94a3b8' }} />}
@@ -188,9 +319,14 @@ export default function LeadRegistrationForm({
 
           <Form.Item
             name="email"
-            label={<span style={{ fontWeight: 600 }}>Email</span>}
-            rules={[emailFormRule]}
-            tooltip="Email sẽ được chuẩn hóa thành chữ thường để quản lý hồ sơ và cấp tài khoản sau này"
+            label={
+              <span style={{ fontWeight: 600 }}>
+                Email <Text type="danger">*</Text>
+              </span>
+            }
+            dependencies={['phone']}
+            rules={[{ validator: validateEmail }]}
+            tooltip="Bắt buộc nhập Email hoặc Số điện thoại để gửi lộ trình và thông tin tài khoản"
           >
             <Input
               prefix={<MailOutlined style={{ color: '#94a3b8' }} />}
@@ -200,26 +336,89 @@ export default function LeadRegistrationForm({
           </Form.Item>
         </div>
 
+        <div style={{ marginBottom: 12, marginTop: -6 }}>
+          <Text type="secondary" style={{ fontSize: 12 }}>
+            💡 <span style={{ color: '#0284c7' }}>Lưu ý:</span> Bạn cần điền ít nhất <strong>Số điện thoại</strong> hoặc <strong>Email</strong> chính xác để nhận phản hồi.
+          </Text>
+        </div>
+
+        {/* LỌC THEO DANH MỤC KHÓA HỌC */}
         <Form.Item
-          name="courseId"
-          label={<span style={{ fontWeight: 600 }}>Khóa học quan tâm</span>}
-          tooltip="Mỗi hồ sơ tư vấn ứng với 1 khóa học. Nếu bạn quan tâm nhiều khóa, tư vấn viên sẽ ghi nhận thêm."
+          name="categoryId"
+          label={<span style={{ fontWeight: 600 }}>Danh mục khóa học</span>}
+          tooltip="Chọn danh mục để thu hẹp và tìm đúng khóa học bạn quan tâm"
         >
           <Select
-            placeholder="-- Chọn khóa học bạn quan tâm (hoặc để trống để tư vấn tổng quát) --"
+            placeholder="-- Chọn danh mục để lọc khóa học --"
             size={compact ? 'middle' : 'large'}
-            loading={loadingCourses}
-            allowClear
-            suffixIcon={<BookOutlined style={{ color: '#94a3b8' }} />}
+            value={selectedCategory}
+            onChange={(val) => {
+              setSelectedCategory(val);
+              // Kiểm tra nếu khóa học hiện tại không thuộc danh mục mới chọn thì xóa đi để chọn lại
+              const currentCourseId = form.getFieldValue('courseId');
+              if (currentCourseId) {
+                const target = courses.find((c) => c.id === currentCourseId);
+                if (val !== 'ALL' && target?.categoryId !== val) {
+                  form.setFieldsValue({ courseId: undefined as unknown as number });
+                }
+              }
+            }}
+            suffixIcon={<AppstoreOutlined style={{ color: '#94a3b8' }} />}
           >
-            {courses.map((c) => (
-              <Option key={c.id} value={c.id}>
-                {c.title} {c.courseType ? `(${c.courseType})` : ''}
-              </Option>
-            ))}
+            <Option value="ALL">Tất cả danh mục ({courses.length} khóa học)</Option>
+            {categories.map((cat) => {
+              const count = courses.filter((c) => c.categoryId === cat.id).length;
+              return (
+                <Option key={cat.id} value={cat.id}>
+                  {cat.name} {count > 0 ? `(${count} khóa)` : ''}
+                </Option>
+              );
+            })}
           </Select>
         </Form.Item>
 
+        {/* KHÓA HỌC QUAN TÂM (BẮT BUỘC CHỌN) */}
+        <Form.Item
+          name="courseId"
+          label={
+            <span style={{ fontWeight: 600 }}>
+              Khóa học quan tâm <Text type="danger">*</Text>
+            </span>
+          }
+          rules={[{ required: true, message: 'Vui lòng chọn khóa học bạn muốn đăng ký tư vấn' }]}
+          tooltip="Bắt buộc chọn khóa học để tư vấn viên chuẩn bị thông tin lộ trình và học phí chính xác"
+        >
+          <Select
+            placeholder={
+              loadingCourses
+                ? 'Đang tải danh sách khóa học...'
+                : '-- Chọn khóa học bạn quan tâm (Bắt buộc) --'
+            }
+            size={compact ? 'middle' : 'large'}
+            loading={loadingCourses}
+            showSearch
+            optionFilterProp="children"
+            suffixIcon={<BookOutlined style={{ color: '#94a3b8' }} />}
+          >
+            {selectedCategory === 'ALL'
+              ? groupedCourses.map(([groupName, groupList]) => (
+                  <OptGroup key={groupName} label={groupName}>
+                    {groupList.map((c) => (
+                      <Option key={c.id} value={c.id}>
+                        {c.title} {c.courseType ? `(${c.courseType})` : ''}
+                      </Option>
+                    ))}
+                  </OptGroup>
+                ))
+              : filteredCourses.map((c) => (
+                  <Option key={c.id} value={c.id}>
+                    {c.title} {c.courseType ? `(${c.courseType})` : ''}
+                  </Option>
+                ))}
+          </Select>
+        </Form.Item>
+
+        {/* ĐĂNG KÝ KIỂM TRA TRÌNH ĐỘ ĐẦU VÀO */}
         <Form.Item name="isPlacementTest" valuePropName="checked" style={{ marginBottom: 12 }}>
           <Checkbox>
             <span style={{ fontWeight: 500, color: '#1e293b' }}>
@@ -231,9 +430,10 @@ export default function LeadRegistrationForm({
           </Checkbox>
         </Form.Item>
 
+        {/* GHI CHÚ / NHU CẦU */}
         <Form.Item
           name="note"
-          label={<span style={{ fontWeight: 600 }}>Nhu cầu tư vấn / Ghi chú</span>}
+          label={<span style={{ fontWeight: 600 }}>Nhu cầu tư vấn / Ghi chú thêm</span>}
         >
           <Input.TextArea
             rows={compact ? 2 : 3}
@@ -241,6 +441,7 @@ export default function LeadRegistrationForm({
           />
         </Form.Item>
 
+        {/* NÚT GỬI */}
         <Button
           type="primary"
           htmlType="submit"
@@ -249,11 +450,12 @@ export default function LeadRegistrationForm({
           loading={loading}
           icon={<SendOutlined />}
           style={{
-            height: compact ? 40 : 48,
+            height: compact ? 42 : 48,
             fontSize: 16,
-            fontWeight: 600,
+            fontWeight: 700,
             background: 'linear-gradient(135deg, #1677ff 0%, #0958d9 100%)',
             boxShadow: '0 4px 12px rgba(22, 119, 255, 0.3)',
+            borderRadius: 8,
           }}
         >
           Gửi thông tin đăng ký tư vấn
@@ -339,7 +541,7 @@ export default function LeadRegistrationForm({
           >
             <Paragraph style={{ margin: 0, fontSize: 13, color: '#1e40af' }}>
               <strong>Quy trình tiếp theo:</strong> Hồ sơ của bạn đã được chuyển vào hàng đợi xử
-              lý. Tư vấn viên phụ trách sẽ liên hệ qua điện thoại để hỗ trợ lộ trình học tập, lịch
+              lý. Tư vấn viên phụ trách sẽ liên hệ qua điện thoại hoặc email để hỗ trợ lộ trình học tập, lịch
               học và học phí ưu đãi trong vòng 24 giờ.
             </Paragraph>
           </div>
@@ -348,4 +550,3 @@ export default function LeadRegistrationForm({
     </>
   );
 }
-

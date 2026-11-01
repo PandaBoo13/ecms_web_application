@@ -30,10 +30,13 @@ import StatusTag from '@/components/common/StatusTag';
 import DateDisplay from '@/components/common/DateDisplay';
 import UserAvatar from '@/components/common/UserAvatar';
 
-import { sessionApi } from '@/services/api/courses';
+// 🆕 Cập nhật lại đường dẫn import API theo cấu trúc mới
+import { sessionApi } from '@/services/api/course'; 
+// Nếu báo lỗi, đổi thành: import { sessionApi } from '@/services/api/course/sessionApi';
+
 import { adminUserApi } from '@/services/api/admin';
 import type { SessionResponse } from '@/services/types/course';
-import type { AccountResponse } from '@/services/types/user';
+import type { AccountResponse } from '@/services/types/user'; // Hoặc types/admin tùy dự án của bạn
 
 interface Props {
   courseId: number;
@@ -151,10 +154,17 @@ const CourseSessionList = ({ courseId, sessions, onRefresh }: Props) => {
     }
   };
 
+  // ⚠️ ĐÃ CẬP NHẬT LOGIC THEO ENUM MỚI
   const buildActions = (s: SessionResponse): MenuProps['items'] => {
     const items: MenuProps['items'] = [];
+    
+    // Có thể đánh dấu hoàn thành nếu đang Lên lịch hoặc Đang diễn ra
+    const canMarkDone = s.status === 'SCHEDULED' || s.status === 'ONGOING';
+    
+    // Có thể hủy hoặc đổi GV nếu chưa Hoàn thành và chưa Hủy
+    const canModify = s.status !== 'CANCELLED' && s.status !== 'COMPLETED';
 
-    if (s.status === 'SCHEDULED') {
+    if (canMarkDone) {
       items.push({
         key: 'done',
         icon: <CheckOutlined />,
@@ -165,20 +175,22 @@ const CourseSessionList = ({ courseId, sessions, onRefresh }: Props) => {
             okText="Xác nhận"
             cancelText="Hủy"
           >
-            <span>Đánh dấu DONE</span>
+            <span>Đánh dấu hoàn thành</span>
           </Popconfirm>
         ),
       });
+    }
+
+    if (canModify) {
       items.push({
         key: 'cancel',
         icon: <CloseOutlined />,
         danger: true,
         label: <span onClick={() => openCancel(s)}>Hủy buổi học</span>,
       });
+      
       items.push({ type: 'divider' });
-    }
-
-    if (s.status !== 'CANCELLED') {
+      
       items.push({
         key: 'substitute',
         icon: <UserSwitchOutlined />,

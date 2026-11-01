@@ -15,7 +15,10 @@ import StatusTag from '@/components/common/StatusTag';
 import DateDisplay from '@/components/common/DateDisplay';
 import MoneyDisplay from '@/components/common/MoneyDisplay';
 
-import { courseApi } from '@/services/api/courses';
+// 🆕 Cập nhật lại đường dẫn import API theo cấu trúc mới
+import { courseApi } from '@/services/api/course';
+// Nếu báo lỗi không tìm thấy, đổi thành: import { courseApi } from '@/services/api/course/courseApi';
+
 import { useAuth } from '@/hooks/useAuth';
 import type { CourseResponse } from '@/services/types/course';
 
@@ -288,11 +291,15 @@ const MyCoursesPage = () => {
               value={statusFilter}
               onChange={setStatusFilter}
               options={[
-                { value: 'DRAFT', label: 'Nháp' },
+                // 🆕 Cập nhật đầy đủ 8 trạng thái từ BE
+                { value: 'DRAFT', label: 'Nháp (DRAFT)' },
                 { value: 'PENDING_REVIEW', label: 'Chờ duyệt' },
+                { value: 'PLANNED', label: 'Đã lên kế hoạch' },
                 { value: 'PUBLISHED', label: 'Đã xuất bản' },
-                { value: 'ARCHIVED', label: 'Lưu trữ' },
+                { value: 'ONGOING', label: 'Đang diễn ra' },
+                { value: 'FINISHED', label: 'Đã kết thúc' },
                 { value: 'CANCELLED', label: 'Đã hủy' },
+                { value: 'ARCHIVED', label: 'Lưu trữ' },
               ]}
             />
           }

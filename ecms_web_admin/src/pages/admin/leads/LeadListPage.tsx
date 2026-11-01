@@ -59,7 +59,7 @@ import { useTranslation } from '@/hooks/useTranslation';
 
 import { leadApi } from '@/services/api/leads';
 import { studentApi } from '@/services/api/students';
-import { courseApi } from '@/services/api/courses';
+import { courseApi } from '@/services/api/course';
 import { adminUserApi } from '@/services/api/admin';
 import type {
   Lead,
