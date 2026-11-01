@@ -10,6 +10,7 @@ import NotFoundPage from '@/pages/NotFoundPage';
 import ForbiddenPage from '@/pages/ForbiddenPage';
 import HomePage from '@/pages/landing/HomePage';
 import CourseCatalogPage from '@/pages/landing/CourseCatalogPage';
+import CourseDetailPage from '@/pages/landing/CourseDetailPage';
 import PricingPage from '@/pages/landing/PricingPage';
 import BlogPage from '@/pages/landing/BlogPage';
 import AboutPage from '@/pages/landing/AboutPage';
@@ -28,6 +29,7 @@ export default function AppRouter() {
       <Route element={<PublicLayout />}>
         <Route path="/" element={<HomePage />} />
         <Route path="/courses" element={<CourseCatalogPage />} />
+        <Route path="/courses/:id" element={<CourseDetailPage />} />
         <Route path="/pricing" element={<PricingPage />} />
         <Route path="/blog" element={<BlogPage />} />
         <Route path="/about" element={<AboutPage />} />
