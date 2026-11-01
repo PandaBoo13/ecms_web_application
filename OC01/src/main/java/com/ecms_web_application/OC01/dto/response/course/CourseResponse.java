@@ -46,6 +46,5 @@ public class CourseResponse {
     private String learningMode;
     private List<Long> allowedRoomIds;
 
-    // 🆕 BỔ SUNG
-    private Integer totalSessionsExpected;
+
 }
