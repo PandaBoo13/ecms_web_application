@@ -278,7 +278,7 @@ const CourseOverviewForm = ({ course, onRefresh, readOnly }: Props) => {
         </Col>
       </Row>
 
-      <Divider orientation="left" style={{ margin: '20px 0 12px', fontSize: 13 }}>
+      <Divider titlePlacement="left" style={{ margin: '20px 0 12px', fontSize: 13 }}>
         Nội dung mô tả
       </Divider>
 

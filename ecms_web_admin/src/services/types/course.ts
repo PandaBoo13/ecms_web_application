@@ -203,6 +203,21 @@ export interface CategoryResponse {
   updatedAt: string;
 }
 
+export interface CategoryCreateRequest {
+  name: string;
+  slug?: string;
+  description?: string;
+  parentId?: number;
+}
+
+export interface CategoryUpdateRequest {
+  name?: string;
+  slug?: string;
+  description?: string;
+  parentId?: number;
+  isActive?: boolean;
+}
+
 export interface RoomResponse {
   id: number;
   code?: string;

@@ -60,6 +60,7 @@ import { useTranslation } from '@/hooks/useTranslation';
 import { leadApi } from '@/services/api/leads';
 import { studentApi } from '@/services/api/students';
 import { courseApi } from '@/services/api/courses';
+import { adminUserApi } from '@/services/api/admin';
 import type {
   Lead,
   LeadDetail,
@@ -99,14 +100,40 @@ const LeadListPage = () => {
   const [inQueueFilter, setInQueueFilter] = useState<boolean | undefined>();
   const [courses, setCourses] = useState<{ id: number; title: string; code: string }[]>([]);
 
-  const consultants = useMemo(
+  const FALLBACK_CONSULTANTS = useMemo(
     () => [
-      { id: 1, name: 'Quản Trị Viên (Admin)' },
-      { id: 2, name: 'Nguyễn Văn An' },
-      { id: 3, name: 'Trần Thị Bình' },
+      { id: 7, name: 'Hoàng Ngọc Mai' },
+      { id: 8, name: 'Lê Minh Đức' },
+      { id: 9, name: 'Phạm Thùy Linh' },
+      { id: 10, name: 'Vũ Quang Huy' },
+      { id: 11, name: 'Nguyễn Bảo Trân' },
+      { id: 12, name: 'Đỗ Thanh Thảo' },
     ],
     []
   );
+
+  const [consultants, setConsultants] = useState<{ id: number; name: string }[]>(FALLBACK_CONSULTANTS);
+
+  // Load real consultants from system users
+  useEffect(() => {
+    adminUserApi
+      .search({ page: 0, size: 200 })
+      .then((res) => {
+        if (res?.content && res.content.length > 0) {
+          const staffUsers = res.content.filter(
+            (u) => u.roleCode === 'LEAD' || u.roleCode === 'CONSULTANT' || u.roleCode === 'ADMIN'
+          );
+          const list = (staffUsers.length > 0 ? staffUsers : res.content).map((u) => ({
+            id: u.accountId,
+            name: u.fullName || u.email || `Tư vấn viên #${u.accountId}`,
+          }));
+          setConsultants(list);
+        }
+      })
+      .catch(() => {
+        // Fallback consultants will remain active
+      });
+  }, []);
 
   // Load courses for course filter dropdown
   useEffect(() => {
@@ -983,17 +1010,33 @@ const LeadListPage = () => {
             />
           </Form.Item>
           <Form.Item name="courseId" label={t('lead.modal.courseId')}>
-            <InputNumber
-              prefix={<BookOutlined style={{ color: '#94a3b8' }} />}
-              style={{ width: '100%', height: 38, borderRadius: 8 }}
-              placeholder="VD: 1, 2, 3..."
+            <Select
+              allowClear
+              showSearch
+              filterOption={(input, option) =>
+                String(option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+              }
+              placeholder="Chọn khóa học quan tâm..."
+              options={courses.map((c) => ({
+                value: c.id,
+                label: `${c.title} (${c.code})`,
+              }))}
+              style={{ width: '100%', height: 38 }}
             />
           </Form.Item>
           <Form.Item name="assignedConsultantId" label={t('lead.modal.consultantId')}>
-            <InputNumber
-              prefix={<UserOutlined style={{ color: '#94a3b8' }} />}
-              style={{ width: '100%', height: 38, borderRadius: 8 }}
+            <Select
+              allowClear
+              showSearch
+              filterOption={(input, option) =>
+                String(option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+              }
               placeholder="Bỏ trống nếu đưa vào Hàng đợi (Queue)"
+              options={consultants.map((c) => ({
+                value: c.id,
+                label: `${c.name} (ID: ${c.id})`,
+              }))}
+              style={{ width: '100%', height: 38 }}
             />
           </Form.Item>
           <Form.Item name="note" label={t('lead.modal.notes')}>
@@ -1047,12 +1090,19 @@ const LeadListPage = () => {
           <Form.Item
             name="consultantId"
             label={t('lead.consultant')}
-            rules={[{ required: true, message: 'Vui lòng nhập ID tư vấn viên' }]}
+            rules={[{ required: true, message: 'Vui lòng chọn tư vấn viên' }]}
           >
-            <InputNumber
-              prefix={<UserOutlined style={{ color: '#94a3b8' }} />}
-              style={{ width: '100%', height: 38, borderRadius: 8 }}
-              placeholder="Nhập ID tài khoản TVV (VD: 2)"
+            <Select
+              showSearch
+              filterOption={(input, option) =>
+                String(option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+              }
+              placeholder="Chọn tư vấn viên phụ trách..."
+              options={consultants.map((c) => ({
+                value: c.id,
+                label: `${c.name} (ID: ${c.id})`,
+              }))}
+              style={{ width: '100%', height: 38 }}
             />
           </Form.Item>
           <Form.Item name="reason" label={t('lead.modal.assignReason')}>
@@ -1504,14 +1554,28 @@ const LeadListPage = () => {
                       <Descriptions column={{ xs: 1, sm: 2 }} size="small">
                         <Descriptions.Item label={<Space><BookOutlined /> {t('lead.courseInterest')}</Space>}>
                           {leadDetail.courseId ? (
-                            <Tag color="processing">Khóa #{leadDetail.courseId}</Tag>
+                            (() => {
+                              const matchedCourse = courses.find((c) => c.id === leadDetail.courseId);
+                              return (
+                                <Tag color="processing">
+                                  {matchedCourse ? `${matchedCourse.title} (${matchedCourse.code})` : `Khóa #${leadDetail.courseId}`}
+                                </Tag>
+                              );
+                            })()
                           ) : (
                             'Chưa xác định'
                           )}
                         </Descriptions.Item>
                         <Descriptions.Item label={<Space><UserSwitchOutlined /> {t('lead.consultant')}</Space>}>
                           {leadDetail.assignedConsultantId ? (
-                            <Tag color="blue">TVV #{leadDetail.assignedConsultantId}</Tag>
+                            (() => {
+                              const matched = consultants.find((c) => c.id === leadDetail.assignedConsultantId);
+                              return (
+                                <Tag color="cyan">
+                                  {matched ? `${matched.name} (#${leadDetail.assignedConsultantId})` : `TVV #${leadDetail.assignedConsultantId}`}
+                                </Tag>
+                              );
+                            })()
                           ) : (
                             <Tag color="warning">{t('lead.inQueue')}</Tag>
                           )}

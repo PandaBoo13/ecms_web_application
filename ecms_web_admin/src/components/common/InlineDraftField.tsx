@@ -229,7 +229,7 @@ const InlineDraftField = <T,>({
   if (type === 'textarea') {
     input = (
       <Input.TextArea
-        ref={inputRef as React.RefObject<HTMLTextAreaElement>}
+        ref={inputRef as any}
         value={localValue as unknown as string}
         onChange={(e) => setLocalValue(e.target.value as unknown as T)}
         onKeyDown={handleKeyDown}
@@ -240,7 +240,7 @@ const InlineDraftField = <T,>({
   } else if (type === 'number') {
     input = (
       <InputNumber
-        ref={inputRef as React.RefObject<HTMLInputElement>}
+        ref={inputRef as any}
         value={localValue as unknown as number}
         onChange={(v) => setLocalValue(v as unknown as T)}
         onKeyDown={handleKeyDown}
@@ -257,7 +257,7 @@ const InlineDraftField = <T,>({
   } else if (type === 'select') {
     input = (
       <Select
-        ref={inputRef as React.RefObject<unknown>}
+        ref={inputRef as any}
         value={localValue as string | number | undefined}
         onChange={(v) => {
           onCommit(v as T);
@@ -285,7 +285,7 @@ const InlineDraftField = <T,>({
   } else {
     input = (
       <Input
-        ref={inputRef as React.RefObject<HTMLInputElement>}
+        ref={inputRef as any}
         value={localValue as unknown as string}
         onChange={(e) => setLocalValue(e.target.value as unknown as T)}
         onKeyDown={handleKeyDown}

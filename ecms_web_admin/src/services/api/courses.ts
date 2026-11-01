@@ -451,6 +451,26 @@ export const categoryApi = {
     );
     return data.data;
   },
+  create: async (payload: CategoryCreateRequest): Promise<CategoryResponse> => {
+    const { data } = await api.post<RequestResponse<CategoryResponse>>(
+      API_ENDPOINT.CATEGORIES,
+      payload,
+    );
+    return data.data;
+  },
+  update: async (
+    id: number,
+    payload: CategoryUpdateRequest,
+  ): Promise<CategoryResponse> => {
+    const { data } = await api.put<RequestResponse<CategoryResponse>>(
+      API_ENDPOINT.CATEGORY_DETAIL(id),
+      payload,
+    );
+    return data.data;
+  },
+  delete: async (id: number): Promise<void> => {
+    await api.delete<RequestResponse<void>>(API_ENDPOINT.CATEGORY_DETAIL(id));
+  },
 };
 
 export const roomApi = {

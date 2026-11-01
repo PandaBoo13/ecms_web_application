@@ -1,4 +1,4 @@
-import { Button, Space, Popconfirm, Modal, Input, Typography, Select, Dropdown } from 'antd';
+import { Button, Space, Modal, Input, Typography, Select, Dropdown } from 'antd';
 import type { MenuProps } from 'antd';
 import {
   SendOutlined,
@@ -36,8 +36,8 @@ interface Props {
 const CourseDetailActions = ({ course, onRefresh }: Props) => {
   const navigate = useNavigate();
   const { isAdmin } = useAuth();
-  const [submitting, setSubmitting] = useState(false);
-  const [generating, setGenerating] = useState(false);
+  const [, setSubmitting] = useState(false);
+  const [, setGenerating] = useState(false);
 
   const [teacherModalOpen, setTeacherModalOpen] = useState(false);
   const [instructors, setInstructors] = useState<AccountResponse[]>([]);

@@ -82,12 +82,16 @@ const UserCreatePage = () => {
     ADMIN: 'red',
     INSTRUCTOR: 'blue',
     STUDENT: 'green',
+    LEAD: 'cyan',
+    CONSULTANT: 'cyan',
   };
 
   const ROLE_LABELS: Record<string, string> = {
     ADMIN: 'Quản trị viên',
     INSTRUCTOR: 'Giảng viên',
     STUDENT: 'Học viên',
+    LEAD: 'Tư vấn viên',
+    CONSULTANT: 'Tư vấn viên',
   };
 
   const handleSubmit = async (values: {
