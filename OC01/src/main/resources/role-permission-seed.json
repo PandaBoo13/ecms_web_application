@@ -47,13 +47,23 @@
     "POST:/api/students/{id}/guardians",
     "GET:/api/students/{id}/guardians",
     "DELETE:/api/students/{id}/guardians/{guardianId}",
-    "GET:/api/students/{id}/academic-histories"
+    "GET:/api/students/{id}/academic-histories",
+    "GET:/api/courses/{courseId}/sessions/{sessionId}/attendance",
+    "POST:/api/courses/{courseId}/sessions/{sessionId}/attendance/absences"
   ],
   "STUDENT": [
     "GET:/api/courses",
     "GET:/api/courses/{id}",
     "GET:/api/courses/{courseId}/resources/tree",
     "GET:/api/courses/{courseId}/sessions",
-    "GET:/api/courses/{courseId}/quizzes"
+    "GET:/api/courses/{courseId}/quizzes",
+    "POST:/api/tuition/invoices/checkout",
+    "POST:/api/tuition/invoices/{invoiceId}/vnpay",
+    "GET:/api/tuition/invoices",
+    "GET:/api/tuition/invoices/{invoiceId}",
+    "GET:/api/enrollments",
+    "GET:/api/enrollments/{enrollmentId}",
+    "GET:/api/enrollments/{enrollmentId}/attendance",
+    "GET:/api/enrollments/{enrollmentId}/status-history"
   ]
 }

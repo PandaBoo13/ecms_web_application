@@ -1,4 +1,4 @@
-package com.ecms_web_application.OC01.service.impl.rbac;
+package com.ecms_web_application.OC01.service.impl;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

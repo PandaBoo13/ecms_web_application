@@ -22,6 +22,7 @@ import AssignmentListPage from '@/pages/student/assignments/AssignmentListPage';
 import AssignmentDetailPage from '@/pages/student/assignments/AssignmentDetailPage';
 import GradesPage from '@/pages/student/grades/GradesPage';
 import ProfilePage from '@/pages/ProfilePage';
+import TuitionEnrollmentPage from '@/pages/student/tuition-enrollment/TuitionEnrollmentPage';
 
 export default function AppRouter() {
   return (
@@ -45,6 +46,7 @@ export default function AppRouter() {
           <Route path="/student" element={<Navigate to="/student/dashboard" replace />} />
           <Route path="/student/dashboard" element={<StudentDashboardPage />} />
           <Route path="/student/courses" element={<MyCoursesPage />} />
+          <Route path="/student/tuition-enrollment" element={<TuitionEnrollmentPage />} />
           <Route path="/student/courses/:id/learn" element={<CourseLearnPage />} />
           <Route path="/student/assignments" element={<AssignmentListPage />} />
           <Route path="/student/assignments/:id" element={<AssignmentDetailPage />} />

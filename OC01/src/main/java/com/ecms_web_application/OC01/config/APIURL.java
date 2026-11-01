@@ -38,6 +38,9 @@ public class APIURL {
             // Public browse (landing page không login)
             "/api/public/**",
 
+            // VNPAY server-to-server IPN callback (signature verified by Tuition module)
+            "/api/tuition/payments/vnpay/ipn",
+
             // Course browse cho guest
             "/api/courses",
             "/api/courses/**",

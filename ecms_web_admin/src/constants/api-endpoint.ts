@@ -212,6 +212,30 @@ export const API_ENDPOINT = {
   STUDENT_GUARDIAN_DETAIL: (id: number, guardianId: number) => `/api/students/${id}/guardians/${guardianId}`,
   STUDENT_ACADEMIC_HISTORIES: (id: number) => `/api/students/${id}/academic-histories`,
 
+  // TUITION & ENROLLMENT
+  TUITION_INVOICES: '/api/tuition/invoices',
+  TUITION_CHECKOUT: '/api/tuition/invoices/checkout',
+  TUITION_VNPAY_START: (id: number) => `/api/tuition/invoices/${id}/vnpay`,
+  TUITION_INVOICE_DETAIL: (id: number) => `/api/tuition/invoices/${id}`,
+  TUITION_CASH_CONFIRMATION: (id: number) => `/api/tuition/invoices/${id}/cash-confirmation`,
+  TUITION_DUE_DATE: (id: number) => `/api/tuition/invoices/${id}/due-date`,
+  TUITION_CANCEL: (id: number) => `/api/tuition/invoices/${id}/cancel`,
+  TUITION_REFUND: (id: number) => `/api/tuition/invoices/${id}/refund`,
+  ENROLLMENTS: '/api/enrollments',
+  ENROLLMENT_OFFLINE: '/api/enrollments/offline',
+  ENROLLMENT_DETAIL: (id: number) => `/api/enrollments/${id}`,
+  ENROLLMENT_ATTENDANCE_HISTORY: (id: number) => `/api/enrollments/${id}/attendance`,
+  ENROLLMENT_STATUS_HISTORY: (id: number) => `/api/enrollments/${id}/status-history`,
+  ENROLLMENT_RESERVE: (id: number) => `/api/enrollments/${id}/reserve`,
+  ENROLLMENT_RESUME: (id: number) => `/api/enrollments/${id}/resume`,
+  ENROLLMENT_TERMINATE: (id: number) => `/api/enrollments/${id}/terminate`,
+  ENROLLMENT_FINAL_SCORE: (id: number) => `/api/enrollments/${id}/final-score`,
+  ENROLLMENT_COMPLETE: (id: number) => `/api/enrollments/${id}/complete`,
+  SESSION_ATTENDANCE: (courseId: number, sessionId: number) =>
+    `/api/courses/${courseId}/sessions/${sessionId}/attendance`,
+  SESSION_ABSENCES: (courseId: number, sessionId: number) =>
+    `/api/courses/${courseId}/sessions/${sessionId}/attendance/absences`,
+
   // ══════════════════════════════════════════════════════════════
   // AI AGENT
   // ══════════════════════════════════════════════════════════════
