@@ -9,6 +9,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+
 import java.util.Optional;
 
 @Repository
@@ -24,6 +25,7 @@ public interface CourseRepository extends IRepository<Course, Long> {
     boolean existsBySlugAndIdNot(String slug, Long id);
     boolean existsByDisplayCodeAndIdNot(String displayCode, Long id);
 
+    // ✅ Sử dụng JPQL với categoryId kiểu Long (Lọc chính xác 100%)
     @Query("""
         SELECT c FROM Course c
         LEFT JOIN FETCH c.teacher t
