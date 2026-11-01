@@ -2,7 +2,11 @@ import { useState } from 'react';
 import { Card, Button, Modal, Form, Input, Select, InputNumber, Switch, Space, Typography } from 'antd';
 import { PlusOutlined, VideoCameraOutlined, FilePdfOutlined, BookOutlined, FileTextOutlined } from '@ant-design/icons';
 import toast from 'react-hot-toast';
-import { resourceApi } from '@/services/api/courses';
+
+// 🆕 Cập nhật lại đường dẫn import API theo cấu trúc mới
+import { resourceApi } from '@/services/api/course';
+// Nếu báo lỗi không tìm thấy, đổi thành: import { resourceApi } from '@/services/api/course/resourceApi';
+
 import type { ResourceType, ResourceCreateRequest } from '@/services/types/course';
 import CourseResourceTree, { type ResourceReorderUpdate } from './CourseResourceTree';
 

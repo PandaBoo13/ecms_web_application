@@ -8,7 +8,11 @@ import ThumbnailUpload from '@/components/common/ThumbnailUpload';
 import StatusTag from '@/components/common/StatusTag';
 import MoneyDisplay from '@/components/common/MoneyDisplay';
 
-import { courseApi, categoryApi } from '@/services/api/courses';
+// 🆕 Cập nhật lại đường dẫn import API theo cấu trúc mới
+import { courseApi } from '@/services/api/course';
+import { categoryApi } from '@/services/api/course';
+// Nếu báo lỗi không tìm thấy, đổi thành import từ thư mục file tương ứng
+
 import type {
   CourseDetailResponse,
   CourseUpdateRequest,
@@ -26,7 +30,9 @@ interface Props {
 
 const CourseOverviewForm = ({ course, onRefresh, readOnly }: Props) => {
   const [categories, setCategories] = useState<CategoryResponse[]>([]);
-  const isOngoing = readOnly ?? course.status === 'ONGOING';
+  
+  // ⚠️ Cập nhật logic: Khóa tính năng sửa khi lớp đã diễn ra, đã kết thúc hoặc đã hủy
+  const isLocked = readOnly ?? ['ONGOING', 'FINISHED', 'CANCELLED'].includes(course.status);
 
   useEffect(() => {
     categoryApi.tree().then(setCategories).catch(() => {});
@@ -51,10 +57,10 @@ const CourseOverviewForm = ({ course, onRefresh, readOnly }: Props) => {
 
   return (
     <Card>
-      {isOngoing && (
+      {isLocked && (
         <Alert
-          message="Khóa học đang diễn ra"
-          description="Bạn không thể thay đổi cấu trúc nội dung và học phí khi khóa học ở trạng thái ONGOING."
+          message="Khóa học đã bị khóa"
+          description={`Bạn không thể thay đổi cấu trúc nội dung và học phí khi khóa học ở trạng thái ${course.status}.`}
           type="warning"
           showIcon
           icon={<LockOutlined />}
@@ -70,7 +76,7 @@ const CourseOverviewForm = ({ course, onRefresh, readOnly }: Props) => {
         {/* ═══ CỘT TRÁI: chỉ Thumbnail, sticky ═══ */}
         <Col xs={24} md={8} lg={7}>
           <div style={{ position: 'sticky', top: 16 }}>
-            {isOngoing ? (
+            {isLocked ? (
               course.thumbnailUrl ? (
                 <img
                   src={course.thumbnailUrl}
@@ -121,7 +127,7 @@ const CourseOverviewForm = ({ course, onRefresh, readOnly }: Props) => {
             labelStyle={{ width: 120, fontSize: 12, background: '#fafafa' }}
           >
             <Descriptions.Item label="Tên khóa học" span={2}>
-              {isOngoing ? (
+              {isLocked ? (
                 <span style={{ fontWeight: 600 }}>{course.title}</span>
               ) : (
                 <InlineEdit value={course.title} onSave={(v) => update('title', v)} />
@@ -147,7 +153,7 @@ const CourseOverviewForm = ({ course, onRefresh, readOnly }: Props) => {
             </Descriptions.Item>
 
             <Descriptions.Item label="Danh mục">
-              {isOngoing ? (
+              {isLocked ? (
                 course.categoryName || '—'
               ) : (
                 <InlineEdit
@@ -164,7 +170,7 @@ const CourseOverviewForm = ({ course, onRefresh, readOnly }: Props) => {
 
             {course.courseType === 'ONLINE' ? (
               <Descriptions.Item label="Chế độ học">
-                {isOngoing ? (
+                {isLocked ? (
                   course.learningMode === 'SEQUENTIAL' ? 'Tuần tự' : 'Tự do'
                 ) : (
                   <InlineEdit
@@ -191,7 +197,7 @@ const CourseOverviewForm = ({ course, onRefresh, readOnly }: Props) => {
             )}
 
             <Descriptions.Item label="Miễn phí">
-              {isOngoing ? (
+              {isLocked ? (
                 course.isFree ? <Tag color="green">Có</Tag> : <Tag>Không</Tag>
               ) : (
                 <InlineEdit
@@ -206,7 +212,7 @@ const CourseOverviewForm = ({ course, onRefresh, readOnly }: Props) => {
             </Descriptions.Item>
 
             <Descriptions.Item label="Giá bán">
-              {isOngoing ? (
+              {isLocked ? (
                 <MoneyDisplay value={course.price} strong />
               ) : (
                 <InlineEdit
@@ -220,7 +226,7 @@ const CourseOverviewForm = ({ course, onRefresh, readOnly }: Props) => {
 
             {!course.isFree && (
               <Descriptions.Item label="Giá gốc" span={2}>
-                {isOngoing ? (
+                {isLocked ? (
                   course.oldPrice ? (
                     <MoneyDisplay value={course.oldPrice} showFree={false} />
                   ) : '—'
@@ -245,6 +251,13 @@ const CourseOverviewForm = ({ course, onRefresh, readOnly }: Props) => {
               <Text strong>{course.currentStudents}</Text>
               {course.maxStudents ? <Text type="secondary"> / {course.maxStudents}</Text> : null}
             </Descriptions.Item>
+
+            {/* 🆕 Hiển thị tổng số buổi dự kiến cho khóa OFFLINE */}
+            {course.courseType === 'OFFLINE' && course.totalSessionsExpected !== undefined && (
+              <Descriptions.Item label="Số buổi dự kiến">
+                <Text strong>{course.totalSessionsExpected}</Text>
+              </Descriptions.Item>
+            )}
 
             {course.scheduleDays && course.scheduleDays.length > 0 && (
               <Descriptions.Item label="Lịch học">
@@ -289,7 +302,7 @@ const CourseOverviewForm = ({ course, onRefresh, readOnly }: Props) => {
         labelStyle={{ width: 150, fontSize: 12, background: '#fafafa' }}
       >
         <Descriptions.Item label="Mô tả ngắn">
-          {isOngoing ? (
+          {isLocked ? (
             <Text type="secondary">{course.shortDescription || '—'}</Text>
           ) : (
             <InlineEdit
@@ -302,7 +315,7 @@ const CourseOverviewForm = ({ course, onRefresh, readOnly }: Props) => {
         </Descriptions.Item>
 
         <Descriptions.Item label="Mô tả chi tiết">
-          {isOngoing ? (
+          {isLocked ? (
             <Paragraph style={{ whiteSpace: 'pre-wrap', margin: 0 }}>
               {course.description || '—'}
             </Paragraph>
@@ -317,7 +330,7 @@ const CourseOverviewForm = ({ course, onRefresh, readOnly }: Props) => {
         </Descriptions.Item>
 
         <Descriptions.Item label="Kết quả đầu ra">
-          {isOngoing ? (
+          {isLocked ? (
             course.outcomes && course.outcomes.length > 0 ? (
               <ul style={{ marginBottom: 0, paddingLeft: 20 }}>
                 {course.outcomes.map((o, i) => (

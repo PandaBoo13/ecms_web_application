@@ -59,7 +59,11 @@ import { useTranslation } from '@/hooks/useTranslation';
 
 import { leadApi } from '@/services/api/leads';
 import { studentApi } from '@/services/api/students';
-import { courseApi } from '@/services/api/courses';
+
+// 🆕 Cập nhật lại đường dẫn import API của course theo cấu trúc mới
+import { courseApi } from '@/services/api/course';
+// Nếu báo lỗi không tìm thấy, đổi thành: import { courseApi } from '@/services/api/course/courseApi';
+
 import type {
   Lead,
   LeadDetail,

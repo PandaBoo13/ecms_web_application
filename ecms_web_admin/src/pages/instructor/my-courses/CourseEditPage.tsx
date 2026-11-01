@@ -16,7 +16,10 @@ import CourseSessionList from '@/components/course/CourseSessionList';
 import CourseQuestionList from '@/components/course/CourseQuestionList';
 import QuizListCard from '@/components/course/QuizListCard';
 
-import { courseApi } from '@/services/api/courses';
+// 🆕 Cập nhật lại đường dẫn import API theo cấu trúc mới
+import { courseApi } from '@/services/api/course';
+// Nếu báo lỗi không tìm thấy, đổi thành: import { courseApi } from '@/services/api/course/courseApi';
+
 import type { CourseDetailResponse } from '@/services/types/course';
 
 const { Text } = Typography;
@@ -54,7 +57,8 @@ const CourseEditPage = () => {
   if (error) return <ErrorState title="Lỗi" description={error} onRetry={fetchCourse} />;
   if (!course) return <ErrorState description="Không tìm thấy khóa học" />;
 
-  const isOngoing = course.status === 'ONGOING';
+  // ⚠️ Cập nhật logic: Khóa tính năng sửa nội dung khi lớp đã diễn ra, đã kết thúc hoặc đã hủy
+  const isLocked = ['ONGOING', 'FINISHED', 'CANCELLED'].includes(course.status);
 
   const tabItems = [
     {
@@ -65,8 +69,13 @@ const CourseEditPage = () => {
     {
       key: 'resources',
       label: `Nội dung (${course.resources?.length || 0})`,
-      children: isOngoing ? (
-        <Alert message="Không thể sửa nội dung khi khóa đang diễn ra" type="info" showIcon />
+      children: isLocked ? (
+        <Alert 
+          message="Không thể sửa nội dung" 
+          description={`Khóa học đang ở trạng thái ${course.status}, nội dung đã bị khóa để đảm bảo tính toàn vẹn.`} 
+          type="info" 
+          showIcon 
+        />
       ) : (
         <ResourceManager
           courseId={courseId}
@@ -87,6 +96,7 @@ const CourseEditPage = () => {
     },
   ];
 
+  // Nếu là khóa OFFLINE, chèn thêm tab Buổi học vào vị trí số 2 (index 2)
   if (course.courseType === 'OFFLINE') {
     tabItems.splice(2, 0, {
       key: 'sessions',
@@ -142,12 +152,17 @@ const CourseEditPage = () => {
         </Col>
         <Col xs={12} sm={6}>
           <Card size="small">
-            <Statistic title="Bài học" value={course.resources?.length || 0} />
+            <Statistic title="Học liệu" value={course.resources?.length || 0} />
           </Card>
         </Col>
         <Col xs={12} sm={6}>
           <Card size="small">
-            <Statistic title="Buổi học" value={course.sessions?.length || 0} />
+            <Statistic 
+              title="Buổi học" 
+              value={course.sessions?.length || 0} 
+              // 🆕 Hiển thị thêm tổng số buổi dự kiến nếu có
+              suffix={course.courseType === 'OFFLINE' && course.totalSessionsExpected ? `/ ${course.totalSessionsExpected}` : ''}
+            />
           </Card>
         </Col>
       </Row>

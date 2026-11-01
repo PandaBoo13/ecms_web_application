@@ -19,7 +19,10 @@ import DateDisplay from '@/components/common/DateDisplay';
 import MoneyDisplay from '@/components/common/MoneyDisplay';
 import { useTranslation } from '@/hooks/useTranslation';
 
-import { courseApi } from '@/services/api/courses';
+// 🆕 Cập nhật lại đường dẫn import API theo cấu trúc mới
+import { courseApi } from '@/services/api/course'; 
+// Nếu báo lỗi không tìm thấy, hãy đổi thành: import { courseApi } from '@/services/api/course/courseApi';
+
 import type { CourseResponse } from '@/services/types/course';
 
 const { Text } = Typography;
@@ -96,8 +99,6 @@ const CourseListPage = () => {
       toast.error(e?.message || 'Xóa thất bại');
     }
   };
-
-
 
   // ══════════════════════════════════════════════════════════════
   // COLUMNS
@@ -275,15 +276,19 @@ const CourseListPage = () => {
                 value={statusFilter}
                 onChange={setStatusFilter}
                 options={[
+                  // 🆕 Cập nhật đầy đủ 8 trạng thái mới từ BE
                   { value: 'DRAFT', label: t('status.DRAFT') },
                   { value: 'PENDING_REVIEW', label: t('status.PENDING_REVIEW') },
+                  { value: 'PLANNED', label: t('status.PLANNED') },
                   { value: 'PUBLISHED', label: t('status.PUBLISHED') },
-                  { value: 'ARCHIVED', label: t('status.ARCHIVED') },
+                  { value: 'ONGOING', label: t('status.ONGOING') },
+                  { value: 'FINISHED', label: t('status.FINISHED') },
                   { value: 'CANCELLED', label: t('status.CANCELLED') },
+                  { value: 'ARCHIVED', label: t('status.ARCHIVED') },
                 ]}
               />
               <Select
-                placeholder={t('common.status')}
+                placeholder={t('course.type')}
                 allowClear
                 style={{ width: 130 }}
                 value={typeFilter}
