@@ -98,7 +98,7 @@ public class StudentServiceImpl implements StudentService {
     @Override
     @Transactional
     public StudentResponse create(StudentCreateRequest request) {
-        // 1. Mã học viên: nếu để trống thì sinh mã tự động STD + yyyyMM + 4 số ngẫu nhiên
+        // 1. Mã học viên: nếu để trống thì sinh mã tự động STD + yyyyMM + 2 chữ số ngẫu nhiên
         String code = emptyToNull(request.getStudentCode());
         if (code == null) {
             code = generateUniqueStudentCode();
@@ -416,20 +416,24 @@ public class StudentServiceImpl implements StudentService {
     }
 
     /**
-     * Sinh mã học viên theo định dạng STD + yyyyMM + 4 số ngẫu nhiên (VD: STD2026101234).
-     * Thử tối đa 10 lần theo đúng yêu cầu REQ-STD-02.
+     * Sinh mã học viên theo định dạng STD + yyyyMM + 2 chữ số ngẫu nhiên (VD: STD20261004)
+     * hoặc mở rộng 4 chữ số (VD: STD2026100483) theo quy tắc nghiệp vụ BR-ST-01.
      */
     private String generateUniqueStudentCode() {
         String prefix = "STD" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMM"));
         int attempts = 0;
         String code;
         do {
-            int randomNum = ThreadLocalRandom.current().nextInt(1000, 9999);
-            code = prefix + randomNum;
             attempts++;
-            if (attempts > 10) {
-                log.error("CẢNH BÁO QUẢN TRỊ: Đã thử sinh mã học viên 10 lần nhưng bị trùng: prefix={}", prefix);
-                throw new ErrorHandler(HttpStatus.INTERNAL_SERVER_ERROR, "Không thể sinh mã học viên duy nhất sau 10 lần thử. Vui lòng liên hệ quản trị hệ thống");
+            if (attempts <= 50) {
+                int randomNum = ThreadLocalRandom.current().nextInt(0, 100);
+                code = String.format("%s%02d", prefix, randomNum);
+            } else if (attempts <= 200) {
+                int randomNum = ThreadLocalRandom.current().nextInt(1000, 10000);
+                code = String.format("%s%04d", prefix, randomNum);
+            } else {
+                log.error("CẢNH BÁO QUẢN TRỊ: Đã thử sinh mã học viên nhiều lần nhưng bị trùng: prefix={}", prefix);
+                throw new ErrorHandler(HttpStatus.INTERNAL_SERVER_ERROR, "Không thể sinh mã học viên duy nhất. Vui lòng liên hệ quản trị hệ thống");
             }
         } while (studentRepository.existsByStudentCode(code));
         return code;

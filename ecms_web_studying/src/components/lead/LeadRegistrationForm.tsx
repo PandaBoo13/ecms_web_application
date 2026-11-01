@@ -11,8 +11,9 @@ import {
   SendOutlined,
 } from '@ant-design/icons';
 import toast from 'react-hot-toast';
+
 import { leadApi } from '@/services/api/leads';
-import { courseApi, categoryApi } from '@/services/api/courses';
+import { courseApi, categoryApi } from '@/services/api/course';
 import type { CourseResponse, CategoryResponse } from '@/services/types/course';
 import type { LeadCreatePayload } from '@/services/types/lead';
 import {

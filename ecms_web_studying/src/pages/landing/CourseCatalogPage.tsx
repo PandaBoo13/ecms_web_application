@@ -15,7 +15,11 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { SearchOutlined, BookOutlined, SendOutlined, EyeOutlined } from '@ant-design/icons';
 import toast from 'react-hot-toast';
-import { courseApi } from '@/services/api/courses';
+
+// 🆕 Cập nhật lại đường dẫn import API theo cấu trúc mới
+import { courseApi } from '@/services/api/course';
+// Nếu báo lỗi không tìm thấy, đổi thành: import { courseApi } from '@/services/api/course/courseApi';
+
 import MoneyDisplay from '@/components/common/MoneyDisplay';
 import type { CourseResponse } from '@/services/types/course';
 import LeadRegistrationModal from '@/components/lead/LeadRegistrationModal';
@@ -43,7 +47,7 @@ export default function CourseCatalogPage() {
       })
       .catch((err) => {
         console.error(err);
-        toast.error('Lỗi khi tải danh mục khóa học');
+        toast.error((err as { message?: string })?.message || 'Lỗi khi tải danh mục khóa học');
       })
       .finally(() => setLoading(false));
   }, []);
