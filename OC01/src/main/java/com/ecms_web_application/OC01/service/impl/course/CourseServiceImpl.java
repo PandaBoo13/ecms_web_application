@@ -10,10 +10,12 @@ import com.ecms_web_application.OC01.generic.mapper.CourseMapper;
 import com.ecms_web_application.OC01.generic.validator.CourseValidator;
 import com.ecms_web_application.OC01.repository.*;
 import com.ecms_web_application.OC01.service.AuditLogService;
+import com.ecms_web_application.OC01.service.CourseConflictService;
 import com.ecms_web_application.OC01.service.CourseService;
 import com.ecms_web_application.OC01.service.SessionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
@@ -29,6 +31,7 @@ import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import com.ecms_web_application.OC01.entity.course.Course;
 import com.ecms_web_application.OC01.entity.course.CourseResource;
 import com.ecms_web_application.OC01.entity.course.Question;
@@ -46,12 +49,13 @@ public class CourseServiceImpl implements CourseService {
     private final QuestionRepository questionRepository;
     private final AuditLogService auditLogService;
     private final SessionService sessionService;
-    private final com.ecms_web_application.OC01.repository.SessionRepository sessionRepository;
+    private final SessionRepository sessionRepository;
     private final EnrollmentRepository enrollmentRepository;
-    private final com.ecms_web_application.OC01.repository.EnrollmentStatusLogRepository enrollmentStatusLogRepository;
-    private final org.springframework.context.ApplicationEventPublisher eventPublisher;
+    private final EnrollmentStatusLogRepository enrollmentStatusLogRepository;
+    private final ApplicationEventPublisher eventPublisher;
     private final CourseValidator courseValidator;
     private final CourseMapper courseMapper;
+    private final CourseConflictService courseConflictService;
 
     private static final Pattern NON_ALNUM = Pattern.compile("[^a-z0-9]+");
 
@@ -184,7 +188,7 @@ public class CourseServiceImpl implements CourseService {
     }
 
     // ============================================================
-    // UPDATE OFFLINE INFO (PARTIAL UPDATE)
+    // UPDATE OFFLINE INFO
     // ============================================================
     @Override
     @Transactional
@@ -193,7 +197,6 @@ public class CourseServiceImpl implements CourseService {
         Course c = getCourseOrThrow(id);
         assertCanEdit(c);
 
-        // ── Lấy giá trị hiện tại (nếu request không gửi) ──
         LocalDate startDate = request.getStartDate() != null ? request.getStartDate() : c.getStartDate();
         LocalDate endDate   = request.getEndDate()   != null ? request.getEndDate()   : c.getEndDate();
         Integer minStudents = request.getMinStudents() != null ? request.getMinStudents() : c.getMinStudents();
@@ -201,7 +204,6 @@ public class CourseServiceImpl implements CourseService {
         LocalTime startTime = request.getSessionStartTime() != null ? request.getSessionStartTime() : c.getSessionStartTime();
         LocalTime endTime   = request.getSessionEndTime()   != null ? request.getSessionEndTime()   : c.getSessionEndTime();
 
-        // ── Validate chéo với dữ liệu hiện tại của Course ──
         if (startDate != null && endDate != null && startDate.isAfter(endDate)) {
             throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Ngày bắt đầu phải <= ngày kết thúc");
         }
@@ -212,7 +214,6 @@ public class CourseServiceImpl implements CourseService {
             throw new ErrorHandler(HttpStatus.BAD_REQUEST, "session_start_time phải < session_end_time");
         }
 
-        // ── Chỉ set các field được gửi lên ──
         if (request.getMinStudents() != null) c.setMinStudents(request.getMinStudents());
         if (request.getMaxStudents() != null) c.setMaxStudents(request.getMaxStudents());
         if (request.getStartDate() != null) c.setStartDate(request.getStartDate());
@@ -240,7 +241,7 @@ public class CourseServiceImpl implements CourseService {
     }
 
     // ============================================================
-    // SUBMIT FOR REVIEW
+    // SUBMIT FOR REVIEW (DEPRECATED — dùng Request API)
     // ============================================================
     @Override
     @Transactional
@@ -257,7 +258,7 @@ public class CourseServiceImpl implements CourseService {
     }
 
     // ============================================================
-    // REVIEW
+    // REVIEW (DEPRECATED — dùng Request API)
     // ============================================================
     @Override
     @Transactional
@@ -308,10 +309,41 @@ public class CourseServiceImpl implements CourseService {
         }
         c.setStatus(CourseStatus.CANCELLED);
         Course saved = courseRepository.save(c);
+
+        // ── Cascade terminate enrollments ──
+        // Repo không có findByCourseIdAndStatusIn → gọi 3 lần findByCourseIdAndStatus
+        List<Enrollment> active = new ArrayList<>();
+        active.addAll(enrollmentRepository.findByCourseIdAndStatus(
+                id, EnrollmentStatus.PENDING));
+        active.addAll(enrollmentRepository.findByCourseIdAndStatus(
+                id, EnrollmentStatus.ACTIVE));
+        active.addAll(enrollmentRepository.findByCourseIdAndStatus(
+                id, EnrollmentStatus.RESERVED));
+
+        Long actorId = SecurityUtils.getCurrentAccountId();
+        LocalDateTime now = LocalDateTime.now();
+
+        for (Enrollment e : active) {
+            EnrollmentStatus oldStatus = e.getStatus();
+            e.setStatus(EnrollmentStatus.TERMINATED);
+            e.setTerminationReason("Khóa học bị hủy: " + reason);
+            e.setTerminatedAt(now);
+            e.setTerminatedBy(actorId);
+            enrollmentRepository.save(e);
+
+            EnrollmentStatusLog logEntry = new EnrollmentStatusLog();
+            logEntry.setEnrollmentId(e.getId());
+            logEntry.setOldStatus(oldStatus);
+            logEntry.setNewStatus(EnrollmentStatus.TERMINATED);
+            logEntry.setReason("Khóa học bị hủy: " + reason);
+            logEntry.setChangedBy(actorId);
+            enrollmentStatusLogRepository.save(logEntry);
+        }
+        log.info("[Course] CANCELLED courseId={}, terminated {} enrollments", id, active.size());
+
         auditLogService.log("CANCEL", "COURSE", id, reason);
         return courseMapper.toResponse(saved);
     }
-
     // ============================================================
     // COPY
     // ============================================================
@@ -486,7 +518,7 @@ public class CourseServiceImpl implements CourseService {
     }
 
     private String generateCode(String typeCode) {
-        String ym = DateTimeFormatter.ofPattern("yyyyMM").format(java.time.LocalDate.now());
+        String ym = DateTimeFormatter.ofPattern("yyyyMM").format(LocalDate.now());
         long count = courseRepository.count() + 1;
         return String.format("CRS-%s-%s-%03d", typeCode, ym, count);
     }
@@ -514,10 +546,6 @@ public class CourseServiceImpl implements CourseService {
     // ============================================================
     // FINALIZE SCHEDULE — PLANNED → PUBLISHED (chỉ OFFLINE)
     // ============================================================
-    /**
-     * Validate đầy đủ: teacher, room, dates, schedule, min/max, sessions generated + assigned.
-     * Sau khi pass → chuyển tất cả session DRAFT → SCHEDULED và course PLANNED → PUBLISHED.
-     */
     @Transactional
     @Override
     public CourseResponse finalizeSchedule(Long courseId) {
@@ -568,10 +596,10 @@ public class CourseServiceImpl implements CourseService {
                     "Chưa có session nào — cần generate-sessions trước");
         }
 
-        List<Long> missingRoom = new java.util.ArrayList<>();
-        List<Long> missingTeacher = new java.util.ArrayList<>();
+        List<Long> missingRoom = new ArrayList<>();
+        List<Long> missingTeacher = new ArrayList<>();
         for (var s : sessions) {
-            if (s.getStatus() == com.ecms_web_application.OC01.entity.enums.SessionStatus.CANCELLED) continue;
+            if (s.getStatus() == SessionStatus.CANCELLED) continue;
             boolean hasSessionRoom = s.getRoom() != null || s.getEffectiveRoomId() != null;
             if (!hasSessionRoom) missingRoom.add(s.getId());
             if (s.getTeacher() == null) missingTeacher.add(s.getId());
@@ -582,11 +610,35 @@ public class CourseServiceImpl implements CourseService {
                             + ", missingTeacher=" + missingTeacher);
         }
 
+        // ── ⚠️ CHECK SESSION CONFLICT với course khác TRƯỚC KHI PUBLIC ──
+        List<CourseConflictDetail> conflicts =
+                courseConflictService.checkSessionConflict(courseId);
+
+        if (!conflicts.isEmpty()) {
+            String detail = conflicts.stream()
+                    .limit(5)
+                    .map(cf -> {
+                        String types = String.join("+", cf.getConflictTypes());
+                        return "Buổi " + cf.getConflictingSessionNumber()
+                                + " (" + types + "): trùng course '"
+                                + cf.getConflictingCourseTitle() + "'";
+                    })
+                    .collect(Collectors.joining(" | "));
+            if (conflicts.size() > 5) {
+                detail += " | ... và " + (conflicts.size() - 5) + " conflict khác";
+            }
+
+            throw new ErrorHandler(HttpStatus.CONFLICT,
+                    "Không thể finalize → PUBLISHED. Có " + conflicts.size()
+                            + " session bị TRÙNG lịch với course khác: " + detail
+                            + ". Vui lòng điều chỉnh lịch (GV/phòng) trước khi finalize.");
+        }
+
         // ── Update sessions DRAFT → SCHEDULED ──
         int scheduled = 0;
         for (var s : sessions) {
-            if (s.getStatus() == com.ecms_web_application.OC01.entity.enums.SessionStatus.DRAFT) {
-                s.setStatus(com.ecms_web_application.OC01.entity.enums.SessionStatus.SCHEDULED);
+            if (s.getStatus() == SessionStatus.DRAFT) {
+                s.setStatus(SessionStatus.SCHEDULED);
                 sessionRepository.save(s);
                 scheduled++;
             }
