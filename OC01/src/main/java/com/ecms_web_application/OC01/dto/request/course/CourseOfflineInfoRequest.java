@@ -10,13 +10,13 @@ import java.util.List;
 @Setter @Getter
 public class CourseOfflineInfoRequest {
 
-    @NotNull @Min(1) private Integer minStudents;
-    @NotNull @Min(1) private Integer maxStudents;
-    @NotNull @FutureOrPresent private LocalDate startDate;
-    @NotNull private LocalDate endDate;
-    @NotEmpty private List<Integer> scheduleDays;
-    @NotNull private LocalTime sessionStartTime;
-    @NotNull private LocalTime sessionEndTime;
+    @Min(1) private Integer minStudents;
+    @Min(1) private Integer maxStudents;
+    @FutureOrPresent private LocalDate startDate;
+    private LocalDate endDate;
+    private List<Integer> scheduleDays;
+    private LocalTime sessionStartTime;
+    private LocalTime sessionEndTime;
     private Long teacherId;
     private Long roomId;
 }

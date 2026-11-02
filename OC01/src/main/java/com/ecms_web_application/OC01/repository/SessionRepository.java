@@ -1,6 +1,6 @@
 package com.ecms_web_application.OC01.repository;
 
-import com.ecms_web_application.OC01.entity.Session;
+import com.ecms_web_application.OC01.entity.course.Session;
 import com.ecms_web_application.OC01.entity.enums.SessionStatus;
 import com.ecms_web_application.OC01.generic.IRepository;
 import org.springframework.data.jpa.repository.Query;

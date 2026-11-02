@@ -23,7 +23,6 @@ public class CourseResponse {
     private String courseType;
     private String progressType;
     private String status;
-    private String classStatus;
     private Integer totalSessionsExpected;
     private Long teacherId;
     private String teacherName;
@@ -45,6 +44,4 @@ public class CourseResponse {
     private LocalDateTime updatedAt;
     private String learningMode;
     private List<Long> allowedRoomIds;
-
-
 }

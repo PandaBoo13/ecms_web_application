@@ -6,7 +6,7 @@ import com.ecms_web_application.OC01.dto.request.tuition.CreateInvoiceRequest;
 import com.ecms_web_application.OC01.dto.request.tuition.ExtendInvoiceDueDateRequest;
 import com.ecms_web_application.OC01.dto.request.tuition.RefundInvoiceRequest;
 import com.ecms_web_application.OC01.dto.response.tuition.InvoiceResponse;
-import com.ecms_web_application.OC01.entity.Course;
+import com.ecms_web_application.OC01.entity.course.Course;
 import com.ecms_web_application.OC01.entity.Invoice;
 import com.ecms_web_application.OC01.entity.enums.CourseType;
 import com.ecms_web_application.OC01.entity.enums.InvoiceStatus;

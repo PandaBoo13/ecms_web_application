@@ -89,6 +89,13 @@ public class CourseController {
         return ResponseEntity.ok(new RequestResponse(data, msg));
     }
 
+    @PostMapping("/{id}/finalize-schedule")
+    public ResponseEntity<RequestResponse> finalizeSchedule(@PathVariable Long id) {
+        CourseResponse data = courseService.finalizeSchedule(id);
+        return ResponseEntity.ok(new RequestResponse(data,
+                "Đã finalize lịch và xuất bản khóa học"));
+    }
+
     @PostMapping("/{id}/archive")
     public ResponseEntity<RequestResponse> archive(@PathVariable Long id) {
         CourseResponse data = courseService.archive(id);

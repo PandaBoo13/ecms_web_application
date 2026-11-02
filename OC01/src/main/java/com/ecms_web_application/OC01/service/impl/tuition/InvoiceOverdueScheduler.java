@@ -1,6 +1,6 @@
 package com.ecms_web_application.OC01.service.impl.tuition;
 
-import com.ecms_web_application.OC01.entity.Course;
+import com.ecms_web_application.OC01.entity.course.Course;
 import com.ecms_web_application.OC01.entity.Invoice;
 import com.ecms_web_application.OC01.entity.enums.CourseType;
 import com.ecms_web_application.OC01.entity.enums.InvoiceStatus;

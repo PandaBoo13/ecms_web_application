@@ -1,4 +1,5 @@
-package com.ecms_web_application.OC01.entity;
+package com.ecms_web_application.OC01.entity.course;
+import com.ecms_web_application.OC01.entity.InstructorSpecialization;
 
 import jakarta.persistence.*;
 import lombok.Getter;

@@ -1,4 +1,5 @@
-package com.ecms_web_application.OC01.entity;
+package com.ecms_web_application.OC01.entity.course;
+import com.ecms_web_application.OC01.entity.Account;
 
 import com.ecms_web_application.OC01.entity.enums.ProgressScope;
 import com.ecms_web_application.OC01.entity.enums.ProgressStatus;

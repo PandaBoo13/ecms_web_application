@@ -50,14 +50,18 @@ public class CourseValidator {
             throw new ErrorHandler(HttpStatus.BAD_REQUEST,
                     "session_start_time phải < session_end_time");
         }
-        if (req.getScheduleDays() == null || req.getScheduleDays().isEmpty()) {
-            throw new ErrorHandler(HttpStatus.BAD_REQUEST,
-                    "schedule_days không được rỗng");
-        }
-        for (Integer d : req.getScheduleDays()) {
-            if (d == null || d < 1 || d > 7) {
+
+        // Chỉ validate scheduleDays nếu được gửi lên
+        if (req.getScheduleDays() != null) {
+            if (req.getScheduleDays().isEmpty()) {
                 throw new ErrorHandler(HttpStatus.BAD_REQUEST,
-                        "schedule_days chỉ chấp nhận giá trị 1..7 (CN..T7)");
+                        "schedule_days không được rỗng nếu gửi lên");
+            }
+            for (Integer d : req.getScheduleDays()) {
+                if (d == null || d < 1 || d > 7) {
+                    throw new ErrorHandler(HttpStatus.BAD_REQUEST,
+                            "schedule_days chỉ chấp nhận giá trị 1..7 (CN..T7)");
+                }
             }
         }
     }

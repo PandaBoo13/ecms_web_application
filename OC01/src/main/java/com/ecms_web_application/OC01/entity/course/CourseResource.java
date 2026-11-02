@@ -1,4 +1,5 @@
-package com.ecms_web_application.OC01.entity;
+package com.ecms_web_application.OC01.entity.course;
+import com.ecms_web_application.OC01.entity.Account;
 
 import com.ecms_web_application.OC01.entity.enums.QuizCategory;
 import com.ecms_web_application.OC01.entity.enums.ResourceStatus;

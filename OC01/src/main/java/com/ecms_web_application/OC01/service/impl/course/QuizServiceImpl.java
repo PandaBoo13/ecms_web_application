@@ -8,11 +8,11 @@ import com.ecms_web_application.OC01.dto.response.course.QuizDetailResponse;
 import com.ecms_web_application.OC01.dto.response.course.QuizQuestionView;
 import com.ecms_web_application.OC01.dto.response.course.QuizResponse;
 import com.ecms_web_application.OC01.entity.Account;
-import com.ecms_web_application.OC01.entity.Course;
-import com.ecms_web_application.OC01.entity.CourseResource;
-import com.ecms_web_application.OC01.entity.Progress;
-import com.ecms_web_application.OC01.entity.Question;
-import com.ecms_web_application.OC01.entity.QuizAttempt;
+import com.ecms_web_application.OC01.entity.course.Course;
+import com.ecms_web_application.OC01.entity.course.CourseResource;
+import com.ecms_web_application.OC01.entity.course.Progress;
+import com.ecms_web_application.OC01.entity.course.Question;
+import com.ecms_web_application.OC01.entity.course.QuizAttempt;
 import com.ecms_web_application.OC01.entity.enums.ProgressScope;
 import com.ecms_web_application.OC01.entity.enums.ProgressStatus;
 import com.ecms_web_application.OC01.entity.enums.QuestionStatus;
@@ -160,9 +160,7 @@ public class QuizServiceImpl implements QuizService {
         Account current = SecurityUtils.requireCurrentAccount();
         assertCanEdit(quiz.getCourse(), current);
 
-        // Không cho xóa nếu đã có attempt
-        long attempts = quizAttemptRepository.countByResource_IdAndAccount_Id(quizId, -1L);
-        // fallback: nếu repo không có method count all attempt, dùng findByResource..size
+        // (Đã xóa đoạn code biến 'attempts' thừa)
         resourceRepository.delete(quiz);
         auditLogService.log("DELETE", "QUIZ", quizId, null);
     }
