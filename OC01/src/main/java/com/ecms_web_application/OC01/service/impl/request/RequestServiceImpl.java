@@ -1,12 +1,15 @@
-package com.ecms_web_application.OC01.service.request.impl;
+package com.ecms_web_application.OC01.service.impl.request;
 
 import com.ecms_web_application.OC01.config.SecurityUtils;
 import com.ecms_web_application.OC01.dto.request.request.RequestCreateRequest;
 import com.ecms_web_application.OC01.dto.request.request.RequestReviewRequest;
 import com.ecms_web_application.OC01.dto.request.request.RequestSearchRequest;
+import com.ecms_web_application.OC01.dto.response.course.CourseConflictDetail;
+import com.ecms_web_application.OC01.dto.response.request.RequestConflictPreviewResponse;
 import com.ecms_web_application.OC01.dto.response.request.RequestDetailResponse;
 import com.ecms_web_application.OC01.dto.response.request.RequestResponse;
 import com.ecms_web_application.OC01.entity.Account;
+import com.ecms_web_application.OC01.entity.course.Course;
 import com.ecms_web_application.OC01.entity.enums.RequestStatus;
 import com.ecms_web_application.OC01.entity.enums.RequestType;
 import com.ecms_web_application.OC01.entity.request.Request;
@@ -15,10 +18,13 @@ import com.ecms_web_application.OC01.exception.ErrorHandler;
 import com.ecms_web_application.OC01.generic.mapper.RequestMapper;
 import com.ecms_web_application.OC01.generic.validator.RequestValidator;
 import com.ecms_web_application.OC01.repository.AccountRepository;
+import com.ecms_web_application.OC01.repository.CourseRepository;
 import com.ecms_web_application.OC01.repository.RequestRepository;
+import com.ecms_web_application.OC01.service.CourseConflictService;
+import com.ecms_web_application.OC01.service.handler.RequestHandler;
+import com.ecms_web_application.OC01.service.handler.RequestHandlerRegistry;
 import com.ecms_web_application.OC01.service.request.RequestService;
-import com.ecms_web_application.OC01.service.request.handler.RequestHandler;
-import com.ecms_web_application.OC01.service.request.handler.RequestHandlerRegistry;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -33,6 +39,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -46,10 +53,12 @@ public class RequestServiceImpl implements RequestService {
 
     private final RequestRepository requestRepository;
     private final AccountRepository accountRepository;
+    private final CourseRepository courseRepository;
     private final RequestValidator requestValidator;
     private final RequestMapper requestMapper;
     private final RequestHandlerRegistry handlerRegistry;
     private final ApplicationEventPublisher eventPublisher;
+    private final CourseConflictService courseConflictService;
 
     private static final DateTimeFormatter CODE_DATE_FMT = DateTimeFormatter.ofPattern("yyyyMMdd");
     private static final int MAX_CODE_RETRY = 3;
@@ -132,17 +141,88 @@ public class RequestServiceImpl implements RequestService {
                 ? null : RequestStatus.fromCode(filter.getStatus());
         String keyword = (filter.getKeyword() == null) ? "" : filter.getKeyword().trim();
 
+        // ── FIX $13: gán default value thay vì null ──
+        java.time.LocalDateTime fromDate = filter.getFromDate() != null
+                ? filter.getFromDate()
+                : java.time.LocalDateTime.of(1970, 1, 1, 0, 0, 0);
+
+        java.time.LocalDateTime toDate = filter.getToDate() != null
+                ? filter.getToDate()
+                : java.time.LocalDateTime.of(9999, 12, 31, 23, 59, 59);
+
         Page<Request> page = requestRepository.search(
                 type, status,
                 filter.getRequesterId(),
                 filter.getTargetEntityType(),
                 filter.getTargetEntityId(),
                 keyword,
-                filter.getFromDate(),
-                filter.getToDate(),
+                fromDate,     // ← luôn non-null
+                toDate,       // ← luôn non-null
                 pageable);
 
         return mapPageWithAccounts(page);
+    }
+
+    // ============================================================
+    // PREVIEW COURSE CONFLICTS — cảnh báo trùng lịch trước khi duyệt
+    // ============================================================
+    @Override
+    public RequestConflictPreviewResponse previewCourseConflicts(Long requestId) {
+
+        Request r = requestRepository.findById(requestId)
+                .orElseThrow(() -> new ErrorHandler(HttpStatus.NOT_FOUND,
+                        "Yêu cầu không tồn tại"));
+
+        // Chỉ áp dụng cho COURSE_REVIEW
+        if (r.getRequestType() != RequestType.COURSE_REVIEW) {
+            return RequestConflictPreviewResponse.builder()
+                    .requestId(r.getId())
+                    .hasConflicts(false)
+                    .conflictCount(0)
+                    .message("Loại yêu cầu không cần check conflict")
+                    .build();
+        }
+
+        if (r.getTargetEntityId() == null) {
+            return RequestConflictPreviewResponse.builder()
+                    .requestId(r.getId())
+                    .hasConflicts(false)
+                    .conflictCount(0)
+                    .message("Yêu cầu không có target course")
+                    .build();
+        }
+
+        Course course = courseRepository.findById(r.getTargetEntityId()).orElse(null);
+        if (course == null) {
+            return RequestConflictPreviewResponse.builder()
+                    .requestId(r.getId())
+                    .hasConflicts(false)
+                    .conflictCount(0)
+                    .message("Không tìm thấy khóa học target")
+                    .build();
+        }
+
+        List<CourseConflictDetail> conflicts =
+                courseConflictService.checkCourseConflict(course);
+
+        String message;
+        if (conflicts.isEmpty()) {
+            message = "Không phát hiện trùng lịch với khóa học nào khác";
+        } else {
+            message = "Phát hiện " + conflicts.size()
+                    + " khóa học có lịch trùng — vui lòng điều chỉnh lịch "
+                    + "(giảng viên/phòng/giờ) trước khi duyệt";
+        }
+
+        return RequestConflictPreviewResponse.builder()
+                .requestId(r.getId())
+                .targetCourseId(course.getId())
+                .targetCourseTitle(course.getTitle())
+                .hasConflicts(!conflicts.isEmpty())
+                .conflictCount(conflicts.size())
+                .conflicts(conflicts)
+                .message(message)
+                .build();
     }
 
     // ============================================================
@@ -152,10 +232,8 @@ public class RequestServiceImpl implements RequestService {
     @Transactional
     public RequestDetailResponse review(Long id, RequestReviewRequest req) {
 
-        // 1. Validate payload review
         requestValidator.validateForReview(req);
 
-        // 2. Lock row để tránh 2 admin duyệt đồng thời
         Request r = requestRepository.findByIdForUpdate(id)
                 .orElseThrow(() -> new ErrorHandler(HttpStatus.NOT_FOUND,
                         "Yêu cầu không tồn tại"));
@@ -165,15 +243,14 @@ public class RequestServiceImpl implements RequestService {
                     "Chỉ duyệt yêu cầu đang PENDING (hiện tại: " + r.getStatus() + ")");
         }
 
-        // 3. Check quyền
         Long reviewerId = SecurityUtils.requireCurrentAccountId();
         assertCanApprove(reviewerId, r);
 
-        // 4. Dispatch handler side-effect
         RequestHandler handler = handlerRegistry.get(r.getRequestType());
 
         if (Boolean.TRUE.equals(req.getApproved())) {
             r.setStatus(RequestStatus.APPROVED);
+            // ⚠️ Handler sẽ throw CONFLICT nếu có conflict lịch (policy c)
             handler.onApprove(r, req);
         } else {
             r.setStatus(RequestStatus.REJECTED);
@@ -181,12 +258,10 @@ public class RequestServiceImpl implements RequestService {
             handler.onReject(r, req);
         }
 
-        // 5. Fill resolved metadata
         LocalDateTime now = LocalDateTime.now();
         r.setResolvedAt(now);
         r.setResolvedBy(reviewerId);
 
-        // 6. Merge responseData
         Map<String, Object> merged = new HashMap<>();
         if (r.getResponseData() != null) merged.putAll(r.getResponseData());
         if (req.getResponseData() != null) merged.putAll(req.getResponseData());
@@ -195,7 +270,6 @@ public class RequestServiceImpl implements RequestService {
 
         Request saved = requestRepository.save(r);
 
-        // 7. Publish event → notification listener gửi thông báo cho requester
         eventPublisher.publishEvent(new RequestReviewedEvent(
                 saved.getId(), Boolean.TRUE.equals(req.getApproved())));
 
@@ -242,10 +316,6 @@ public class RequestServiceImpl implements RequestService {
     // HELPERS
     // ============================================================
 
-    /**
-     * Sinh mã request dạng REQ-yyyyMMdd-XXXX.
-     * Retry tối đa MAX_CODE_RETRY nếu trùng. Fallback dùng UUID nếu vẫn trùng.
-     */
     private String generateRequestCode() {
         String date = LocalDate.now().format(CODE_DATE_FMT);
         long count = requestRepository.countByCreatedAtBetween(
@@ -262,9 +332,6 @@ public class RequestServiceImpl implements RequestService {
                 UUID.randomUUID().toString().substring(0, 4).toUpperCase());
     }
 
-    /**
-     * Chỉ requester, resolver, ADMIN, hoặc role có approverRoleCode mới xem được.
-     */
     private void assertCanView(Request r, Long accountId) {
         if (accountId.equals(r.getRequesterId())) return;
         if (accountId.equals(r.getResolvedBy())) return;
@@ -285,10 +352,6 @@ public class RequestServiceImpl implements RequestService {
                 "Bạn không có quyền xem yêu cầu này");
     }
 
-    /**
-     * Chỉ ADMIN hoặc role đúng với approverRoleCode mới được duyệt.
-     * approverRoleCode == null → bất kỳ authenticated user đều duyệt được.
-     */
     private void assertCanApprove(Long accountId, Request r) {
         RequestType type = r.getRequestType();
         String requiredRole = (type != null) ? type.getApproverRoleCode() : null;

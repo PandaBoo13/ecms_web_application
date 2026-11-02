@@ -182,6 +182,70 @@ export interface RequestDetailResponse extends RequestResponse {
 }
 
 // ============================================================
+// CONFLICT PREVIEW — dùng khi duyệt COURSE_REVIEW
+// ============================================================
+
+/**
+ * Loại conflict giữa 2 khóa học:
+ *  - TEACHER : trùng giảng viên chính
+ *  - ROOM    : trùng phòng học
+ * (có thể cùng lúc cả 2 → cả 2 xuất hiện trong mảng conflictTypes)
+ */
+export type ConflictType = 'TEACHER' | 'ROOM';
+
+/**
+ * Chi tiết 1 conflict — mirror BE CourseConflictDetail.
+ * Trả về 1 khóa học active khác bị trùng lịch với course đang xét.
+ */
+export interface CourseConflictDetail {
+  // ── Course bị trùng ──
+  conflictingCourseId: number;
+  conflictingCourseTitle: string;
+  conflictingCourseStatus: string; // PLANNED | PUBLISHED | ONGOING
+
+  // ── Lịch của course conflict ──
+  startDate?: string;    // ISO date
+  endDate?: string;      // ISO date
+  scheduleDays?: number[]; // [2,4,6]
+  sessionStartTime?: string; // "08:00:00"
+  sessionEndTime?: string;   // "10:00:00"
+
+  // ── Session cụ thể (chỉ có ở tầng 2 — finalize) ──
+  conflictingSessionId?: number;
+  conflictingSessionNumber?: number;
+  conflictingSessionStart?: string;
+  conflictingSessionEnd?: string;
+
+  // ── Loại conflict ──
+  conflictTypes: ConflictType[];
+
+  // ── Chi tiết tài nguyên trùng ──
+  conflictingTeacherId?: number;
+  conflictingTeacherName?: string;
+  conflictingRoomId?: number;
+  conflictingRoomName?: string;
+}
+
+/**
+ * Response cho API preview conflict khi duyệt request COURSE_REVIEW.
+ * Dùng để FE hiển thị banner + bảng cảnh báo trước khi admin bấm Approve.
+ */
+export interface RequestConflictPreviewResponse {
+  requestId: number;
+
+  targetCourseId?: number;
+  targetCourseTitle?: string;
+
+  hasConflicts: boolean;
+  conflictCount: number;
+
+  conflicts: CourseConflictDetail[];
+
+  /** Message tóm tắt hiển thị banner */
+  message?: string;
+}
+
+// ============================================================
 // HELPER LABELS (dùng cho UI dropdown/badge)
 // ============================================================
 
@@ -252,4 +316,25 @@ export const REQUEST_TYPE_LABELS: Partial<Record<RequestType, string>> = {
 /** Fallback về code nếu chưa có label */
 export function getRequestTypeLabel(type: string): string {
   return REQUEST_TYPE_LABELS[type as RequestType] ?? type;
+}
+
+/** 🆕 Label tiếng Việt cho loại conflict — dùng cho badge trong bảng conflict */
+export const CONFLICT_TYPE_LABELS: Record<ConflictType, string> = {
+  TEACHER: 'Trùng giảng viên',
+  ROOM: 'Trùng phòng học',
+};
+
+/** 🆕 Helper: gộp mảng conflictTypes thành chuỗi label (vd "Trùng GV + Trùng phòng") */
+export function getConflictTypesLabel(types: ConflictType[]): string {
+  if (!types || types.length === 0) return '-';
+  return types.map((t) => CONFLICT_TYPE_LABELS[t] ?? t).join(' + ');
+}
+
+/** 🆕 Helper: đổi scheduleDays [2,4,6] → "T2, T4, T6" */
+export function formatScheduleDays(days?: number[]): string {
+  if (!days || days.length === 0) return '-';
+  const map: Record<number, string> = {
+    1: 'CN', 2: 'T2', 3: 'T3', 4: 'T4', 5: 'T5', 6: 'T6', 7: 'T7',
+  };
+  return days.map((d) => map[d] ?? d).join(', ');
 }

@@ -1,4 +1,4 @@
-package com.ecms_web_application.OC01.service.request.handler;
+package com.ecms_web_application.OC01.service.handler;
 
 import com.ecms_web_application.OC01.entity.enums.RequestType;
 import lombok.extern.slf4j.Slf4j;

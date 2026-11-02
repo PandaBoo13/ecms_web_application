@@ -31,6 +31,7 @@ import StudentListPage from '@/pages/admin/students/StudentListPage';
 import CategoryListPage from '@/pages/admin/categories/CategoryListPage';
 import TuitionPage from '@/pages/admin/tuition/TuitionPage';
 import EnrollmentPage from '@/pages/admin/enrollment/EnrollmentPage';
+import RequestListPage from '@/pages/admin/requests/RequestListPage';
 
 // ─── Instructor pages ───
 import InstructorDashboardPage from '@/pages/instructor/dashboard/InstructorDashboardPage';
@@ -77,6 +78,10 @@ export default function AppRouter() {
           {/* 🆕 Đã đổi thành AdminCourseCreatePage */}
           <Route path="/admin/courses/create" element={<AdminCourseCreatePage />} /> 
           <Route path="/admin/courses/:id" element={<CourseDetailPage />} />
+
+    {/* 🆕 Request Management */}
+          <Route path="/admin/requests" element={<RequestListPage />} />
+
 
           <Route path="/admin/roles" element={<RoleManagePage />} />
           <Route path="/admin/permissions" element={<PermissionListPage />} />

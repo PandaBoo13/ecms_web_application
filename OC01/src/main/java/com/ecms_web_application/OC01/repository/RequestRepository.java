@@ -20,10 +20,6 @@ public interface RequestRepository extends IRepository<Request, Long> {
 
     Optional<Request> findByRequestCode(String requestCode);
 
-    /**
-     * Kiểm tra đã có request PENDING cho target chưa — dùng trước khi tạo
-     * để tránh vi phạm partial unique index uk_request_active_target.
-     */
     boolean existsByRequestTypeAndTargetEntityTypeAndTargetEntityIdAndStatus(
             RequestType requestType,
             String targetEntityType,
@@ -32,9 +28,6 @@ public interface RequestRepository extends IRepository<Request, Long> {
 
     long countByCreatedAtBetween(LocalDateTime from, LocalDateTime to);
 
-    /**
-     * Tìm request mới nhất theo target + type + status.
-     */
     @Query("""
         SELECT r FROM Request r
         WHERE r.targetEntityType = :targetType
@@ -61,6 +54,10 @@ public interface RequestRepository extends IRepository<Request, Long> {
     @Query("SELECT r FROM Request r WHERE r.id = :id")
     Optional<Request> findByIdForUpdate(@Param("id") Long id);
 
+    // ══════════════════════════════════════════════════════════════
+    // FIX $13: fromDate / toDate LUÔN có giá trị (Service set default
+    // 1970-01-01 / 9999-12-31 nếu user không truyền) → bỏ IS NULL check.
+    // ══════════════════════════════════════════════════════════════
     @Query("""
         SELECT r FROM Request r
         WHERE (:requestType IS NULL OR r.requestType = :requestType)
@@ -69,8 +66,8 @@ public interface RequestRepository extends IRepository<Request, Long> {
           AND (:targetEntityType IS NULL OR r.targetEntityType = :targetEntityType)
           AND (:targetEntityId IS NULL OR r.targetEntityId = :targetEntityId)
           AND (:keyword = '' OR LOWER(r.title) LIKE LOWER(CONCAT('%', :keyword, '%')))
-          AND (:fromDate IS NULL OR r.createdAt >= :fromDate)
-          AND (:toDate IS NULL OR r.createdAt <= :toDate)
+          AND r.createdAt >= :fromDate
+          AND r.createdAt <= :toDate
         ORDER BY r.createdAt DESC
     """)
     Page<Request> search(

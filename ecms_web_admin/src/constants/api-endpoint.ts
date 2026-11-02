@@ -164,6 +164,8 @@ export const API_ENDPOINT = {
   REQUEST_DETAIL: (id: number) => `/api/requests/${id}`,
   REQUEST_REVIEW: (id: number) => `/api/requests/${id}/review`,
   REQUEST_CANCEL: (id: number) => `/api/requests/${id}/cancel`,
+  // 🆕 Preview conflict cho COURSE_REVIEW trước khi duyệt
+  REQUEST_COURSE_CONFLICTS: (id: number) => `/api/requests/${id}/course-conflicts`,
 
   // ══════════════════════════════════════════════════════════════
   // AUDIT

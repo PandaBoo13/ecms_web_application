@@ -54,6 +54,15 @@ export const ADMIN_MENU: MenuItem[] = [
       { key: '/admin/categories', label: 'Danh mục', path: '/admin/categories' },
     ],
   },
+  // 🆕 REQUEST MODULE — dùng icon SolutionOutlined có sẵn trong ICON_MAP
+  {
+    key: 'requests',
+    label: 'Yêu cầu & Kiểm duyệt',
+    icon: 'SolutionOutlined',
+    children: [
+      { key: '/admin/requests', label: 'Quản lý yêu cầu', path: '/admin/requests' },
+    ],
+  },
   {
     key: 'users',
     label: 'Users',
@@ -131,6 +140,7 @@ export const ROUTE_TITLE: Record<string, string> = {
   '/admin/users': 'Quản lý tài khoản',
   '/admin/courses': 'Quản lý khóa học',
   '/admin/categories': 'Quản lý danh mục',
+  '/admin/requests': 'Quản lý yêu cầu',        // 🆕
   '/admin/roles': 'Phân quyền',
   '/admin/permissions': 'Quản lý Quyền hạn',
   '/admin/audit-logs': 'Nhật ký hệ thống',

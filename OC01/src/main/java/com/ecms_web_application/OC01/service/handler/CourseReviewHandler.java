@@ -1,7 +1,8 @@
-package com.ecms_web_application.OC01.service.request.handler;
+package com.ecms_web_application.OC01.service.handler;
 
 import com.ecms_web_application.OC01.dto.request.request.RequestCreateRequest;
 import com.ecms_web_application.OC01.dto.request.request.RequestReviewRequest;
+import com.ecms_web_application.OC01.dto.response.course.CourseConflictDetail;
 import com.ecms_web_application.OC01.entity.course.Course;
 import com.ecms_web_application.OC01.entity.enums.CourseStatus;
 import com.ecms_web_application.OC01.entity.enums.CourseType;
@@ -11,11 +12,15 @@ import com.ecms_web_application.OC01.entity.request.Request;
 import com.ecms_web_application.OC01.exception.ErrorHandler;
 import com.ecms_web_application.OC01.repository.CourseRepository;
 import com.ecms_web_application.OC01.repository.CourseResourceRepository;
+import com.ecms_web_application.OC01.service.CourseConflictService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
+
+import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * Handler cho COURSE_REVIEW.
@@ -26,10 +31,8 @@ import org.springframework.util.StringUtils;
  *         ─(onApprove OFFLINE)→ PLANNED ─(finalize-schedule)→ PUBLISHED
  *         ─(onReject / onCancel)→ DRAFT
  *
- * Validate 2 MỨC:
- *   - validateForSubmit (nhẹ): chỉ content — cho phép INSTRUCTOR submit
- *     khi chưa có lịch (ACADEMIC_ADMIN sẽ xếp lịch sau khi PLANNED)
- *   - validateForPublish (đầy đủ): do CourseServiceImpl.finalizeSchedule đảm nhận
+ * ⚠️ OFFLINE: onApprove CHECK CONFLICT LỊCH với course active khác
+ * trước khi chuyển PENDING_REVIEW → PLANNED. Nếu trùng GV/phòng → throw.
  */
 @Slf4j
 @Component
@@ -38,6 +41,7 @@ public class CourseReviewHandler implements RequestHandler {
 
     private final CourseRepository courseRepository;
     private final CourseResourceRepository resourceRepository;
+    private final CourseConflictService courseConflictService;
 
     @Override
     public RequestType supportedType() {
@@ -45,7 +49,7 @@ public class CourseReviewHandler implements RequestHandler {
     }
 
     // ============================================================
-    // VALIDATE — mức nhẹ (submit)
+    // VALIDATE — mức nhẹ (content only)
     // ============================================================
     @Override
     public void validateCreate(RequestCreateRequest req, RequestType type) {
@@ -61,10 +65,6 @@ public class CourseReviewHandler implements RequestHandler {
         validateForSubmit(c);
     }
 
-    /**
-     * Validate nhẹ — CHỈ content bắt buộc.
-     * Lịch/GV/room có thể để trống — ACADEMIC_ADMIN sẽ xếp sau khi duyệt.
-     */
     private void validateForSubmit(Course c) {
         if (!StringUtils.hasText(c.getTitle())) {
             throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Thiếu tiêu đề khóa học");
@@ -121,7 +121,7 @@ public class CourseReviewHandler implements RequestHandler {
     }
 
     // ============================================================
-    // onApprove — ONLINE→PUBLISHED ; OFFLINE→PLANNED
+    // onApprove — CÓ CHECK CONFLICT cho OFFLINE
     // ============================================================
     @Override
     public void onApprove(Request request, RequestReviewRequest review) {
@@ -135,11 +135,30 @@ public class CourseReviewHandler implements RequestHandler {
         }
 
         if (c.getCourseType() == CourseType.ONLINE) {
+            // ONLINE: không có lịch cụ thể → duyệt 1 lần là PUBLISHED
             c.setStatus(CourseStatus.PUBLISHED);
-            log.info("[CourseReviewHandler] PENDING_REVIEW → PUBLISHED (ONLINE), courseId={}", c.getId());
+            log.info("[CourseReviewHandler] PENDING_REVIEW → PUBLISHED (ONLINE), courseId={}",
+                    c.getId());
         } else {
+            // ⚠️ OFFLINE: CHECK CONFLICT tầng 1 trước khi PLANNED
+            List<CourseConflictDetail> conflicts =
+                    courseConflictService.checkCourseConflict(c);
+
+            if (!conflicts.isEmpty()) {
+                String detail = conflicts.stream()
+                        .map(this::formatConflict)
+                        .collect(Collectors.joining(" | "));
+
+                throw new ErrorHandler(HttpStatus.CONFLICT,
+                        "Không thể duyệt — lịch khóa học TRÙNG với " + conflicts.size()
+                                + " khóa học khác: " + detail
+                                + ". Vui lòng điều chỉnh lịch (giảng viên, phòng, giờ học "
+                                + "hoặc thứ dạy) trước khi duyệt.");
+            }
+
             c.setStatus(CourseStatus.PLANNED);
-            log.info("[CourseReviewHandler] PENDING_REVIEW → PLANNED (OFFLINE), courseId={}", c.getId());
+            log.info("[CourseReviewHandler] PENDING_REVIEW → PLANNED (OFFLINE), courseId={}",
+                    c.getId());
         }
         courseRepository.save(c);
     }
@@ -154,7 +173,8 @@ public class CourseReviewHandler implements RequestHandler {
         if (c.getStatus() == CourseStatus.PENDING_REVIEW) {
             c.setStatus(CourseStatus.DRAFT);
             courseRepository.save(c);
-            log.info("[CourseReviewHandler] PENDING_REVIEW → DRAFT (rejected), courseId={}", c.getId());
+            log.info("[CourseReviewHandler] PENDING_REVIEW → DRAFT (rejected), courseId={}",
+                    c.getId());
         }
     }
 
@@ -168,7 +188,28 @@ public class CourseReviewHandler implements RequestHandler {
         if (c.getStatus() == CourseStatus.PENDING_REVIEW) {
             c.setStatus(CourseStatus.DRAFT);
             courseRepository.save(c);
-            log.info("[CourseReviewHandler] PENDING_REVIEW → DRAFT (cancelled), courseId={}", c.getId());
+            log.info("[CourseReviewHandler] PENDING_REVIEW → DRAFT (cancelled), courseId={}",
+                    c.getId());
         }
+    }
+
+    // ============================================================
+    // HELPER — Format 1 conflict để hiển thị
+    // ============================================================
+    private String formatConflict(CourseConflictDetail cf) {
+        String types = String.join(" + ", cf.getConflictTypes());
+        StringBuilder sb = new StringBuilder();
+        sb.append("[").append(types).append("] ");
+        sb.append("course '").append(cf.getConflictingCourseTitle()).append("'");
+
+        if (cf.getConflictTypes().contains("TEACHER")
+                && cf.getConflictingTeacherName() != null) {
+            sb.append(" (GV: ").append(cf.getConflictingTeacherName()).append(")");
+        }
+        if (cf.getConflictTypes().contains("ROOM")
+                && cf.getConflictingRoomName() != null) {
+            sb.append(" (Phòng: ").append(cf.getConflictingRoomName()).append(")");
+        }
+        return sb.toString();
     }
 }

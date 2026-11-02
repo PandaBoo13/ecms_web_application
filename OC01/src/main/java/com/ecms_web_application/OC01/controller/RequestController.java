@@ -19,11 +19,12 @@ import org.springframework.web.bind.annotation.*;
 /**
  * Request API — 1 controller cho TẤT CẢ loại yêu cầu.
  *
- *   POST /api/requests              → tạo yêu cầu (bất kỳ loại)
- *   GET  /api/requests              → search / filter
- *   GET  /api/requests/{id}         → chi tiết
- *   POST /api/requests/{id}/review  → duyệt / từ chối
- *   POST /api/requests/{id}/cancel  → requester tự hủy
+ *   POST /api/requests                          → tạo yêu cầu
+ *   GET  /api/requests                          → search
+ *   GET  /api/requests/{id}                     → chi tiết
+ *   GET  /api/requests/{id}/course-conflicts    → preview conflict (COURSE_REVIEW)
+ *   POST /api/requests/{id}/review              → duyệt / từ chối
+ *   POST /api/requests/{id}/cancel              → requester tự hủy
  */
 @Slf4j
 @RestController
@@ -69,6 +70,18 @@ public class RequestController {
     public ResponseEntity<RequestResponse> getById(@PathVariable Long id) {
         var data = requestService.getById(id);
         return ResponseEntity.ok(new RequestResponse(data, "Lấy yêu cầu thành công"));
+    }
+
+    // ============================================================
+    // PREVIEW COURSE CONFLICTS — cảnh báo trùng lịch trước khi duyệt
+    // ============================================================
+    @GetMapping("/{id}/course-conflicts")
+    public ResponseEntity<RequestResponse> previewCourseConflicts(@PathVariable Long id) {
+        var data = requestService.previewCourseConflicts(id);
+        String msg = data.isHasConflicts()
+                ? "Phát hiện " + data.getConflictCount() + " khóa học trùng lịch"
+                : "Không phát hiện conflict";
+        return ResponseEntity.ok(new RequestResponse(data, msg));
     }
 
     // ============================================================

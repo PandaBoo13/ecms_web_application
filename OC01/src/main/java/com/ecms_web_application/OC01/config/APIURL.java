@@ -3,7 +3,7 @@ package com.ecms_web_application.OC01.config;
 public class APIURL {
 
     // ============================================================
-    // PUBLIC — Không cần đăng nhập
+    // PUBLIC — Không cần đăng nhập (chỉ GET mới pass qua filter)
     // ============================================================
     public static final String[] PUBLIC_URLS = {
             // Static & system
@@ -48,7 +48,7 @@ public class APIURL {
 
     // ============================================================
     // USER — Đã đăng nhập (mọi role: STUDENT, INSTRUCTOR, ADMIN)
-    // Không cần check quyền (vì chỉ xem dữ liệu của chính mình)
+    // Không cần check quyền ở filter — service/controller tự check
     // ============================================================
     public static final String[] USER_URLS = {
             // Auth — self
@@ -70,6 +70,11 @@ public class APIURL {
             "/api/progress",
             "/api/progress/**",
 
+            // Request workflow — mọi user đã đăng nhập đều truy cập được;
+            // quyền chi tiết (requester/resolver/approver) do RequestService.assertCan* check
+            "/api/requests",
+            "/api/requests/**",
+
             // Chat & Notification — self-service
             "/api/chat/**",
             "/api/notifications/**",
@@ -85,6 +90,6 @@ public class APIURL {
     public static final String[] ADMIN_URLS = {
             "/api/rbac/**",
     };
-    
+
     // ĐÃ XÓA PROTECTED_URLS
 }
