@@ -1,9 +1,9 @@
 package com.ecms_web_application.OC01.service.impl.course;
 
 import com.ecms_web_application.OC01.entity.Account;
-import com.ecms_web_application.OC01.entity.Course;
-import com.ecms_web_application.OC01.entity.CourseResource;
-import com.ecms_web_application.OC01.entity.Progress;
+import com.ecms_web_application.OC01.entity.course.Course;
+import com.ecms_web_application.OC01.entity.course.CourseResource;
+import com.ecms_web_application.OC01.entity.course.Progress;
 import com.ecms_web_application.OC01.entity.enums.ProgressScope;
 import com.ecms_web_application.OC01.entity.enums.ProgressStatus;
 import com.ecms_web_application.OC01.entity.enums.ProgressType;

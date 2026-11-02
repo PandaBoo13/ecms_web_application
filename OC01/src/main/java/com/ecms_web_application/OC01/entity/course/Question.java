@@ -1,4 +1,4 @@
-package com.ecms_web_application.OC01.entity;
+package com.ecms_web_application.OC01.entity.course;
 
 import com.ecms_web_application.OC01.entity.enums.QuestionStatus;
 import com.ecms_web_application.OC01.entity.enums.QuestionType;
@@ -14,10 +14,10 @@ import java.util.List;
 @Setter @Getter
 @Entity
 @Table(name = "question",
-    indexes = {
-        @Index(name = "idx_question_course", columnList = "course_id"),
-        @Index(name = "idx_question_lesson", columnList = "lesson_id")
-    })
+        indexes = {
+                @Index(name = "idx_question_course", columnList = "course_id"),
+                @Index(name = "idx_question_lesson", columnList = "lesson_id")
+        })
 public class Question {
 
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -26,8 +26,13 @@ public class Question {
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "course_id", nullable = false) private Course course;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "lesson_id") private CourseResource lesson;
+    /**
+     * ✅ FIX: DB có `lesson_id bigint NOT NULL` — bắt buộc phải có LESSON.
+     * Trước đây entity để nullable → khi service tạo QUESTION không có lesson
+     * sẽ bị DataIntegrityViolationException. Nay khóa chặt ở cả entity + service.
+     */
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "lesson_id", nullable = false) private CourseResource lesson;
 
     @Column(length = 255) private String hashtag;
     @Column(columnDefinition = "TEXT", nullable = false) private String content;

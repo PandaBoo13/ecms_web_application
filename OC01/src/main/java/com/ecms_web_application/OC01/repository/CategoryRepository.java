@@ -5,7 +5,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
-import com.ecms_web_application.OC01.entity.Category;
+import com.ecms_web_application.OC01.entity.course.Category;
 import com.ecms_web_application.OC01.generic.IRepository;
 
 import java.util.List;

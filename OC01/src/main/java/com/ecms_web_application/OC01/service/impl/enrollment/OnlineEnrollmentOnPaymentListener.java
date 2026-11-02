@@ -1,7 +1,7 @@
 package com.ecms_web_application.OC01.service.impl.enrollment;
 
 import com.ecms_web_application.OC01.dto.request.NotificationRequest;
-import com.ecms_web_application.OC01.entity.Course;
+import com.ecms_web_application.OC01.entity.course.Course;
 import com.ecms_web_application.OC01.entity.Invoice;
 import com.ecms_web_application.OC01.entity.Student;
 import com.ecms_web_application.OC01.entity.enums.CourseType;

@@ -2,7 +2,7 @@ package com.ecms_web_application.OC01.service.impl.course;
 
 import com.ecms_web_application.OC01.dto.request.RoomRequest;
 import com.ecms_web_application.OC01.dto.response.RoomResponse;
-import com.ecms_web_application.OC01.entity.Room;
+import com.ecms_web_application.OC01.entity.course.Room;
 import com.ecms_web_application.OC01.exception.ErrorHandler;
 import com.ecms_web_application.OC01.repository.RoomRepository;
 import com.ecms_web_application.OC01.service.RoomService;

@@ -1,6 +1,6 @@
 package com.ecms_web_application.OC01.service.impl.enrollment;
 
-import com.ecms_web_application.OC01.entity.Course;
+import com.ecms_web_application.OC01.entity.course.Course;
 import com.ecms_web_application.OC01.entity.Enrollment;
 import com.ecms_web_application.OC01.entity.EnrollmentStatusLog;
 import com.ecms_web_application.OC01.entity.enums.CourseType;

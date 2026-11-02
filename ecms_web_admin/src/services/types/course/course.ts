@@ -89,14 +89,15 @@ export interface CourseUpdateRequest {
   totalSessionsExpected?: number;
 }
 
+// ⚠️ ĐÃ SỬA: Thêm dấu "?" vào tất cả field để hỗ trợ partial update
 export interface CourseOfflineInfoRequest {
-  minStudents: number;
-  maxStudents: number;
-  startDate: string;
-  endDate: string;
-  scheduleDays: number[];
-  sessionStartTime: string;
-  sessionEndTime: string;
+  minStudents?: number;
+  maxStudents?: number;
+  startDate?: string;
+  endDate?: string;
+  scheduleDays?: number[];
+  sessionStartTime?: string;
+  sessionEndTime?: string;
   teacherId?: number;
   roomId?: number;
 }

@@ -12,7 +12,7 @@ import com.ecms_web_application.OC01.entity.Account;
 import com.ecms_web_application.OC01.entity.ChatConversation;
 import com.ecms_web_application.OC01.entity.ChatMessage;
 import com.ecms_web_application.OC01.entity.ChatParticipant;
-import com.ecms_web_application.OC01.entity.Course;
+import com.ecms_web_application.OC01.entity.course.Course;
 import com.ecms_web_application.OC01.entity.enums.ChatStatusEnum;
 import com.ecms_web_application.OC01.entity.enums.ConversationTypeEnum;
 import com.ecms_web_application.OC01.entity.enums.MessagePermissionEnum;

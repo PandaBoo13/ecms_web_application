@@ -19,6 +19,7 @@ import UserListPage from '@/pages/admin/users/UserListPage';
 import UserCreatePage from '@/pages/admin/users/UserCreatePage';
 import UserDetailPage from '@/pages/admin/users/UserDetailPage';
 import CourseListPage from '@/pages/admin/courses/CourseListPage';
+import AdminCourseCreatePage from '@/pages/admin/courses/CourseCreatePage'; // 🆕 ĐÃ ĐỔI TÊN
 import CourseDetailPage from '@/pages/admin/courses/CourseDetailPage';
 import RoleManagePage from '@/pages/admin/system/RoleManagePage';
 import PermissionListPage from '@/pages/admin/system/PermissionListPage';
@@ -34,7 +35,7 @@ import EnrollmentPage from '@/pages/admin/enrollment/EnrollmentPage';
 // ─── Instructor pages ───
 import InstructorDashboardPage from '@/pages/instructor/dashboard/InstructorDashboardPage';
 import MyCoursesPage from '@/pages/instructor/my-courses/MyCoursesPage';
-import CourseCreatePage from '@/pages/instructor/my-courses/CourseCreatePage';
+import CourseCreatePage from '@/pages/instructor/my-courses/CourseCreatePage'; // Giữ nguyên tên này
 import CourseEditPage from '@/pages/instructor/my-courses/CourseEditPage';
 import MyStudentsPage from '@/pages/instructor/students/MyStudentsPage';
 import StudentDetailPage from '@/pages/instructor/students/StudentDetailPage';
@@ -71,7 +72,10 @@ export default function AppRouter() {
           <Route path="/admin/enrollments" element={<EnrollmentPage />} />
           <Route path="/admin/tuition-enrollment" element={<Navigate to="/admin/tuition" replace />} />
 
+          {/* ⚠️ /create phải đứng TRƯỚC /:id */}
           <Route path="/admin/courses" element={<CourseListPage />} />
+          {/* 🆕 Đã đổi thành AdminCourseCreatePage */}
+          <Route path="/admin/courses/create" element={<AdminCourseCreatePage />} /> 
           <Route path="/admin/courses/:id" element={<CourseDetailPage />} />
 
           <Route path="/admin/roles" element={<RoleManagePage />} />

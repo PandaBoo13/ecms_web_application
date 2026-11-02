@@ -23,20 +23,19 @@ import {
   CloseOutlined,
   UserSwitchOutlined,
   UserAddOutlined,
+  PlusOutlined,
 } from '@ant-design/icons';
 import toast from 'react-hot-toast';
 
 import StatusTag from '@/components/common/StatusTag';
 import DateDisplay from '@/components/common/DateDisplay';
 import UserAvatar from '@/components/common/UserAvatar';
+import SessionFormModal from './SessionFormModal';
 
-// 🆕 Cập nhật lại đường dẫn import API theo cấu trúc mới
-import { sessionApi } from '@/services/api/course'; 
-// Nếu báo lỗi, đổi thành: import { sessionApi } from '@/services/api/course/sessionApi';
-
+import { sessionApi } from '@/services/api/course';
 import { adminUserApi } from '@/services/api/admin';
 import type { SessionResponse } from '@/services/types/course';
-import type { AccountResponse } from '@/services/types/user'; // Hoặc types/admin tùy dự án của bạn
+import type { AccountResponse } from '@/services/types/user';
 
 interface Props {
   courseId: number;
@@ -52,6 +51,9 @@ interface AssignState {
 
 const CourseSessionList = ({ courseId, sessions, onRefresh }: Props) => {
   const [instructors, setInstructors] = useState<AccountResponse[]>([]);
+
+  // 🆕 Modal tạo buổi học
+  const [createOpen, setCreateOpen] = useState(false);
 
   // Modal cancel
   const [cancelState, setCancelState] = useState<{ sessionId: number; title: string } | null>(null);
@@ -154,14 +156,10 @@ const CourseSessionList = ({ courseId, sessions, onRefresh }: Props) => {
     }
   };
 
-  // ⚠️ ĐÃ CẬP NHẬT LOGIC THEO ENUM MỚI
   const buildActions = (s: SessionResponse): MenuProps['items'] => {
     const items: MenuProps['items'] = [];
-    
-    // Có thể đánh dấu hoàn thành nếu đang Lên lịch hoặc Đang diễn ra
+
     const canMarkDone = s.status === 'SCHEDULED' || s.status === 'ONGOING';
-    
-    // Có thể hủy hoặc đổi GV nếu chưa Hoàn thành và chưa Hủy
     const canModify = s.status !== 'CANCELLED' && s.status !== 'COMPLETED';
 
     if (canMarkDone) {
@@ -188,9 +186,9 @@ const CourseSessionList = ({ courseId, sessions, onRefresh }: Props) => {
         danger: true,
         label: <span onClick={() => openCancel(s)}>Hủy buổi học</span>,
       });
-      
+
       items.push({ type: 'divider' });
-      
+
       items.push({
         key: 'substitute',
         icon: <UserSwitchOutlined />,
@@ -249,7 +247,13 @@ const CourseSessionList = ({ courseId, sessions, onRefresh }: Props) => {
             <ClockCircleOutlined /> <DateDisplay value={record.startTime} format="long" />
           </span>
           <span style={{ fontSize: 12, color: '#8c8c8c' }}>
-            → {record.endTime ? new Date(record.endTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '—'}
+            →{' '}
+            {record.endTime
+              ? new Date(record.endTime).toLocaleTimeString('vi-VN', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })
+              : '—'}
           </span>
         </Space>
       ),
@@ -330,17 +334,50 @@ const CourseSessionList = ({ courseId, sessions, onRefresh }: Props) => {
     },
   ];
 
+  // ══════════════════════════════════════════════════════════════
+  // RENDER
+  // ══════════════════════════════════════════════════════════════
+
+  // Nút "Tạo buổi học" dùng chung cho cả empty + có data
+  const createButton = (
+    <Button
+      type="primary"
+      icon={<PlusOutlined />}
+      onClick={() => setCreateOpen(true)}
+    >
+      Tạo buổi học
+    </Button>
+  );
+
+  // Empty state — vẫn hiển thị nút tạo
   if (!sessions || sessions.length === 0) {
     return (
-      <Card>
-        <Empty description="Khóa học chưa có buổi học nào" />
-      </Card>
+      <>
+        <Card
+          title="Danh sách buổi học (0)"
+          extra={createButton}
+        >
+          <Empty description="Khóa học chưa có buổi học nào">
+            {createButton}
+          </Empty>
+        </Card>
+
+        <SessionFormModal
+          courseId={courseId}
+          open={createOpen}
+          onClose={() => setCreateOpen(false)}
+          onSuccess={onRefresh}
+        />
+      </>
     );
   }
 
   return (
     <>
-      <Card title={`Danh sách buổi học (${sessions.length})`}>
+      <Card
+        title={`Danh sách buổi học (${sessions.length})`}
+        extra={createButton}
+      >
         <Table<SessionResponse>
           columns={columns}
           dataSource={sessions}
@@ -349,6 +386,14 @@ const CourseSessionList = ({ courseId, sessions, onRefresh }: Props) => {
           scroll={{ x: 'max-content' }}
         />
       </Card>
+
+      {/* 🆕 Modal tạo buổi học */}
+      <SessionFormModal
+        courseId={courseId}
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        onSuccess={onRefresh}
+      />
 
       {/* Modal hủy buổi */}
       <Modal

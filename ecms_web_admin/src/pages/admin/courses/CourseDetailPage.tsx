@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Tabs, Card, Space, Typography, Alert, Statistic, Row, Col } from 'antd';
 
@@ -16,10 +16,7 @@ import CourseSessionList from '@/components/course/CourseSessionList';
 import CourseQuestionList from '@/components/course/CourseQuestionList';
 import QuizListCard from '@/components/course/QuizListCard';
 
-// 🆕 Cập nhật lại đường dẫn import API theo cấu trúc mới
 import { courseApi } from '@/services/api/course';
-// Nếu báo lỗi không tìm thấy, đổi thành: import { courseApi } from '@/services/api/course/courseApi';
-
 import type { CourseDetailResponse } from '@/services/types/course';
 
 const { Text } = Typography;
@@ -32,41 +29,50 @@ const CourseDetailPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchCourse = async () => {
+  // 🛠️ HÀM FETCH DỮ LIỆU THÔNG MINH (Hỗ trợ Tải ngầm isSilent)
+  const fetchCourse = useCallback(async (isSilent = false) => {
     if (!courseId || isNaN(courseId)) {
       setError('ID khóa học không hợp lệ');
       setLoading(false);
       return;
     }
-    setLoading(true);
+
+    if (!isSilent) {
+      setLoading(true);
+    }
     setError(null);
+
     try {
       const data = await courseApi.getById(courseId);
       setCourse(data);
     } catch (err) {
       setError((err as { message?: string })?.message || 'Không tải được khóa học');
     } finally {
-      setLoading(false);
+      if (!isSilent) {
+        setLoading(false);
+      }
     }
-  };
+  }, [courseId]);
 
   useEffect(() => {
     fetchCourse();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [courseId]);
+  }, [fetchCourse]);
+
+  const handleSilentRefresh = useCallback(() => {
+    fetchCourse(true);
+  }, [fetchCourse]);
 
   if (loading) return <PageLoading tip="Đang tải khóa học..." />;
-  if (error) return <ErrorState title="Lỗi" description={error} onRetry={fetchCourse} />;
+  if (error) return <ErrorState title="Lỗi" description={error} onRetry={() => fetchCourse()} />;
   if (!course) return <ErrorState description="Không tìm thấy khóa học" />;
 
-  // ⚠️ Cập nhật logic: Khóa tính năng sửa nội dung khi lớp đã diễn ra, đã kết thúc hoặc đã hủy
   const isLocked = ['ONGOING', 'FINISHED', 'CANCELLED'].includes(course.status);
 
   const tabItems = [
     {
       key: 'info',
       label: 'Tổng quan',
-      children: <CourseOverviewTab course={course} onRefresh={fetchCourse} />,
+      children: <CourseOverviewTab course={course} onRefresh={handleSilentRefresh} />,
     },
     {
       key: 'resources',
@@ -82,7 +88,7 @@ const CourseDetailPage = () => {
         <ResourceManager
           courseId={courseId}
           resources={course.resources || []}
-          onRefresh={fetchCourse}
+          onRefresh={handleSilentRefresh}
         />
       ),
     },
@@ -106,7 +112,7 @@ const CourseDetailPage = () => {
         <CourseSessionList
           courseId={courseId}
           sessions={course.sessions || []}
-          onRefresh={fetchCourse}
+          onRefresh={handleSilentRefresh}
         />
       ),
     });
@@ -117,7 +123,7 @@ const CourseDetailPage = () => {
       <PageHeader
         title={course.title}
         subtitle={
-          <Space size={8}>
+          <Space size={8} wrap>
             <Text type="secondary">{course.code}</Text>
             <StatusTag status={course.status} />
             <StatusTag status={course.courseType} />
@@ -125,46 +131,71 @@ const CourseDetailPage = () => {
         }
         backButton
         backTo="/admin/courses"
-        extra={<CourseDetailActions course={course} onRefresh={fetchCourse} />}
+        extra={<CourseDetailActions course={course} onRefresh={handleSilentRefresh} />}
       />
 
-      <Row gutter={16} style={{ marginBottom: 20 }}>
+      {/* 🆕 Tối ưu Responsive cho các Thẻ Thống kê (Row/Col) */}
+      <Row gutter={[16, 16]} style={{ marginBottom: 20 }}>
         <Col xs={12} sm={6}>
-          <Card size="small">
+          <Card size="small" className="h-full">
             <Statistic
-              title="Học viên"
+              title={<span className="text-xs sm:text-sm text-slate-500">Học viên</span>}
               value={course.currentStudents}
-              suffix={course.maxStudents ? `/ ${course.maxStudents}` : ''}
+              suffix={course.maxStudents ? <span className="text-xs sm:text-sm text-slate-400">/ {course.maxStudents}</span> : ''}
+              valueStyle={{ fontSize: 'clamp(18px, 3vw, 24px)', fontWeight: 700 }}
             />
           </Card>
         </Col>
         <Col xs={12} sm={6}>
-          <Card size="small">
+          <Card size="small" className="h-full">
             <Statistic
-              title="Học phí"
+              title={<span className="text-xs sm:text-sm text-slate-500">Học phí</span>}
               value={course.price}
-              formatter={(v) => <MoneyDisplay value={Number(v)} />}
+              // 🆕 Fix tràn viền: Dùng break-all và text size co giãn
+              formatter={(v) => (
+                <div className="text-[17px] sm:text-xl md:text-2xl font-bold text-slate-800 break-all mt-1">
+                  <MoneyDisplay value={Number(v)} />
+                </div>
+              )}
             />
           </Card>
         </Col>
         <Col xs={12} sm={6}>
-          <Card size="small">
-            <Statistic title="Học liệu" value={course.resources?.length || 0} />
+          <Card size="small" className="h-full">
+            <Statistic 
+              title={<span className="text-xs sm:text-sm text-slate-500">Học liệu</span>}
+              value={course.resources?.length || 0} 
+              valueStyle={{ fontSize: 'clamp(18px, 3vw, 24px)', fontWeight: 700 }}
+            />
           </Card>
         </Col>
         <Col xs={12} sm={6}>
-          <Card size="small">
+          <Card size="small" className="h-full">
             <Statistic 
-              title="Buổi học" 
+              title={<span className="text-xs sm:text-sm text-slate-500">Buổi học</span>}
               value={course.sessions?.length || 0}
-              // 🆕 Hiển thị thêm tổng số buổi dự kiến nếu có
-              suffix={course.courseType === 'OFFLINE' && course.totalSessionsExpected ? `/ ${course.totalSessionsExpected}` : ''}
+              suffix={course.courseType === 'OFFLINE' && course.totalSessionsExpected ? <span className="text-xs sm:text-sm text-slate-400">/ {course.totalSessionsExpected}</span> : ''}
+              valueStyle={{ fontSize: 'clamp(18px, 3vw, 24px)', fontWeight: 700 }}
             />
           </Card>
         </Col>
       </Row>
 
-      <Tabs defaultActiveKey="info" items={tabItems} />
+      {/* 🆕 Tối ưu Responsive cho Tabs: Ẩn nút ... và cho phép vuốt ngang */}
+      <Tabs 
+        defaultActiveKey="info" 
+        items={tabItems} 
+        moreIcon={null}
+        tabBarStyle={{ 
+          marginBottom: 16,
+          flexWrap: 'nowrap',
+          overflowX: 'auto',
+          overflowY: 'hidden',
+          scrollbarWidth: 'none', // Ẩn thanh cuộn trên Firefox
+          msOverflowStyle: 'none', // Ẩn thanh cuộn trên Edge
+        }}
+        className="[&::-webkit-scrollbar]:hidden" // Ẩn thanh cuộn trên Chrome/Safari
+      />
     </PageContainer>
   );
 };

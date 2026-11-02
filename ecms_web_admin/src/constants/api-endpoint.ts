@@ -158,6 +158,14 @@ export const API_ENDPOINT = {
   RBAC_ACCOUNT_RESET_PASSWORD: (id: number) => `/api/rbac/accounts/${id}/reset-password`,
 
   // ══════════════════════════════════════════════════════════════
+  // REQUEST — workflow xin duyệt/hủy cho mọi loại entity
+  // ══════════════════════════════════════════════════════════════
+  REQUESTS: '/api/requests',
+  REQUEST_DETAIL: (id: number) => `/api/requests/${id}`,
+  REQUEST_REVIEW: (id: number) => `/api/requests/${id}/review`,
+  REQUEST_CANCEL: (id: number) => `/api/requests/${id}/cancel`,
+
+  // ══════════════════════════════════════════════════════════════
   // AUDIT
   // ══════════════════════════════════════════════════════════════
   AUDIT_LOGS: '/api/audit-logs',

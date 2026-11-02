@@ -1,6 +1,6 @@
 package com.ecms_web_application.OC01.repository;
 
-import com.ecms_web_application.OC01.entity.Course;
+import com.ecms_web_application.OC01.entity.course.Course;
 import com.ecms_web_application.OC01.entity.enums.CourseStatus;
 import com.ecms_web_application.OC01.entity.enums.CourseType;
 import com.ecms_web_application.OC01.generic.IRepository;
@@ -71,4 +71,6 @@ public interface CourseRepository extends IRepository<Course, Long> {
     Optional<Course> findByIdWithRelations(@Param("id") Long id);
 
     long countByTeacherId(Long teacherId);
+
+    java.util.List<Course> findByStatus(CourseStatus status);
 }

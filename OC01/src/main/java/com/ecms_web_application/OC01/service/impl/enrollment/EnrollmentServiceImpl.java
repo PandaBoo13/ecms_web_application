@@ -26,6 +26,10 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
+import com.ecms_web_application.OC01.entity.course.Course;
+import com.ecms_web_application.OC01.entity.course.CourseResource;
+import com.ecms_web_application.OC01.entity.course.Progress;
+import com.ecms_web_application.OC01.entity.course.Session;
 
 @Service
 @RequiredArgsConstructor

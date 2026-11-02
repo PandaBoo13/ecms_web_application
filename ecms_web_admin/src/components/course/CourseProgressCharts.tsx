@@ -30,9 +30,6 @@ ChartJS.register(
   Filler,
 );
 
-// ═══════════════════════════════════════════════════════════════
-// ⚠️ MOCK DATA — thay bằng API thật khi BE sẵn sàng
-// ═══════════════════════════════════════════════════════════════
 const MOCK_WEEKLY_PROGRESS = {
   labels: ['Tuần 1', 'Tuần 2', 'Tuần 3', 'Tuần 4', 'Tuần 5', 'Tuần 6', 'Tuần 7', 'Tuần 8'],
   values: [5, 15, 28, 42, 55, 62, 68, 72],
@@ -49,11 +46,10 @@ interface Props {
 }
 
 const CourseProgressCharts = ({ courseId }: Props) => {
-  // TODO: thay bằng API thật
   const weekly = MOCK_WEEKLY_PROGRESS;
   const dist = MOCK_DISTRIBUTION;
 
-  // ═════ Line Chart ═════
+  // Line Chart
   const lineData = {
     labels: weekly.labels,
     datasets: [
@@ -111,7 +107,7 @@ const CourseProgressCharts = ({ courseId }: Props) => {
     },
   };
 
-  // ═════ Doughnut Chart ═════
+  // Doughnut Chart
   const doughnutData = {
     labels: dist.labels,
     datasets: [
@@ -163,22 +159,15 @@ const CourseProgressCharts = ({ courseId }: Props) => {
 
   return (
     <div>
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-          marginBottom: 10,
-        }}
-      >
-        <span style={{ fontSize: 14, fontWeight: 600, color: '#0f172a' }}>
+      <div className="flex items-center gap-2 mb-2.5">
+        <span className="text-[14px] font-semibold text-slate-900">
           Biểu đồ tiến độ
         </span>
-        <Tag color="orange" style={{ margin: 0, fontSize: 10, lineHeight: '16px' }}>
+        <Tag color="orange" className="!m-0 !text-[10px] !leading-[16px]">
           MOCK
         </Tag>
         <Tooltip title="Dữ liệu đang là mock, sẽ thay bằng API khi BE sẵn sàng">
-          <InfoCircleOutlined style={{ fontSize: 12, color: '#94a3b8' }} />
+          <InfoCircleOutlined className="text-[12px] text-slate-400" />
         </Tooltip>
       </div>
 
@@ -188,11 +177,7 @@ const CourseProgressCharts = ({ courseId }: Props) => {
             size="small"
             bordered
             style={{ borderRadius: 10, border: '1px solid #e2e8f0', height: '100%' }}
-            title={
-              <span style={{ fontSize: 13, fontWeight: 600 }}>
-                Tiến độ trung bình theo tuần
-              </span>
-            }
+            title={<span style={{ fontSize: 13, fontWeight: 600 }}>Tiến độ trung bình theo tuần</span>}
             bodyStyle={{ padding: 14 }}
           >
             <div style={{ height: 260 }}>
@@ -207,16 +192,8 @@ const CourseProgressCharts = ({ courseId }: Props) => {
             bordered
             style={{ borderRadius: 10, border: '1px solid #e2e8f0', height: '100%' }}
             title={
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                }}
-              >
-                <span style={{ fontSize: 13, fontWeight: 600 }}>
-                  Phân bố học viên
-                </span>
+              <div className="flex justify-between items-center">
+                <span style={{ fontSize: 13, fontWeight: 600 }}>Phân bố học viên</span>
                 <Text type="secondary" style={{ fontSize: 11.5 }}>
                   {total} HV
                 </Text>
