@@ -71,7 +71,6 @@ export default function AppRouter() {
           <Route path="/admin/categories" element={<CategoryListPage />} />
           <Route path="/admin/tuition" element={<TuitionPage />} />
           <Route path="/admin/enrollments" element={<EnrollmentPage />} />
-          <Route path="/admin/tuition-enrollment" element={<Navigate to="/admin/tuition" replace />} />
 
           {/* ⚠️ /create phải đứng TRƯỚC /:id */}
           <Route path="/admin/courses" element={<CourseListPage />} />

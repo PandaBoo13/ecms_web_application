@@ -1,6 +1,6 @@
 import { Layout, Menu } from 'antd';
 import type { MenuProps } from 'antd';
-import { DashboardOutlined, BookOutlined, ProfileOutlined, TrophyOutlined, UserOutlined, FileTextOutlined } from '@ant-design/icons';
+import { DashboardOutlined, BookOutlined, ProfileOutlined, TrophyOutlined, UserOutlined, FileTextOutlined, DollarOutlined, SolutionOutlined } from '@ant-design/icons';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { STUDENT_MENU } from '@/constants/routes';
 import type { MenuItem } from '@/constants/routes';
@@ -8,7 +8,7 @@ import type { MenuItem } from '@/constants/routes';
 const { Sider } = Layout;
 type AntdMenuItem = NonNullable<MenuProps['items']>[number];
 const ICON_MAP: Record<string, React.ReactNode> = {
-  DashboardOutlined: <DashboardOutlined />, BookOutlined: <BookOutlined />, ProfileOutlined: <ProfileOutlined />, TrophyOutlined: <TrophyOutlined />, UserOutlined: <UserOutlined />, FileTextOutlined: <FileTextOutlined />,
+  DashboardOutlined: <DashboardOutlined />, BookOutlined: <BookOutlined />, ProfileOutlined: <ProfileOutlined />, TrophyOutlined: <TrophyOutlined />, UserOutlined: <UserOutlined />, FileTextOutlined: <FileTextOutlined />, DollarOutlined: <DollarOutlined />, SolutionOutlined: <SolutionOutlined />,
 };
 
 const Sidebar = ({ collapsed }: { collapsed: boolean }) => {

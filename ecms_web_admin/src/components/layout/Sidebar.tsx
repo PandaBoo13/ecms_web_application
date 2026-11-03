@@ -48,7 +48,7 @@ const MENU_KEY_TRANSLATION_MAP: Record<string, string> = {
   'tuition': 'Học phí',
   '/admin/tuition': 'Quản lý học phí',
   'enrollment': 'Ghi danh',
-  '/admin/enrollments': 'Quản lý ghi danh',
+  '/admin/enrollments': 'Danh sách ghi danh',
   'courses': 'menu.courses',
   '/admin/courses': 'menu.courseList',
   '/admin/categories': 'menu.categories',

@@ -3,8 +3,8 @@ import { Alert, Button, Form, InputNumber, Select, Space, Typography } from 'ant
 import toast from 'react-hot-toast';
 import PageContainer from '@/components/common/PageContainer';
 import PageHeader from '@/components/common/PageHeader';
-import { enrollmentApi } from '@/services/api/tuition-enrollment';
-import type { SessionAttendanceResponse } from '@/services/types/tuition-enrollment';
+import { enrollmentApi } from '@/services/api/enrollment';
+import type { SessionAttendanceResponse } from '@/services/types/enrollment';
 
 export default function InstructorAttendancePage() {
   const [form] = Form.useForm();

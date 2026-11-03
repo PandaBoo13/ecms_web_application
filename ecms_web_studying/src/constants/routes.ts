@@ -12,7 +12,8 @@ export const PUBLIC_MENU: MenuItem[] = [
 export const STUDENT_MENU: MenuItem[] = [
   { key: '/student/dashboard', label: 'Tổng quan', icon: 'DashboardOutlined', path: '/student/dashboard' },
   { key: '/student/courses', label: 'Khóa học', icon: 'BookOutlined', path: '/student/courses' },
-  { key: '/student/tuition-enrollment', label: 'Học phí & ghi danh', icon: 'FileTextOutlined', path: '/student/tuition-enrollment' },
+  { key: '/student/tuition', label: 'Học phí', icon: 'DollarOutlined', path: '/student/tuition' },
+  { key: '/student/enrollments', label: 'Ghi danh', icon: 'SolutionOutlined', path: '/student/enrollments' },
   { key: '/student/assignments', label: 'Bài tập', icon: 'ProfileOutlined', path: '/student/assignments' },
   { key: '/student/grades', label: 'Điểm số', icon: 'TrophyOutlined', path: '/student/grades' },
   { key: '/student/profile', label: 'Hồ sơ', icon: 'UserOutlined', path: '/student/profile' },

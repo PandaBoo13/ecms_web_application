@@ -20,9 +20,11 @@ import com.ecms_web_application.OC01.repository.InvoiceRepository;
 import com.ecms_web_application.OC01.repository.LeadRepository;
 import com.ecms_web_application.OC01.repository.StudentRepository;
 import com.ecms_web_application.OC01.service.TuitionService;
+import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
@@ -31,6 +33,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -104,7 +108,7 @@ public class TuitionServiceImpl implements TuitionService {
     @Override
     @Transactional(readOnly = true)
     public Page<InvoiceResponse> search(InvoiceType type, InvoiceStatus status, Long courseId,
-                                        Long studentId, Long accountId, Long leadId, Pageable pageable) {
+                                        Long studentId, Long accountId, Long leadId, String search, Pageable pageable) {
         Long ownerAccountId = null;
         Long ownerStudentId = null;
         if (!SecurityUtils.hasRole("ADMIN")) {
@@ -112,9 +116,9 @@ public class TuitionServiceImpl implements TuitionService {
             ownerAccountId = currentAccountId;
             ownerStudentId = studentRepository.findByUserId(currentAccountId).map(s -> s.getId()).orElse(-1L);
         }
-        return invoiceRepository.search(type, status, courseId, studentId, accountId, leadId,
-                        ownerAccountId, ownerStudentId, pageable)
-                .map(InvoiceResponse::from);
+        return invoiceRepository.findAll(buildSearchSpecification(type, status, courseId, studentId, accountId,
+                        leadId, ownerAccountId, ownerStudentId, search), pageable)
+                .map(this::toResponse);
     }
 
     @Override
@@ -122,7 +126,7 @@ public class TuitionServiceImpl implements TuitionService {
     public InvoiceResponse getById(Long invoiceId) {
         Invoice invoice = getInvoice(invoiceId);
         requireCanView(invoice);
-        return InvoiceResponse.from(invoice);
+        return toResponse(invoice);
     }
 
     @Override
@@ -221,6 +225,86 @@ public class TuitionServiceImpl implements TuitionService {
         refund.setCreatedBy(actorId);
         refund.setReason(request.getReason().trim());
         return InvoiceResponse.from(invoiceRepository.save(refund));
+    }
+
+    private InvoiceResponse toResponse(Invoice invoice) {
+        String name = null, email = null, phone = null;
+        if (invoice.getStudentId() != null) {
+            var student = studentRepository.findById(invoice.getStudentId()).orElse(null);
+            if (student != null) { name = student.getFullName(); email = student.getEmail(); phone = student.getPhone(); }
+        } else if (invoice.getLeadId() != null) {
+            var lead = leadRepository.findById(invoice.getLeadId()).orElse(null);
+            if (lead != null) { name = lead.getFullName(); email = lead.getEmail(); phone = lead.getPhone(); }
+        } else if (invoice.getAccountId() != null) {
+            var account = accountRepository.findById(invoice.getAccountId()).orElse(null);
+            if (account != null) {
+                email = account.getEmail();
+                if (account.getUserProfile() != null) {
+                    name = account.getUserProfile().getFullName(); phone = account.getUserProfile().getPhone();
+                }
+            }
+        }
+        Course course = invoice.getCourseId() == null ? null : courseRepository.findById(invoice.getCourseId()).orElse(null);
+        return InvoiceResponse.from(invoice, name, email, phone,
+                course == null ? null : course.getTitle(), course == null ? null : course.getCourseType());
+    }
+
+    private Specification<Invoice> buildSearchSpecification(InvoiceType type, InvoiceStatus status, Long courseId,
+            Long studentId, Long accountId, Long leadId, Long ownerAccountId, Long ownerStudentId, String search) {
+        return (root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
+            if (type != null) {
+                predicates.add(cb.equal(root.get("type"), type));
+            }
+            if (status != null) {
+                predicates.add(cb.equal(root.get("status"), status));
+            }
+            if (courseId != null) {
+                predicates.add(cb.equal(root.get("courseId"), courseId));
+            }
+            if (studentId != null) {
+                predicates.add(cb.equal(root.get("studentId"), studentId));
+            }
+            if (accountId != null) {
+                predicates.add(cb.equal(root.get("accountId"), accountId));
+            }
+            if (leadId != null) {
+                predicates.add(cb.equal(root.get("leadId"), leadId));
+            }
+            if (ownerAccountId != null) {
+                predicates.add(cb.or(cb.equal(root.get("accountId"), ownerAccountId),
+                        cb.equal(root.get("studentId"), ownerStudentId)));
+            }
+            if (search != null && !search.isBlank()) {
+                String pattern = "%" + search.trim().toLowerCase() + "%";
+                var studentQuery = query.subquery(Long.class);
+                var student = studentQuery.from(com.ecms_web_application.OC01.entity.Student.class);
+                studentQuery.select(student.get("id")).where(cb.or(
+                        cb.like(cb.lower(student.get("fullName")), pattern),
+                        cb.like(cb.lower(student.get("email")), pattern),
+                        cb.like(cb.lower(student.get("studentCode")), pattern)));
+                var leadQuery = query.subquery(Long.class);
+                var lead = leadQuery.from(com.ecms_web_application.OC01.entity.Lead.class);
+                leadQuery.select(lead.get("id")).where(cb.or(
+                        cb.like(cb.lower(lead.get("fullName")), pattern),
+                        cb.like(cb.lower(lead.get("email")), pattern),
+                        cb.like(cb.lower(lead.get("phone")), pattern)));
+                var accountQuery = query.subquery(Long.class);
+                var account = accountQuery.from(com.ecms_web_application.OC01.entity.Account.class);
+                accountQuery.select(account.get("id")).where(cb.or(
+                        cb.like(cb.lower(account.get("email")), pattern),
+                        cb.like(cb.lower(account.join("userProfile", jakarta.persistence.criteria.JoinType.LEFT).get("fullName")), pattern)));
+                var courseQuery = query.subquery(Long.class);
+                var course = courseQuery.from(Course.class);
+                courseQuery.select(course.get("id")).where(cb.or(
+                        cb.like(cb.lower(course.get("title")), pattern), cb.like(cb.lower(course.get("code")), pattern)));
+                predicates.add(cb.or(
+                        cb.like(cb.lower(root.get("invoiceCode")), pattern),
+                        root.get("studentId").in(studentQuery), root.get("leadId").in(leadQuery),
+                        root.get("accountId").in(accountQuery), root.get("courseId").in(courseQuery)));
+            }
+            return cb.and(predicates.toArray(Predicate[]::new));
+        };
     }
 
     private void validateOwnerReferences(Long accountId, Long studentId, Long leadId) {

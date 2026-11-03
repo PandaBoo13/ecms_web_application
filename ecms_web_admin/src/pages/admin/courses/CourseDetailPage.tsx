@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { Tabs, Card, Space, Typography, Alert, Statistic, Row, Col } from 'antd';
 
 import PageContainer from '@/components/common/PageContainer';
@@ -15,6 +15,7 @@ import ResourceManager from '@/components/course/ResourceManager';
 import CourseSessionList from '@/components/course/CourseSessionList';
 import CourseQuestionList from '@/components/course/CourseQuestionList';
 import QuizListCard from '@/components/course/QuizListCard';
+import CourseEnrollmentList from '@/components/course/CourseEnrollmentList';
 
 import { courseApi } from '@/services/api/course';
 import type { CourseDetailResponse } from '@/services/types/course';
@@ -23,6 +24,7 @@ const { Text } = Typography;
 
 const CourseDetailPage = () => {
   const { id } = useParams<{ id: string }>();
+  const [searchParams] = useSearchParams();
   const courseId = Number(id);
 
   const [course, setCourse] = useState<CourseDetailResponse | null>(null);
@@ -101,6 +103,17 @@ const CourseDetailPage = () => {
       key: 'quizzes',
       label: 'Quiz',
       children: <QuizListCard courseId={courseId} />,
+    },
+    {
+      key: 'enrollments',
+      label: course.courseType === 'ONLINE' ? 'Người đã mua khóa' : 'Danh sách học viên',
+      children: (
+        <CourseEnrollmentList
+          courseId={courseId}
+          courseType={course.courseType}
+          courseStatus={course.status}
+        />
+      ),
     },
   ];
 
@@ -183,7 +196,7 @@ const CourseDetailPage = () => {
 
       {/* 🆕 Tối ưu Responsive cho Tabs: Ẩn nút ... và cho phép vuốt ngang */}
       <Tabs 
-        defaultActiveKey="info" 
+        defaultActiveKey={searchParams.get('tab') === 'enrollments' ? 'enrollments' : 'info'}
         items={tabItems} 
         moreIcon={null}
         tabBarStyle={{ 
