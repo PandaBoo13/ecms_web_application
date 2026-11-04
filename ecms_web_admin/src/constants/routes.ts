@@ -136,7 +136,6 @@ export const ROUTE_TITLE: Record<string, string> = {
   '/admin/students': 'Quản lý học viên',
   '/admin/tuition': 'Quản lý học phí',
   '/admin/enrollments': 'Quản lý ghi danh',
-  '/admin/tuition-enrollment': 'Học phí & ghi danh',
   '/admin/users': 'Quản lý tài khoản',
   '/admin/courses': 'Quản lý khóa học',
   '/admin/categories': 'Quản lý danh mục',

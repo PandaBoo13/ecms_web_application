@@ -17,7 +17,7 @@ import { SearchOutlined, BookOutlined, SendOutlined, EyeOutlined, CreditCardOutl
 import toast from 'react-hot-toast';
 
 import { courseApi } from '@/services/api/course';
-import { tuitionApi } from '@/services/api/tuition-enrollment';
+import { tuitionApi } from '@/services/api/tuition';
 import { useAuth } from '@/hooks/useAuth';
 import MoneyDisplay from '@/components/common/MoneyDisplay';
 import type { CourseResponse } from '@/services/types/course';
@@ -89,8 +89,8 @@ export default function CourseCatalogPage() {
       const paymentUrl = await tuitionApi.createVnpayPayment(invoice.invoiceId);
       window.location.assign(paymentUrl);
     } catch {
-      toast.error('Không tạo được thanh toán. Hóa đơn có thể đã được tạo; hãy kiểm tra mục Học phí & ghi danh.');
-      navigate('/student/tuition-enrollment');
+      toast.error('Không tạo được thanh toán. Hóa đơn có thể đã được tạo; hãy kiểm tra mục Học phí.');
+      navigate('/student/tuition');
     }
   };
 

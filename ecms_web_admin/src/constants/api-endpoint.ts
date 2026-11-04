@@ -232,7 +232,10 @@ export const API_ENDPOINT = {
   TUITION_CANCEL: (id: number) => `/api/tuition/invoices/${id}/cancel`,
   TUITION_REFUND: (id: number) => `/api/tuition/invoices/${id}/refund`,
   ENROLLMENTS: '/api/enrollments',
+  ENROLLMENT_SUMMARY: '/api/enrollments/summary',
   ENROLLMENT_OFFLINE: '/api/enrollments/offline',
+  ENROLLMENT_OFFLINE_BULK: '/api/enrollments/offline/bulk',
+  ENROLLMENT_OFFLINE_ELIGIBLE: '/api/enrollments/offline/eligible',
   ENROLLMENT_DETAIL: (id: number) => `/api/enrollments/${id}`,
   ENROLLMENT_ATTENDANCE_HISTORY: (id: number) => `/api/enrollments/${id}/attendance`,
   ENROLLMENT_STATUS_HISTORY: (id: number) => `/api/enrollments/${id}/status-history`,
@@ -241,6 +244,7 @@ export const API_ENDPOINT = {
   ENROLLMENT_TERMINATE: (id: number) => `/api/enrollments/${id}/terminate`,
   ENROLLMENT_FINAL_SCORE: (id: number) => `/api/enrollments/${id}/final-score`,
   ENROLLMENT_COMPLETE: (id: number) => `/api/enrollments/${id}/complete`,
+  ENROLLMENT_COMPLETE_BULK: '/api/enrollments/complete/bulk',
   SESSION_ATTENDANCE: (courseId: number, sessionId: number) =>
     `/api/courses/${courseId}/sessions/${sessionId}/attendance`,
   SESSION_ABSENCES: (courseId: number, sessionId: number) =>

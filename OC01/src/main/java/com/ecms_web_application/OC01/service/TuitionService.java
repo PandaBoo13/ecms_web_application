@@ -14,7 +14,7 @@ public interface TuitionService {
     InvoiceResponse createOfflineInvoice(CreateInvoiceRequest request);
     InvoiceResponse createOnlineCheckoutInvoice(Long courseId);
     Page<InvoiceResponse> search(InvoiceType type, InvoiceStatus status, Long courseId,
-                                 Long studentId, Long accountId, Long leadId, Pageable pageable);
+                                 Long studentId, Long accountId, Long leadId, String search, Pageable pageable);
     InvoiceResponse getById(Long invoiceId);
     InvoiceResponse confirmCashPayment(Long invoiceId);
     InvoiceResponse extendDueDate(Long invoiceId, ExtendInvoiceDueDateRequest request);

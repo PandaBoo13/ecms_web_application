@@ -1,15 +1,3 @@
-export type InvoiceStatus = 'PENDING' | 'PAID' | 'OVERDUE' | 'CANCELLED';
-export interface InvoiceResponse {
-  invoiceId: number;
-  invoiceCode: string;
-  courseId: number;
-  amount: number;
-  status: InvoiceStatus;
-  createdAt: string;
-  dueAt: string | null;
-  paidAt: string | null;
-  paymentMethod: 'CASH' | 'BANK_TRANSFER' | 'VNPAY' | null;
-}
 export interface EnrollmentResponse {
   enrollmentId: number;
   enrollmentType: 'OFFLINE' | 'ONLINE';
@@ -20,13 +8,21 @@ export interface EnrollmentResponse {
   absences: number;
   finalScore: number | null;
   completedAt: string | null;
+  studentName?: string | null;
+  studentCode?: string | null;
+  studentEmail?: string | null;
+  studentPhone?: string | null;
+  courseTitle?: string | null;
+  invoiceCode?: string | null;
 }
+
 export interface AttendanceAbsenceResponse {
   attendanceId: number;
   enrollmentId: number;
   sessionId: number;
   createdAt: string;
 }
+
 export interface EnrollmentStatusLogResponse {
   id: number;
   oldStatus: EnrollmentResponse['status'] | null;

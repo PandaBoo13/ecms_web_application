@@ -53,12 +53,13 @@ public class TuitionController {
             @RequestParam(required = false) Long studentId,
             @RequestParam(required = false) Long accountId,
             @RequestParam(required = false) Long leadId,
+            @RequestParam(required = false) String search,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         Pageable pageable = PageRequest.of(Math.max(page, 0), Math.max(1, Math.min(size, 100)),
                 Sort.by(Sort.Direction.DESC, "createdAt").and(Sort.by(Sort.Direction.DESC, "id")));
         return ResponseEntity.ok(new RequestResponse(
-                tuitionService.search(type, status, courseId, studentId, accountId, leadId, pageable),
+                tuitionService.search(type, status, courseId, studentId, accountId, leadId, search, pageable),
                 "Lấy danh sách hóa đơn thành công"));
     }
 
