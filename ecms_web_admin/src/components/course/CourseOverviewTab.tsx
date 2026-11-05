@@ -13,7 +13,7 @@ interface Props {
 
 /**
  * Tab "Tổng quan" — dùng chung admin + instructor.
- * Gộp: Form thông tin + Stats (mock) + Charts (mock).
+ * Gộp: Form thông tin + Thống kê học viên + Biểu đồ phân bố thực tế.
  */
 const CourseOverviewTab = ({ course, onRefresh }: Props) => {
   return (

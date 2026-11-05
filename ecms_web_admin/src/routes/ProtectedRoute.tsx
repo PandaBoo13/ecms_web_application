@@ -35,5 +35,5 @@ const ProtectedRoute = ({ children, allowedRoles }: Props) => {
 
 export default ProtectedRoute;
 
-export const ADMIN_ROLES = [ROLE.ADMIN];
+export const ADMIN_ROLES = [ROLE.ADMIN, ROLE.LEAD, ROLE.CONSULTANT];
 export const INSTRUCTOR_ROLES = [ROLE.ADMIN, ROLE.INSTRUCTOR];

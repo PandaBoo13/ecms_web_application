@@ -1,8 +1,23 @@
 import { Button, Result } from 'antd';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/hooks/useAuth';
+import { ROLE } from '@/constants/roles';
 
 const ForbiddenPage = () => {
   const navigate = useNavigate();
+  const { user, isAdmin, isInstructor, isConsultant } = useAuth();
+
+  const handleGoHome = () => {
+    if (isAdmin()) {
+      navigate('/admin/dashboard', { replace: true });
+    } else if (isInstructor()) {
+      navigate('/instructor/dashboard', { replace: true });
+    } else if (isConsultant() || user?.roleCode === ROLE.LEAD || user?.roleCode === ROLE.CONSULTANT) {
+      navigate('/admin/leads', { replace: true });
+    } else {
+      navigate('/login', { replace: true });
+    }
+  };
 
   return (
     <div
@@ -18,7 +33,7 @@ const ForbiddenPage = () => {
         title="403"
         subTitle="Bạn không có quyền truy cập trang này."
         extra={
-          <Button type="primary" onClick={() => navigate('/')}>
+          <Button type="primary" onClick={handleGoHome}>
             Về trang chủ
           </Button>
         }

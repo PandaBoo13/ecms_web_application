@@ -1,5 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import ProtectedRoute, { ADMIN_ROLES, INSTRUCTOR_ROLES } from './ProtectedRoute';
+import { ROLE } from '@/constants/roles';
+import { useAuth } from '@/hooks/useAuth';
 
 // ─── Layouts ───
 import AdminLayout from '@/components/layout/AdminLayout';
@@ -42,6 +44,14 @@ import AssignmentListPage from '@/pages/instructor/assignments/AssignmentListPag
 import ProfilePage from '@/pages/ProfilePage';
 import InstructorAttendancePage from '@/pages/instructor/attendance/InstructorAttendancePage';
 
+const AdminIndexRedirect = () => {
+  const { isConsultant } = useAuth();
+  if (isConsultant()) {
+    return <Navigate to="/admin/leads" replace />;
+  }
+  return <Navigate to="/admin/dashboard" replace />;
+};
+
 export default function AppRouter() {
   return (
     <Routes>
@@ -57,29 +67,33 @@ export default function AppRouter() {
           ══════════════════════════════════════════════════════════ */}
       <Route element={<ProtectedRoute allowedRoles={ADMIN_ROLES} />}>
         <Route element={<AdminLayout />}>
-          <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
-          <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
+          <Route path="/admin" element={<AdminIndexRedirect />} />
 
-          <Route path="/admin/users" element={<UserListPage />} />
-          <Route path="/admin/users/create" element={<UserCreatePage />} />
-          <Route path="/admin/users/:id" element={<UserDetailPage />} />
+          {/* ── Chỉ dành riêng cho ADMIN ── */}
+          <Route element={<ProtectedRoute allowedRoles={[ROLE.ADMIN]} />}>
+            <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
+            <Route path="/admin/users" element={<UserListPage />} />
+            <Route path="/admin/users/create" element={<UserCreatePage />} />
+            <Route path="/admin/users/:id" element={<UserDetailPage />} />
+            <Route path="/admin/tuition" element={<TuitionPage />} />
+            <Route path="/admin/enrollments" element={<EnrollmentPage />} />
+            <Route path="/admin/tuition-enrollment" element={<Navigate to="/admin/tuition" replace />} />
+            <Route path="/admin/roles" element={<RoleManagePage />} />
+            <Route path="/admin/permissions" element={<PermissionListPage />} />
+            <Route path="/admin/audit-logs" element={<SystemLogPage />} />
+            <Route path="/admin/reports" element={<ReportsPage />} />
+            <Route path="/admin/settings" element={<SettingsPage />} />
+          </Route>
 
-          <Route path="/admin/leads" element={<LeadListPage />} />
-          <Route path="/admin/students" element={<StudentListPage />} />
-          <Route path="/admin/categories" element={<CategoryListPage />} />
-          <Route path="/admin/tuition" element={<TuitionPage />} />
-          <Route path="/admin/enrollments" element={<EnrollmentPage />} />
-          <Route path="/admin/tuition-enrollment" element={<Navigate to="/admin/tuition" replace />} />
-
-          <Route path="/admin/courses" element={<CourseListPage />} />
-          <Route path="/admin/courses/:id" element={<CourseDetailPage />} />
-
-          <Route path="/admin/roles" element={<RoleManagePage />} />
-          <Route path="/admin/permissions" element={<PermissionListPage />} />
-          <Route path="/admin/audit-logs" element={<SystemLogPage />} />
-          <Route path="/admin/reports" element={<ReportsPage />} />
-          <Route path="/admin/profile" element={<ProfilePage />} />
-          <Route path="/admin/settings" element={<SettingsPage />} />
+          {/* ── Dành cho ADMIN và TƯ VẤN VIÊN (LEAD / CONSULTANT) ── */}
+          <Route element={<ProtectedRoute allowedRoles={[ROLE.ADMIN, ROLE.LEAD, ROLE.CONSULTANT]} />}>
+            <Route path="/admin/leads" element={<LeadListPage />} />
+            <Route path="/admin/students" element={<StudentListPage />} />
+            <Route path="/admin/categories" element={<CategoryListPage />} />
+            <Route path="/admin/courses" element={<CourseListPage />} />
+            <Route path="/admin/courses/:id" element={<CourseDetailPage />} />
+            <Route path="/admin/profile" element={<ProfilePage />} />
+          </Route>
         </Route>
       </Route>
 

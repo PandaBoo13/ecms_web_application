@@ -21,6 +21,12 @@ export type LeadTestStatus =
 
 export type InteractionType = 'CALL' | 'MEETING' | 'EMAIL' | 'CHAT' | 'OTHER';
 
+export interface Consultant {
+  id: number;
+  name: string;
+  email: string;
+}
+
 export interface Lead {
   id: number;
   fullName: string;
@@ -32,6 +38,8 @@ export interface Lead {
   convertedAt?: string;
   sourceId?: number;
   assignedConsultantId?: number;
+  assignedConsultantName?: string;
+  assignedConsultantEmail?: string;
   note?: string;
   createdAt: string;
   updatedAt: string;

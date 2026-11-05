@@ -10,7 +10,7 @@ import { useTranslation } from '@/hooks/useTranslation';
 import { ROLE_LABEL } from '@/constants/roles';
 
 const UserDropdown = () => {
-  const { user, logout, isAdmin } = useAuth();
+  const { user, logout, isInstructor } = useAuth();
   const { t } = useTranslation();
   const navigate = useNavigate();
 
@@ -24,7 +24,7 @@ const UserDropdown = () => {
     }
   };
 
-  const profilePath = isAdmin() ? '/admin/profile' : '/instructor/profile';
+  const profilePath = isInstructor() ? '/instructor/profile' : '/admin/profile';
 
   const menuItems = [
     {

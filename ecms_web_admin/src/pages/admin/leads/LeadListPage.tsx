@@ -56,11 +56,11 @@ import DateDisplay from '@/components/common/DateDisplay';
 import UserAvatar from '@/components/common/UserAvatar';
 import StatsCard from '@/components/common/StatsCard';
 import { useTranslation } from '@/hooks/useTranslation';
+import { useAuth } from '@/hooks/useAuth';
 
 import { leadApi } from '@/services/api/leads';
 import { studentApi } from '@/services/api/students';
 import { courseApi } from '@/services/api/course';
-import { adminUserApi } from '@/services/api/admin';
 import type {
   Lead,
   LeadDetail,
@@ -69,6 +69,7 @@ import type {
   LeadInteractionCreatePayload,
   LeadPlacementTestCreatePayload,
   InteractionType,
+  Consultant,
 } from '@/services/types/lead';
 
 const { Option } = Select;
@@ -84,6 +85,8 @@ interface LeadStats {
 
 const LeadListPage = () => {
   const { t } = useTranslation();
+  const { user, isConsultant } = useAuth();
+  const isTvv = user?.roleCode === 'LEAD' || user?.roleCode === 'CONSULTANT' || Boolean(isConsultant?.());
 
   // ══════════════════════════════════════════════════════════════
   // STATE
@@ -100,38 +103,19 @@ const LeadListPage = () => {
   const [inQueueFilter, setInQueueFilter] = useState<boolean | undefined>();
   const [courses, setCourses] = useState<{ id: number; title: string; code: string }[]>([]);
 
-  const FALLBACK_CONSULTANTS = useMemo(
-    () => [
-      { id: 7, name: 'Hoàng Ngọc Mai' },
-      { id: 8, name: 'Lê Minh Đức' },
-      { id: 9, name: 'Phạm Thùy Linh' },
-      { id: 10, name: 'Vũ Quang Huy' },
-      { id: 11, name: 'Nguyễn Bảo Trân' },
-      { id: 12, name: 'Đỗ Thanh Thảo' },
-    ],
-    []
-  );
+  const [consultants, setConsultants] = useState<Consultant[]>([]);
 
-  const [consultants, setConsultants] = useState<{ id: number; name: string }[]>(FALLBACK_CONSULTANTS);
-
-  // Load real consultants from system users
+  // Load real consultants directly from backend
   useEffect(() => {
-    adminUserApi
-      .search({ page: 0, size: 200 })
+    leadApi
+      .getConsultants()
       .then((res) => {
-        if (res?.content && res.content.length > 0) {
-          const staffUsers = res.content.filter(
-            (u) => u.roleCode === 'LEAD' || u.roleCode === 'CONSULTANT' || u.roleCode === 'ADMIN'
-          );
-          const list = (staffUsers.length > 0 ? staffUsers : res.content).map((u) => ({
-            id: u.accountId,
-            name: u.fullName || u.email || `Tư vấn viên #${u.accountId}`,
-          }));
-          setConsultants(list);
+        if (res && res.length > 0) {
+          setConsultants(res);
         }
       })
-      .catch(() => {
-        // Fallback consultants will remain active
+      .catch((err) => {
+        console.error('Không thể tải danh sách tư vấn viên:', err);
       });
   }, []);
 
@@ -182,11 +166,12 @@ const LeadListPage = () => {
   // ══════════════════════════════════════════════════════════════
   const fetchStats = useCallback(async () => {
     try {
+      const baseParams = isTvv && user?.accountId ? { consultantId: user.accountId } : {};
       const [allRes, newRes, queueRes, consultedRes] = await Promise.all([
-        leadApi.search({ page: 0, size: 1 }),
-        leadApi.search({ page: 0, size: 1, status: 'NEW' }),
+        leadApi.search({ page: 0, size: 1, ...baseParams }),
+        leadApi.search({ page: 0, size: 1, status: 'NEW', ...baseParams }),
         leadApi.search({ page: 0, size: 1, inQueue: true }),
-        leadApi.search({ page: 0, size: 1, status: 'CONSULTED' }),
+        leadApi.search({ page: 0, size: 1, status: 'CONSULTED', ...baseParams }),
       ]);
       setStats({
         total: allRes.totalElements,
@@ -197,7 +182,7 @@ const LeadListPage = () => {
     } catch {
       // Fallback silently if stats endpoint or params fail
     }
-  }, []);
+  }, [isTvv, user?.accountId]);
 
   // ══════════════════════════════════════════════════════════════
   // FETCH DATA
@@ -205,11 +190,12 @@ const LeadListPage = () => {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
+      const effectiveConsultantId = isTvv && user?.accountId ? user.accountId : consultantFilter;
       const res = await leadApi.search({
         search: keyword.trim() || undefined,
         status: statusFilter,
         courseId: courseFilter,
-        consultantId: consultantFilter,
+        consultantId: effectiveConsultantId,
         inQueue: inQueueFilter,
         page,
         size: pageSize,
@@ -226,7 +212,7 @@ const LeadListPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, keyword, statusFilter, courseFilter, consultantFilter, inQueueFilter]);
+  }, [page, pageSize, keyword, statusFilter, courseFilter, consultantFilter, inQueueFilter, isTvv, user?.accountId]);
 
   useEffect(() => {
     fetchData();
@@ -517,14 +503,19 @@ const LeadListPage = () => {
         render: (_, record: Lead) => {
           if (record.assignedConsultantId) {
             const matched = consultants.find((c) => c.id === record.assignedConsultantId);
+            const consultantName =
+              record.assignedConsultantName || matched?.name || `Tư vấn viên #${record.assignedConsultantId}`;
+            const consultantEmail = record.assignedConsultantEmail || matched?.email;
             return (
-              <Tag
-                color="blue"
-                icon={<UserOutlined />}
-                style={{ borderRadius: 12, padding: '2px 10px', fontWeight: 500 }}
-              >
-                {matched ? matched.name : `TVV #${record.assignedConsultantId}`}
-              </Tag>
+              <Tooltip title={consultantEmail ? `${consultantName} (${consultantEmail})` : consultantName}>
+                <Tag
+                  color="blue"
+                  icon={<UserOutlined />}
+                  style={{ borderRadius: 12, padding: '2px 10px', fontWeight: 500 }}
+                >
+                  {consultantName}
+                </Tag>
+              </Tooltip>
             );
           }
           return (
@@ -561,7 +552,7 @@ const LeadListPage = () => {
               icon={<CheckCircleOutlined />}
               style={{ borderRadius: 12, fontWeight: 600, padding: '2px 10px' }}
             >
-              HV #{studentId}
+              Học viên #{studentId}
             </Tag>
           ) : (
             <span
@@ -650,7 +641,7 @@ const LeadListPage = () => {
                 }}
                 onClick={() => handleOpenDetail(record)}
               >
-                HV #{record.studentId}
+                Học viên #{record.studentId}
               </Tag>
             )}
 
@@ -725,23 +716,42 @@ const LeadListPage = () => {
   return (
     <PageContainer>
       <PageHeader
-        title={t('lead.title')}
-        subtitle={t('lead.subtitle')}
+        title={isTvv ? 'Khách hàng của tôi (Lead)' : t('lead.title')}
+        subtitle={
+          isTvv
+            ? `Danh sách khách hàng tiềm năng được phân công cho tư vấn viên ${user?.fullName || ''}`
+            : t('lead.subtitle')
+        }
         badge={
-          <Tag
-            color="blue"
-            style={{
-              borderRadius: 12,
-              fontWeight: 600,
-              fontSize: 12,
-              padding: '2px 10px',
-              border: 'none',
-              background: '#eff6ff',
-              color: '#2563eb',
-            }}
-          >
-            CRM & Admissions
-          </Tag>
+          isTvv ? (
+            <Tag
+              color="cyan"
+              style={{
+                borderRadius: 12,
+                fontWeight: 600,
+                fontSize: 12,
+                padding: '2px 10px',
+                border: 'none',
+              }}
+            >
+              Tư vấn viên: {user?.fullName || user?.email}
+            </Tag>
+          ) : (
+            <Tag
+              color="blue"
+              style={{
+                borderRadius: 12,
+                fontWeight: 600,
+                fontSize: 12,
+                padding: '2px 10px',
+                border: 'none',
+                background: '#eff6ff',
+                color: '#2563eb',
+              }}
+            >
+              CRM & Admissions
+            </Tag>
+          )
         }
         extra={
           <Space>
@@ -774,7 +784,7 @@ const LeadListPage = () => {
       <Row gutter={[16, 16]} style={{ marginBottom: 20 }}>
         <Col xs={24} sm={12} lg={6}>
           <StatsCard
-            title={t('lead.total')}
+            title={isTvv ? 'Khách được giao' : t('lead.total')}
             value={stats.total}
             icon={<TeamOutlined />}
             color="#2563eb"
@@ -784,15 +794,15 @@ const LeadListPage = () => {
               setStatusFilter(undefined);
               setInQueueFilter(undefined);
               setCourseFilter(undefined);
-              setConsultantFilter(undefined);
+              if (!isTvv) setConsultantFilter(undefined);
               setPage(0);
             }}
-            tooltip="Nhấn để xem toàn bộ Lead"
+            tooltip={isTvv ? 'Xem tất cả khách hàng được giao cho bạn' : 'Nhấn để xem toàn bộ Lead'}
           />
         </Col>
         <Col xs={24} sm={12} lg={6}>
           <StatsCard
-            title={t('lead.new')}
+            title={isTvv ? 'Khách mới cần tư vấn' : t('lead.new')}
             value={stats.newCount}
             icon={<ClockCircleOutlined />}
             color="#f59e0b"
@@ -805,7 +815,7 @@ const LeadListPage = () => {
             }}
             tagText="Cần liên hệ"
             tagColor="warning"
-            tooltip="Nhấn để lọc Lead chưa tư vấn"
+            tooltip={isTvv ? 'Lọc khách hàng mới chưa bắt đầu tư vấn' : 'Nhấn để lọc Lead chưa tư vấn'}
           />
         </Col>
         <Col xs={24} sm={12} lg={6}>
@@ -823,12 +833,12 @@ const LeadListPage = () => {
             }}
             tagText="Chờ TVV"
             tagColor="purple"
-            tooltip="Nhấn để lọc Lead chưa được phân bổ TVV"
+            tooltip="Hàng đợi khách hàng mới chưa được phân công"
           />
         </Col>
         <Col xs={24} sm={12} lg={6}>
           <StatsCard
-            title={t('lead.consulted')}
+            title={isTvv ? 'Đã hoàn tất tư vấn' : t('lead.consulted')}
             value={stats.consultedCount}
             icon={<TrophyOutlined />}
             color="#10b981"
@@ -841,7 +851,7 @@ const LeadListPage = () => {
             }}
             tagText="Đang chốt"
             tagColor="success"
-            tooltip="Nhấn để lọc Lead đã được tư vấn"
+            tooltip={isTvv ? 'Lọc khách hàng bạn đã tư vấn' : 'Nhấn để lọc Lead đã tư vấn'}
           />
         </Col>
       </Row>
@@ -897,17 +907,39 @@ const LeadListPage = () => {
                 </Option>
               </Select>
 
-              <Select
-                placeholder="Tư vấn viên"
-                allowClear
-                style={{ width: 180, height: 38 }}
-                value={consultantFilter}
-                onChange={handleConsultantChange}
-                options={consultants.map((c) => ({
-                  value: c.id,
-                  label: c.name,
-                }))}
-              />
+              {!isTvv ? (
+                <Select
+                  placeholder="Tư vấn viên"
+                  allowClear
+                  showSearch
+                  filterOption={(input, option) =>
+                    String(option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                  }
+                  style={{ width: 220, height: 38 }}
+                  value={consultantFilter}
+                  onChange={handleConsultantChange}
+                  options={consultants.map((c) => ({
+                    value: c.id,
+                    label: c.email ? `${c.name} (${c.email})` : c.name,
+                  }))}
+                />
+              ) : (
+                <Tag
+                  color="processing"
+                  style={{
+                    height: 38,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    padding: '0 12px',
+                    fontSize: 13,
+                    borderRadius: 8,
+                    margin: 0,
+                  }}
+                >
+                  <UserOutlined style={{ marginRight: 6 }} />
+                  Phụ trách: <strong>{user?.fullName || 'Tôi'}</strong>
+                </Tag>
+              )}
 
               <Select
                 placeholder={t('lead.filter.queue')}
@@ -1034,7 +1066,7 @@ const LeadListPage = () => {
               placeholder="Bỏ trống nếu đưa vào Hàng đợi (Queue)"
               options={consultants.map((c) => ({
                 value: c.id,
-                label: `${c.name} (ID: ${c.id})`,
+                label: c.email ? `${c.name} (${c.email})` : c.name,
               }))}
               style={{ width: '100%', height: 38 }}
             />
@@ -1100,7 +1132,7 @@ const LeadListPage = () => {
               placeholder="Chọn tư vấn viên phụ trách..."
               options={consultants.map((c) => ({
                 value: c.id,
-                label: `${c.name} (ID: ${c.id})`,
+                label: c.email ? `${c.name} (${c.email})` : c.name,
               }))}
               style={{ width: '100%', height: 38 }}
             />
@@ -1476,7 +1508,7 @@ const LeadListPage = () => {
                   icon={<CheckCircleOutlined />}
                   style={{ borderRadius: 8, padding: '4px 10px', fontWeight: 600 }}
                 >
-                  HV #{leadDetail.studentId}
+                  Học viên #{leadDetail.studentId}
                 </Tag>
               )
             )}
@@ -1570,9 +1602,12 @@ const LeadListPage = () => {
                           {leadDetail.assignedConsultantId ? (
                             (() => {
                               const matched = consultants.find((c) => c.id === leadDetail.assignedConsultantId);
+                              const consultantName =
+                                leadDetail.assignedConsultantName || matched?.name || `Tư vấn viên #${leadDetail.assignedConsultantId}`;
+                              const consultantEmail = leadDetail.assignedConsultantEmail || matched?.email;
                               return (
                                 <Tag color="cyan">
-                                  {matched ? `${matched.name} (#${leadDetail.assignedConsultantId})` : `TVV #${leadDetail.assignedConsultantId}`}
+                                  {consultantName} {consultantEmail ? `(${consultantEmail})` : ''}
                                 </Tag>
                               );
                             })()
@@ -1583,7 +1618,7 @@ const LeadListPage = () => {
                         <Descriptions.Item label={<Space><CheckCircleOutlined /> {t('lead.converted')}</Space>}>
                           {leadDetail.studentId ? (
                             <Tag color="cyan" style={{ fontWeight: 600 }}>
-                              HV #{leadDetail.studentId}
+                              Học viên #{leadDetail.studentId}
                             </Tag>
                           ) : (
                             <Tag color="default">{t('lead.notConverted')}</Tag>
@@ -1683,9 +1718,14 @@ const LeadListPage = () => {
                                 </div>
                               )}
 
-                              <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 8 }}>
-                                TVV #{it.performedBy || 'System'}
-                              </div>
+                              {(() => {
+                                const perfC = it.performedBy ? consultants.find((c) => c.id === it.performedBy) : null;
+                                return (
+                                  <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 8 }}>
+                                    Tư vấn viên: {perfC ? perfC.name : (it.performedBy ? `TVV #${it.performedBy}` : 'Hệ thống')}
+                                  </div>
+                                );
+                              })()}
                             </Card>
                           ),
                         }))}
@@ -1792,26 +1832,30 @@ const LeadListPage = () => {
                             </div>
                           ),
                         })),
-                        ...(leadDetail.assignmentLogs || []).map((a) => ({
-                          color: 'purple',
-                          children: (
-                            <div>
-                              <Space>
-                                <Tag color="default">
-                                  {a.oldConsultantId ? `TVV #${a.oldConsultantId}` : t('lead.inQueue')}
-                                </Tag>
-                                <span>➔</span>
-                                <Tag color="blue">TVV #{a.newConsultantId}</Tag>
-                              </Space>
-                              {a.reason && (
-                                <div style={{ marginTop: 4, color: '#64748b' }}>{a.reason}</div>
-                              )}
-                              <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
-                                <DateDisplay value={a.changedAt} format="long" />
+                        ...(leadDetail.assignmentLogs || []).map((a) => {
+                          const oldC = a.oldConsultantId ? consultants.find((c) => c.id === a.oldConsultantId) : null;
+                          const newC = a.newConsultantId ? consultants.find((c) => c.id === a.newConsultantId) : null;
+                          return {
+                            color: 'purple',
+                            children: (
+                              <div>
+                                <Space>
+                                  <Tag color="default">
+                                    {oldC ? oldC.name : (a.oldConsultantId ? `TVV #${a.oldConsultantId}` : t('lead.inQueue'))}
+                                  </Tag>
+                                  <span>➔</span>
+                                  <Tag color="blue">{newC ? newC.name : `TVV #${a.newConsultantId}`}</Tag>
+                                </Space>
+                                {a.reason && (
+                                  <div style={{ marginTop: 4, color: '#64748b' }}>{a.reason}</div>
+                                )}
+                                <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+                                  <DateDisplay value={a.changedAt} format="long" />
+                                </div>
                               </div>
-                            </div>
-                          ),
-                        })),
+                            ),
+                          };
+                        }),
                       ]}
                     />
                   </div>
