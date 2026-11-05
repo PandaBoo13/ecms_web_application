@@ -38,7 +38,7 @@ public class StudentController {
      * POST /api/students — Tạo mới học viên thủ công
      */
     @PostMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'INSTRUCTOR')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'LEAD', 'INSTRUCTOR')")
     public ResponseEntity<RequestResponse> create(@Valid @RequestBody StudentCreateRequest request) {
         StudentResponse data = studentService.create(request);
         return ResponseEntity.status(HttpStatus.CREATED)
@@ -49,7 +49,7 @@ public class StudentController {
      * POST /api/students/convert-lead — Chuyển đổi Lead thành Student (Idempotent)
      */
     @PostMapping("/convert-lead")
-    @PreAuthorize("hasAnyRole('ADMIN', 'INSTRUCTOR')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'LEAD', 'INSTRUCTOR')")
     public ResponseEntity<RequestResponse> convertFromLead(@Valid @RequestBody StudentConvertFromLeadRequest request) {
         StudentResponse data = studentService.convertFromLead(request);
         return ResponseEntity.ok(new RequestResponse(data, "Chuyển đổi Lead sang Student thành công"));
@@ -59,7 +59,7 @@ public class StudentController {
      * GET /api/students — Lấy danh sách học viên (phân trang + lọc theo status + tìm kiếm)
      */
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'INSTRUCTOR')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'LEAD', 'INSTRUCTOR')")
     public ResponseEntity<RequestResponse> getAll(
             @RequestParam(required = false) String search,
             @RequestParam(required = false) String status,
@@ -82,7 +82,7 @@ public class StudentController {
      * GET /api/students/{id} — Lấy thông tin cơ bản học viên theo ID
      */
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'INSTRUCTOR')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'LEAD', 'INSTRUCTOR')")
     public ResponseEntity<RequestResponse> getById(@PathVariable Long id) {
         StudentResponse data = studentService.getById(id);
         return ResponseEntity.ok(new RequestResponse(data, "Lấy thông tin học viên thành công"));
@@ -92,7 +92,7 @@ public class StudentController {
      * GET /api/students/{id}/detail — Lấy thông tin chi tiết học viên kèm người giám hộ và lịch sử học
      */
     @GetMapping("/{id}/detail")
-    @PreAuthorize("hasAnyRole('ADMIN', 'INSTRUCTOR')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'LEAD', 'INSTRUCTOR')")
     public ResponseEntity<RequestResponse> getDetailById(@PathVariable Long id) {
         StudentDetailResponse data = studentService.getDetailById(id);
         return ResponseEntity.ok(new RequestResponse(data, "Lấy chi tiết học viên thành công"));
@@ -102,7 +102,7 @@ public class StudentController {
      * GET /api/students/code/{studentCode} — Lấy thông tin học viên theo mã
      */
     @GetMapping("/code/{studentCode}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'INSTRUCTOR')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'LEAD', 'INSTRUCTOR')")
     public ResponseEntity<RequestResponse> getByStudentCode(@PathVariable String studentCode) {
         StudentResponse data = studentService.getByStudentCode(studentCode);
         return ResponseEntity.ok(new RequestResponse(data, "Lấy thông tin học viên thành công"));
@@ -112,7 +112,7 @@ public class StudentController {
      * PUT /api/students/{id} — Cập nhật thông tin học viên (Mã học viên bất biến không được sửa)
      */
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'INSTRUCTOR')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'LEAD', 'INSTRUCTOR')")
     public ResponseEntity<RequestResponse> update(
             @PathVariable Long id,
             @Valid @RequestBody StudentUpdateRequest request

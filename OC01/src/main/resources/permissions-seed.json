@@ -403,5 +403,14 @@
     { "method": "PUT", "path": "/api/enrollments/{enrollmentId}/final-score", "module": "enrollment", "description": "Lưu điểm cuối khóa" },
     { "method": "POST", "path": "/api/enrollments/{enrollmentId}/complete", "module": "enrollment", "description": "Xét hoàn thành khóa học" },
     { "method": "GET", "path": "/api/courses/{courseId}/sessions/{sessionId}/attendance", "module": "enrollment", "description": "Xem danh sách điểm danh buổi học" },
-    { "method": "POST", "path": "/api/courses/{courseId}/sessions/{sessionId}/attendance/absences", "module": "enrollment", "description": "Ghi nhận học viên vắng mặt" }
+    { "method": "POST", "path": "/api/courses/{courseId}/sessions/{sessionId}/attendance/absences", "module": "enrollment", "description": "Ghi nhận học viên vắng mặt" },
+    { "method": "GET", "path": "/api/categories", "module": "category", "description": "Xem danh sách danh mục" },
+    { "method": "GET", "path": "/api/categories/{id}", "module": "category", "description": "Xem chi tiết danh mục" },
+    { "method": "GET", "path": "/api/categories/tree", "module": "category", "description": "Xem cây danh mục đầy đủ" },
+    { "method": "GET", "path": "/api/categories/tree/{rootId}", "module": "category", "description": "Xem cây danh mục theo root" },
+    { "method": "GET", "path": "/api/categories/roots", "module": "category", "description": "Xem danh sách danh mục gốc" },
+    { "method": "GET", "path": "/api/categories/{parentId}/children", "module": "category", "description": "Xem danh mục con trực tiếp" },
+    { "method": "POST", "path": "/api/categories", "module": "category", "description": "Tạo danh mục mới" },
+    { "method": "PUT", "path": "/api/categories/{id}", "module": "category", "description": "Cập nhật danh mục" },
+    { "method": "DELETE", "path": "/api/categories/{id}", "module": "category", "description": "Xóa danh mục" }
 ]

@@ -36,5 +36,7 @@ public interface LeadService {
 
     List<LeadPlacementTestResponse> getPlacementTests(Long id);
 
+    List<com.ecms_web_application.OC01.dto.response.ConsultantResponse> getConsultants();
+
     void delete(Long id);
 }

@@ -26,6 +26,11 @@ import com.ecms_web_application.OC01.repository.LeadRepository;
 import com.ecms_web_application.OC01.repository.StudentRepository;
 import com.ecms_web_application.OC01.repository.StudentStatusLogRepository;
 import com.ecms_web_application.OC01.service.StudentService;
+import com.ecms_web_application.OC01.repository.RoleRepository;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import com.ecms_web_application.OC01.entity.Account;
+import com.ecms_web_application.OC01.entity.UserProfile;
+import com.ecms_web_application.OC01.entity.Role;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -51,6 +56,8 @@ public class StudentServiceImpl implements StudentService {
     private final AcademicHistoryRepository academicHistoryRepository;
     private final StudentStatusLogRepository statusLogRepository;
     private final AccountRepository accountRepository;
+    private final RoleRepository roleRepository;
+    private final PasswordEncoder passwordEncoder;
     private final AuthSessionRepository authSessionRepository;
 
     @Override
@@ -136,12 +143,39 @@ public class StudentServiceImpl implements StudentService {
         Student student = new Student();
         student.setStudentCode(code);
         student.setFullName(request.getFullName().trim());
-        student.setEmail(request.getEmail() != null ? request.getEmail().trim().toLowerCase() : ("std_" + code.toLowerCase() + "@ecms.local"));
+        String studentEmail = request.getEmail() != null ? request.getEmail().trim().toLowerCase() : ("std_" + code.toLowerCase() + "@ecms.local");
+        student.setEmail(studentEmail);
         student.setPhone(request.getPhone() != null && !request.getPhone().isBlank() ? request.getPhone().trim() : "0000000000");
         student.setDob(request.getDateOfBirth());
         student.setAddress(emptyToNull(request.getAddress()));
         student.setLeadId(leadId);
-        student.setUserId(request.getUserId());
+
+        Long studentUserId = request.getUserId();
+        if (studentUserId == null && !studentEmail.isBlank()) {
+            Optional<Account> existingAcc = accountRepository.findByEmail(studentEmail);
+            if (existingAcc.isPresent()) {
+                studentUserId = existingAcc.get().getId();
+            } else {
+                Role studentRole = roleRepository.findByCode("STUDENT").orElse(null);
+                Account newAcc = new Account();
+                newAcc.setEmail(studentEmail);
+                newAcc.setPasswordHash(passwordEncoder.encode("Password123@"));
+                newAcc.setRole(studentRole);
+                newAcc.setIsActive(true);
+                newAcc.setIsLocked(false);
+                newAcc.setFailedLoginCount(0);
+
+                UserProfile profile = new UserProfile();
+                profile.setAccount(newAcc);
+                profile.setFullName(student.getFullName());
+                profile.setPhone(student.getPhone());
+                newAcc.setUserProfile(profile);
+
+                Account savedAcc = accountRepository.save(newAcc);
+                studentUserId = savedAcc.getId();
+            }
+        }
+        student.setUserId(studentUserId);
 
         String status = (request.getStatus() != null && !request.getStatus().isBlank())
                 ? request.getStatus().trim().toUpperCase()
@@ -198,6 +232,35 @@ public class StudentServiceImpl implements StudentService {
         student.setEmail(lead.getEmail());
         student.setPhone(lead.getPhone());
         student.setStatus("ACTIVE");
+
+        // Tự động cấp tài khoản cho Học viên theo chuẩn AUTH_MODULE (BR-ST-02)
+        Long studentUserId = null;
+        String normalizedEmail = lead.getEmail() != null ? lead.getEmail().trim().toLowerCase() : "";
+        if (!normalizedEmail.isBlank()) {
+            Optional<Account> existingAcc = accountRepository.findByEmail(normalizedEmail);
+            if (existingAcc.isPresent()) {
+                studentUserId = existingAcc.get().getId();
+            } else {
+                Role studentRole = roleRepository.findByCode("STUDENT").orElse(null);
+                Account newAcc = new Account();
+                newAcc.setEmail(normalizedEmail);
+                newAcc.setPasswordHash(passwordEncoder.encode("Password123@"));
+                newAcc.setRole(studentRole);
+                newAcc.setIsActive(true);
+                newAcc.setIsLocked(false);
+                newAcc.setFailedLoginCount(0);
+
+                UserProfile profile = new UserProfile();
+                profile.setAccount(newAcc);
+                profile.setFullName(lead.getFullName());
+                profile.setPhone(lead.getPhone());
+                newAcc.setUserProfile(profile);
+
+                Account savedAcc = accountRepository.save(newAcc);
+                studentUserId = savedAcc.getId();
+            }
+        }
+        student.setUserId(studentUserId);
 
         Student savedStudent = studentRepository.save(student);
 

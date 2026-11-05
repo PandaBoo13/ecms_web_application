@@ -5,6 +5,7 @@ import com.ecms_web_application.OC01.dto.request.LeadCreateRequest;
 import com.ecms_web_application.OC01.dto.request.LeadInteractionCreateRequest;
 import com.ecms_web_application.OC01.dto.request.LeadPlacementTestCreateRequest;
 import com.ecms_web_application.OC01.dto.request.LeadUpdateRequest;
+import com.ecms_web_application.OC01.dto.response.ConsultantResponse;
 import com.ecms_web_application.OC01.dto.response.LeadDetailResponse;
 import com.ecms_web_application.OC01.dto.response.LeadInteractionResponse;
 import com.ecms_web_application.OC01.dto.response.LeadPlacementTestResponse;
@@ -37,7 +38,7 @@ public class LeadController {
      * POST /api/leads — Tạo mới Lead
      */
     @PostMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'INSTRUCTOR')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'LEAD', 'INSTRUCTOR')")
     public ResponseEntity<RequestResponse> create(@Valid @RequestBody LeadCreateRequest request) {
         LeadResponse data = leadService.create(request);
         return ResponseEntity.status(HttpStatus.CREATED)
@@ -48,7 +49,7 @@ public class LeadController {
      * GET /api/leads — Lấy danh sách Lead (phân trang + lọc theo status, courseId, sourceId, consultant, inQueue, tìm kiếm)
      */
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'INSTRUCTOR')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'LEAD', 'INSTRUCTOR')")
     public ResponseEntity<RequestResponse> getAll(
             @RequestParam(required = false) String search,
             @RequestParam(required = false) String status,
@@ -83,10 +84,20 @@ public class LeadController {
     }
 
     /**
+     * GET /api/leads/consultants — Lấy danh sách tư vấn viên thực tế
+     */
+    @GetMapping("/consultants")
+    @PreAuthorize("hasAnyRole('ADMIN', 'LEAD', 'INSTRUCTOR')")
+    public ResponseEntity<RequestResponse> getConsultants() {
+        List<ConsultantResponse> data = leadService.getConsultants();
+        return ResponseEntity.ok(new RequestResponse(data, "Lấy danh sách tư vấn viên thành công"));
+    }
+
+    /**
      * GET /api/leads/{id} — Lấy thông tin cơ bản Lead theo ID
      */
-    @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'INSTRUCTOR')")
+    @GetMapping("/{id:[0-9]+}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'LEAD', 'INSTRUCTOR')")
     public ResponseEntity<RequestResponse> getById(@PathVariable Long id) {
         LeadResponse data = leadService.getById(id);
         return ResponseEntity.ok(new RequestResponse(data, "Lấy thông tin Lead thành công"));
@@ -96,7 +107,7 @@ public class LeadController {
      * GET /api/leads/{id}/detail — Lấy thông tin chi tiết Lead kèm tương tác, test và lịch sử
      */
     @GetMapping("/{id}/detail")
-    @PreAuthorize("hasAnyRole('ADMIN', 'INSTRUCTOR')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'LEAD', 'INSTRUCTOR')")
     public ResponseEntity<RequestResponse> getDetailById(@PathVariable Long id) {
         LeadDetailResponse data = leadService.getDetailById(id);
         return ResponseEntity.ok(new RequestResponse(data, "Lấy chi tiết Lead thành công"));
@@ -106,7 +117,7 @@ public class LeadController {
      * PUT /api/leads/{id} — Cập nhật thông tin Lead
      */
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'INSTRUCTOR')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'LEAD', 'INSTRUCTOR')")
     public ResponseEntity<RequestResponse> update(
             @PathVariable Long id,
             @Valid @RequestBody LeadUpdateRequest request
@@ -119,7 +130,7 @@ public class LeadController {
      * PUT /api/leads/{id}/assign — Phân công / chuyển người phụ trách Lead
      */
     @PutMapping("/{id}/assign")
-    @PreAuthorize("hasAnyRole('ADMIN', 'INSTRUCTOR')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'LEAD', 'INSTRUCTOR')")
     public ResponseEntity<RequestResponse> assignConsultant(
             @PathVariable Long id,
             @Valid @RequestBody LeadAssignRequest request
@@ -132,7 +143,7 @@ public class LeadController {
      * POST /api/leads/{id}/interactions — Ghi nhận tương tác tư vấn
      */
     @PostMapping("/{id}/interactions")
-    @PreAuthorize("hasAnyRole('ADMIN', 'INSTRUCTOR')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'LEAD', 'INSTRUCTOR')")
     public ResponseEntity<RequestResponse> logInteraction(
             @PathVariable Long id,
             @Valid @RequestBody LeadInteractionCreateRequest request
@@ -146,7 +157,7 @@ public class LeadController {
      * GET /api/leads/{id}/interactions — Lấy lịch sử tương tác của Lead
      */
     @GetMapping("/{id}/interactions")
-    @PreAuthorize("hasAnyRole('ADMIN', 'INSTRUCTOR')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'LEAD', 'INSTRUCTOR')")
     public ResponseEntity<RequestResponse> getInteractions(@PathVariable Long id) {
         List<LeadInteractionResponse> data = leadService.getInteractions(id);
         return ResponseEntity.ok(new RequestResponse(data, "Lấy lịch sử tương tác thành công"));
@@ -156,7 +167,7 @@ public class LeadController {
      * POST /api/leads/{id}/placement-tests — Xếp lịch hoặc ghi nhận kết quả đánh giá đầu vào
      */
     @PostMapping("/{id}/placement-tests")
-    @PreAuthorize("hasAnyRole('ADMIN', 'INSTRUCTOR')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'LEAD', 'INSTRUCTOR')")
     public ResponseEntity<RequestResponse> recordPlacementTest(
             @PathVariable Long id,
             @Valid @RequestBody LeadPlacementTestCreateRequest request
@@ -170,7 +181,7 @@ public class LeadController {
      * GET /api/leads/{id}/placement-tests — Lấy danh sách đánh giá đầu vào của Lead
      */
     @GetMapping("/{id}/placement-tests")
-    @PreAuthorize("hasAnyRole('ADMIN', 'INSTRUCTOR')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'LEAD', 'INSTRUCTOR')")
     public ResponseEntity<RequestResponse> getPlacementTests(@PathVariable Long id) {
         List<LeadPlacementTestResponse> data = leadService.getPlacementTests(id);
         return ResponseEntity.ok(new RequestResponse(data, "Lấy danh sách đánh giá đầu vào thành công"));

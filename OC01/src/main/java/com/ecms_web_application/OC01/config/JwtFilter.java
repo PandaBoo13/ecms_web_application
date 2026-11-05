@@ -51,8 +51,14 @@ public class JwtFilter extends OncePerRequestFilter {
             return;
         }
 
-        // 2. Đọc token
+        // 2. Đọc token (ưu tiên cookie, fallback Authorization header)
         Optional<String> tokenOpt = cookieUtil.getAccessTokenFromCookies(request);
+        if (tokenOpt.isEmpty()) {
+            String authHeader = request.getHeader("Authorization");
+            if (authHeader != null && authHeader.startsWith("Bearer ")) {
+                tokenOpt = Optional.of(authHeader.substring(7).trim());
+            }
+        }
 
         if (tokenOpt.isEmpty()) {
             log.debug("   ↳ Cookie access_token: KHÔNG CÓ");
