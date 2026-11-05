@@ -30,7 +30,7 @@ interface FormValues {
   fullName: string;
   phone?: string;
   email?: string;
-  categoryId?: number | 'ALL';
+  categoryId?: number | string | 'ALL';
   courseId: number;
   isPlacementTest?: boolean;
   note?: string;
@@ -43,7 +43,7 @@ interface LeadRegistrationFormProps {
 }
 
 interface CategoryOption {
-  id: number;
+  id: number | string;
   name: string;
 }
 
@@ -51,8 +51,182 @@ const DEFAULT_CATEGORIES: CategoryOption[] = [
   { id: 1, name: 'Luyện thi IELTS' },
   { id: 2, name: 'Luyện thi TOEIC' },
   { id: 3, name: 'Tiếng Anh Giao tiếp' },
-  { id: 4, name: 'Tiếng Anh Trẻ em' },
+  { id: 4, name: 'Tiếng Anh Trẻ em & Thiếu niên' },
   { id: 5, name: 'Tiếng Anh Doanh nghiệp' },
+];
+
+const FALLBACK_COURSES: CourseResponse[] = [
+  {
+    id: 101,
+    code: 'IELTS-FOUND',
+    displayCode: 'IELTS 01',
+    title: 'Khóa học IELTS Nền tảng (0 - 3.5+)',
+    slug: 'ielts-nen-tang',
+    shortDescription: 'Xây dựng nền tảng ngữ pháp, phát âm và từ vựng chuẩn chỉnh cho người mất gốc.',
+    price: 3500000,
+    isFree: false,
+    courseType: 'OFFLINE',
+    progressType: 'COMPLETION_BASED',
+    status: 'PUBLISHED',
+    categoryId: 1,
+    categoryName: 'Luyện thi IELTS',
+    currentStudents: 15,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    createdById: 1,
+  },
+  {
+    id: 102,
+    code: 'IELTS-INTENSIVE',
+    displayCode: 'IELTS 02',
+    title: 'Khóa học IELTS Bứt phá (5.0 - 6.5+)',
+    slug: 'ielts-but-pha',
+    shortDescription: 'Chiến thuật làm bài 4 kỹ năng Nghe - Nói - Đọc - Viết thực chiến cam kết đầu ra.',
+    price: 5500000,
+    isFree: false,
+    courseType: 'OFFLINE',
+    progressType: 'COMPLETION_BASED',
+    status: 'PUBLISHED',
+    categoryId: 1,
+    categoryName: 'Luyện thi IELTS',
+    currentStudents: 22,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    createdById: 1,
+  },
+  {
+    id: 103,
+    code: 'IELTS-MASTER',
+    displayCode: 'IELTS 03',
+    title: 'Khóa học IELTS Chuyên sâu Master (7.0 - 8.5+)',
+    slug: 'ielts-chuyen-sau-master',
+    shortDescription: 'Luyện đề nâng cao cùng cựu giám khảo chấm thi IDP/BC chinh phục học bổng.',
+    price: 7800000,
+    isFree: false,
+    courseType: 'OFFLINE',
+    progressType: 'COMPLETION_BASED',
+    status: 'PUBLISHED',
+    categoryId: 1,
+    categoryName: 'Luyện thi IELTS',
+    currentStudents: 12,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    createdById: 1,
+  },
+  {
+    id: 201,
+    code: 'TOEIC-2SKILL',
+    displayCode: 'TOEIC 01',
+    title: 'Khóa học TOEIC 2 Kỹ năng (Nghe - Đọc 650+)',
+    slug: 'toeic-2-ky-nang',
+    shortDescription: 'Nắm vững mẹo bẫy đề thi và từ vựng trọng điểm công sở đạt chuẩn tốt nghiệp đại học.',
+    price: 3200000,
+    isFree: false,
+    courseType: 'OFFLINE',
+    progressType: 'COMPLETION_BASED',
+    status: 'PUBLISHED',
+    categoryId: 2,
+    categoryName: 'Luyện thi TOEIC',
+    currentStudents: 28,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    createdById: 1,
+  },
+  {
+    id: 202,
+    code: 'TOEIC-4SKILL',
+    displayCode: 'TOEIC 02',
+    title: 'Khóa học TOEIC 4 Kỹ năng Toàn diện (800+)',
+    slug: 'toeic-4-ky-nang',
+    shortDescription: 'Tự tin giao tiếp và làm việc trong môi trường tập đoàn đa quốc gia.',
+    price: 4900000,
+    isFree: false,
+    courseType: 'OFFLINE',
+    progressType: 'COMPLETION_BASED',
+    status: 'PUBLISHED',
+    categoryId: 2,
+    categoryName: 'Luyện thi TOEIC',
+    currentStudents: 18,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    createdById: 1,
+  },
+  {
+    id: 301,
+    code: 'COMM-BASIC',
+    displayCode: 'COMM 01',
+    title: 'Khóa học Tiếng Anh Giao tiếp Phản xạ Tự nhiên',
+    slug: 'tieng-anh-giao-tiep-phan-xa',
+    shortDescription: 'Xóa bỏ rào cản sợ nói, tự tin giao tiếp đời sống và du lịch sau 3 tháng.',
+    price: 2800000,
+    isFree: false,
+    courseType: 'OFFLINE',
+    progressType: 'COMPLETION_BASED',
+    status: 'PUBLISHED',
+    categoryId: 3,
+    categoryName: 'Tiếng Anh Giao tiếp',
+    currentStudents: 30,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    createdById: 1,
+  },
+  {
+    id: 302,
+    code: 'COMM-ADV',
+    displayCode: 'COMM 02',
+    title: 'Khóa học Tiếng Anh Giao tiếp Thuyết trình & Đàm phán',
+    slug: 'tieng-anh-thuyet-trinh-dam-phan',
+    shortDescription: 'Kỹ năng pitching, đàm phán hợp đồng và làm việc chuyên nghiệp.',
+    price: 4200000,
+    isFree: false,
+    courseType: 'OFFLINE',
+    progressType: 'COMPLETION_BASED',
+    status: 'PUBLISHED',
+    categoryId: 3,
+    categoryName: 'Tiếng Anh Giao tiếp',
+    currentStudents: 14,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    createdById: 1,
+  },
+  {
+    id: 401,
+    code: 'KIDS-CAMBRIDGE',
+    displayCode: 'KIDS 01',
+    title: 'Tiếng Anh Trẻ em Thiếu nhi Cambridge (Starters/Movers)',
+    slug: 'tieng-anh-thieu-nhi-cambridge',
+    shortDescription: 'Phương pháp học qua trò chơi và hình ảnh trực quan kích thích tư duy ngôn ngữ.',
+    price: 3600000,
+    isFree: false,
+    courseType: 'OFFLINE',
+    progressType: 'COMPLETION_BASED',
+    status: 'PUBLISHED',
+    categoryId: 4,
+    categoryName: 'Tiếng Anh Trẻ em & Thiếu niên',
+    currentStudents: 25,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    createdById: 1,
+  },
+  {
+    id: 501,
+    code: 'BIZ-ENGLISH',
+    displayCode: 'BIZ 01',
+    title: 'Tiếng Anh Doanh nghiệp & Thương mại Quốc tế',
+    slug: 'tieng-anh-doanh-nghiep',
+    shortDescription: 'Chương trình đào tạo thiết kế may đo riêng theo đặc thù ngành nghề của doanh nghiệp.',
+    price: 6000000,
+    isFree: false,
+    courseType: 'OFFLINE',
+    progressType: 'COMPLETION_BASED',
+    status: 'PUBLISHED',
+    categoryId: 5,
+    categoryName: 'Tiếng Anh Doanh nghiệp',
+    currentStudents: 10,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    createdById: 1,
+  },
 ];
 
 export default function LeadRegistrationForm({
@@ -62,10 +236,10 @@ export default function LeadRegistrationForm({
 }: LeadRegistrationFormProps) {
   const [form] = Form.useForm<FormValues>();
   const [loading, setLoading] = useState(false);
-  const [courses, setCourses] = useState<CourseResponse[]>([]);
+  const [courses, setCourses] = useState<CourseResponse[]>(FALLBACK_COURSES);
   const [categories, setCategories] = useState<CategoryOption[]>(DEFAULT_CATEGORIES);
-  const [selectedCategory, setSelectedCategory] = useState<number | 'ALL'>('ALL');
   const [loadingCourses, setLoadingCourses] = useState(false);
+  const [courseSelectOpen, setCourseSelectOpen] = useState(false);
   const [successModalVisible, setSuccessModalVisible] = useState(false);
   const [submittedLead, setSubmittedLead] = useState<{
     fullName: string;
@@ -74,6 +248,9 @@ export default function LeadRegistrationForm({
     courseName?: string;
     isPlacementTest?: boolean;
   } | null>(null);
+
+  // Theo dõi giá trị danh mục đã chọn từ Form store thông qua AntD useWatch
+  const selectedCategory = Form.useWatch('categoryId', form) ?? 'ALL';
 
   // 1. Tải danh sách khóa học (PUBLISHED) và danh mục đào tạo (Categories)
   useEffect(() => {
@@ -88,15 +265,26 @@ export default function LeadRegistrationForm({
         if (!mounted) return;
 
         let loadedCourses: CourseResponse[] = [];
-        if (coursesRes.status === 'fulfilled' && coursesRes.value?.content) {
+        if (
+          coursesRes.status === 'fulfilled' &&
+          coursesRes.value?.content &&
+          coursesRes.value.content.length > 0
+        ) {
           loadedCourses = coursesRes.value.content;
-          setCourses(loadedCourses);
+        } else {
+          // Dùng fallback courses nếu BE chưa có data hoặc đang offline
+          loadedCourses = FALLBACK_COURSES;
         }
+        setCourses(loadedCourses);
 
-        // Lấy danh mục từ API hoặc trích xuất từ các khóa học
-        const catMap = new Map<number, string>();
+        // Thu thập danh mục từ BE API và từ chính danh sách khóa học
+        const catMap = new Map<number | string, string>();
 
-        if (categoriesRes.status === 'fulfilled' && categoriesRes.value?.content) {
+        if (
+          categoriesRes.status === 'fulfilled' &&
+          categoriesRes.value?.content &&
+          categoriesRes.value.content.length > 0
+        ) {
           categoriesRes.value.content.forEach((cat: CategoryResponse) => {
             if (cat.id && cat.name) {
               catMap.set(cat.id, cat.name);
@@ -104,20 +292,30 @@ export default function LeadRegistrationForm({
           });
         }
 
-        // Trích xuất bổ sung từ danh sách khóa học để không bị sót
+        // Bổ sung danh mục từ các khóa học
         loadedCourses.forEach((c) => {
           if (c.categoryId && c.categoryName) {
             catMap.set(c.categoryId, c.categoryName);
           }
         });
 
-        if (catMap.size > 0) {
-          const list = Array.from(catMap.entries()).map(([id, name]) => ({ id, name }));
-          setCategories(list);
+        // Nếu chưa có danh mục nào, dùng DEFAULT_CATEGORIES
+        if (catMap.size === 0) {
+          DEFAULT_CATEGORIES.forEach((cat) => catMap.set(cat.id, cat.name));
         }
+
+        const list: CategoryOption[] = Array.from(catMap.entries()).map(([id, name]) => ({
+          id,
+          name,
+        }));
+        setCategories(list);
       })
       .catch((err) => {
-        console.warn('Không thể nạp danh mục/khóa học:', err);
+        console.warn('Không thể nạp danh mục/khóa học từ API, sử dụng dữ liệu mặc định:', err);
+        if (mounted) {
+          setCourses(FALLBACK_COURSES);
+          setCategories(DEFAULT_CATEGORIES);
+        }
       })
       .finally(() => {
         if (mounted) setLoadingCourses(false);
@@ -132,31 +330,76 @@ export default function LeadRegistrationForm({
   useEffect(() => {
     if (initialCourseId && courses.length > 0) {
       const targetCourse = courses.find((c) => c.id === initialCourseId);
-      if (targetCourse?.categoryId) {
-        setSelectedCategory(targetCourse.categoryId);
+      if (targetCourse) {
         form.setFieldsValue({
-          categoryId: targetCourse.categoryId,
+          categoryId: targetCourse.categoryId || 'ALL',
           courseId: initialCourseId,
         });
-      } else {
-        form.setFieldsValue({ courseId: initialCourseId });
       }
     }
   }, [initialCourseId, courses, form]);
 
-  // 3. Lọc danh sách khóa học theo danh mục đã chọn
+  // 3. Hàm kiểm tra một khóa học có khớp với danh mục được chọn hay không (đa tầng & thông minh)
+  const isCourseMatchCategory = (course: CourseResponse, catIdOrAll: number | string | 'ALL'): boolean => {
+    if (!catIdOrAll || catIdOrAll === 'ALL') {
+      return true;
+    }
+
+    const selectedCatStr = String(catIdOrAll);
+    const targetCat = categories.find((c) => String(c.id) === selectedCatStr);
+    const targetName = (targetCat ? targetCat.name : '').toLowerCase().trim();
+
+    // 1. So khớp ID trực tiếp
+    if (course.categoryId !== undefined && course.categoryId !== null) {
+      if (String(course.categoryId) === selectedCatStr) return true;
+    }
+
+    // 2. So khớp theo tên danh mục
+    if (course.categoryName && targetName) {
+      const cCatName = course.categoryName.toLowerCase().trim();
+      if (cCatName === targetName || cCatName.includes(targetName) || targetName.includes(cCatName)) {
+        return true;
+      }
+    }
+
+    // 3. So khớp từ khóa thông minh theo tên / mô tả khóa học
+    const searchText = `${course.title || ''} ${course.shortDescription || ''}`.toLowerCase();
+    if (targetName.includes('ielts') && searchText.includes('ielts')) return true;
+    if (targetName.includes('toeic') && searchText.includes('toeic')) return true;
+    if (
+      (targetName.includes('giao tiếp') || targetName.includes('communication')) &&
+      (searchText.includes('giao tiếp') || searchText.includes('communication'))
+    ) return true;
+    if (
+      (targetName.includes('trẻ em') || targetName.includes('thiếu nhi') || targetName.includes('kid')) &&
+      (searchText.includes('trẻ em') || searchText.includes('thiếu nhi') || searchText.includes('kid'))
+    ) return true;
+    if (
+      (targetName.includes('doanh nghiệp') || targetName.includes('business')) &&
+      (searchText.includes('doanh nghiệp') || searchText.includes('business'))
+    ) return true;
+
+    return false;
+  };
+
+  // 4. Lọc danh sách khóa học theo danh mục đã chọn
   const filteredCourses = useMemo(() => {
     if (!selectedCategory || selectedCategory === 'ALL') {
       return courses;
     }
-    return courses.filter((c) => c.categoryId === selectedCategory);
-  }, [courses, selectedCategory]);
+    return courses.filter((c) => isCourseMatchCategory(c, selectedCategory));
+  }, [courses, selectedCategory, categories]);
 
-  // 4. Nhóm các khóa học theo danh mục khi chọn "Tất cả danh mục"
+  // 5. Đếm số khóa học theo danh mục hiển thị
+  const getCategoryCount = (cat: CategoryOption): number => {
+    return courses.filter((c) => isCourseMatchCategory(c, cat.id)).length;
+  };
+
+  // 6. Nhóm các khóa học theo danh mục khi chọn "Tất cả danh mục"
   const groupedCourses = useMemo(() => {
     const map = new Map<string, CourseResponse[]>();
     courses.forEach((c) => {
-      const groupName = c.categoryName || 'Khóa học khác';
+      const groupName = c.categoryName || 'Khóa học tiêu biểu';
       if (!map.has(groupName)) {
         map.set(groupName, []);
       }
@@ -165,7 +408,14 @@ export default function LeadRegistrationForm({
     return Array.from(map.entries());
   }, [courses]);
 
-  // 5. Validator nghiệp vụ: Bắt buộc cung cấp ít nhất SĐT hoặc Email
+  // Format nhãn loại hình học
+  const formatCourseTypeTag = (type?: string) => {
+    if (type === 'COURSE_ONLINE') return ' [Online]';
+    if (type === 'COURSE_OFFLINE') return ' [Tại trung tâm]';
+    return '';
+  };
+
+  // 7. Validator nghiệp vụ: Bắt buộc cung cấp ít nhất SĐT hoặc Email (FR_02)
   const validatePhone = (_: unknown, value?: string) => {
     const emailValue = form.getFieldValue('email');
     const hasEmail = Boolean(emailValue && emailValue.trim() !== '');
@@ -204,7 +454,7 @@ export default function LeadRegistrationForm({
     return Promise.resolve();
   };
 
-  // 6. Xử lý gửi Form đăng ký Lead
+  // 8. Xử lý gửi Form đăng ký Lead
   const handleSubmit = async (values: FormValues) => {
     setLoading(true);
     try {
@@ -253,7 +503,6 @@ export default function LeadRegistrationForm({
 
       setSuccessModalVisible(true);
       form.resetFields();
-      setSelectedCategory('ALL');
       if (onSuccess) {
         onSuccess();
       }
@@ -346,54 +595,83 @@ export default function LeadRegistrationForm({
         {/* LỌC THEO DANH MỤC KHÓA HỌC */}
         <Form.Item
           name="categoryId"
-          label={<span style={{ fontWeight: 600 }}>Danh mục khóa học</span>}
-          tooltip="Chọn danh mục để thu hẹp và tìm đúng khóa học bạn quan tâm"
+          label={
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontWeight: 600 }}>Danh mục khóa học</span>
+              <span style={{ fontSize: 12, color: '#64748b' }}>
+                {selectedCategory === 'ALL'
+                  ? `(Tất cả ${courses.length} khóa)`
+                  : `(${filteredCourses.length} khóa phù hợp)`}
+              </span>
+            </div>
+          }
+          tooltip="Chọn danh mục để xem ngay các khóa học tương ứng"
         >
           <Select
             placeholder="-- Chọn danh mục để lọc khóa học --"
             size={compact ? 'middle' : 'large'}
-            value={selectedCategory}
             onChange={(val) => {
-              setSelectedCategory(val);
+              form.setFieldValue('categoryId', val);
+
               // Kiểm tra nếu khóa học hiện tại không thuộc danh mục mới chọn thì xóa đi để chọn lại
               const currentCourseId = form.getFieldValue('courseId');
               if (currentCourseId) {
-                const target = courses.find((c) => c.id === currentCourseId);
-                if (val !== 'ALL' && target?.categoryId !== val) {
+                const isStillMatch = isCourseMatchCategory(
+                  courses.find((c) => c.id === currentCourseId) || ({} as CourseResponse),
+                  val
+                );
+                if (!isStillMatch) {
                   form.setFieldsValue({ courseId: undefined as unknown as number });
                 }
               }
+
+              // ✅ TỰ ĐỘNG SỔ DANH SÁCH KHÓA HỌC TƯƠNG ỨNG ĐỂ NGƯỜI DÙNG CHỌN NGAY
+              setTimeout(() => {
+                setCourseSelectOpen(true);
+              }, 120);
             }}
             suffixIcon={<AppstoreOutlined style={{ color: '#94a3b8' }} />}
           >
             <Option value="ALL">Tất cả danh mục ({courses.length} khóa học)</Option>
             {categories.map((cat) => {
-              const count = courses.filter((c) => c.categoryId === cat.id).length;
+              const count = getCategoryCount(cat);
               return (
                 <Option key={cat.id} value={cat.id}>
-                  {cat.name} {count > 0 ? `(${count} khóa)` : ''}
+                  {cat.name} ({count} khóa)
                 </Option>
               );
             })}
           </Select>
         </Form.Item>
 
-        {/* KHÓA HỌC QUAN TÂM (BẮT BUỘC CHỌN) */}
+        {/* KHÓA HỌC QUAN TÂM (BẮT BUỘC CHỌN - TỰ ĐỘNG SỔ XUỐNG KHI CHỌN DANH MỤC) */}
         <Form.Item
           name="courseId"
           label={
-            <span style={{ fontWeight: 600 }}>
-              Khóa học quan tâm <Text type="danger">*</Text>
-            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontWeight: 600 }}>
+                Khóa học quan tâm <Text type="danger">*</Text>
+              </span>
+              {selectedCategory !== 'ALL' && (
+                <Tag color="blue" style={{ fontSize: 11, borderRadius: 10, padding: '0 6px' }}>
+                  {filteredCourses.length} khóa phù hợp
+                </Tag>
+              )}
+            </div>
           }
           rules={[{ required: true, message: 'Vui lòng chọn khóa học bạn muốn đăng ký tư vấn' }]}
           tooltip="Bắt buộc chọn khóa học để tư vấn viên chuẩn bị thông tin lộ trình và học phí chính xác"
         >
           <Select
+            open={courseSelectOpen}
+            onDropdownVisibleChange={(open) => setCourseSelectOpen(open)}
+            onSelect={() => setCourseSelectOpen(false)}
             placeholder={
               loadingCourses
                 ? 'Đang tải danh sách khóa học...'
-                : '-- Chọn khóa học bạn quan tâm (Bắt buộc) --'
+                : filteredCourses.length > 0
+                  ? `-- Chọn khóa học (${filteredCourses.length} khóa phù hợp) --`
+                  : '-- Chưa có khóa học trong danh mục này --'
             }
             size={compact ? 'middle' : 'large'}
             loading={loadingCourses}
@@ -403,17 +681,23 @@ export default function LeadRegistrationForm({
           >
             {selectedCategory === 'ALL'
               ? groupedCourses.map(([groupName, groupList]) => (
-                  <OptGroup key={groupName} label={groupName}>
+                  <OptGroup key={groupName} label={`${groupName} (${groupList.length} khóa)`}>
                     {groupList.map((c) => (
                       <Option key={c.id} value={c.id}>
-                        {c.title} {c.courseType ? `(${c.courseType})` : ''}
+                        {c.title}
+                        <span style={{ color: '#64748b', fontSize: 12 }}>
+                          {formatCourseTypeTag(c.courseType)}
+                        </span>
                       </Option>
                     ))}
                   </OptGroup>
                 ))
               : filteredCourses.map((c) => (
                   <Option key={c.id} value={c.id}>
-                    {c.title} {c.courseType ? `(${c.courseType})` : ''}
+                    {c.title}
+                    <span style={{ color: '#64748b', fontSize: 12 }}>
+                      {formatCourseTypeTag(c.courseType)}
+                    </span>
                   </Option>
                 ))}
           </Select>

@@ -4,7 +4,7 @@ import type { ColumnsType } from 'antd/es/table';
 import toast from 'react-hot-toast';
 
 import StatusTag from '@/components/common/StatusTag';
-import { questionApi } from '@/services/api/courses';
+import { questionApi } from '@/services/api/course';
 import type { QuestionResponse, QuestionType } from '@/services/types/course';
 
 const { Text } = Typography;
