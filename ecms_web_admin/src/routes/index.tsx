@@ -32,7 +32,9 @@ import LeadListPage from '@/pages/admin/leads/LeadListPage';
 import StudentListPage from '@/pages/admin/students/StudentListPage';
 import CategoryListPage from '@/pages/admin/categories/CategoryListPage';
 import TuitionPage from '@/pages/admin/tuition/TuitionPage';
+import RefundPage from '@/pages/admin/tuition/RefundPage';
 import EnrollmentPage from '@/pages/admin/enrollment/EnrollmentPage';
+import PendingEnrollmentPage from '@/pages/admin/enrollment/PendingEnrollmentPage';
 import RequestListPage from '@/pages/admin/requests/RequestListPage';
 
 // ─── Instructor pages ───
@@ -78,7 +80,9 @@ export default function AppRouter() {
             <Route path="/admin/users/create" element={<UserCreatePage />} />
             <Route path="/admin/users/:id" element={<UserDetailPage />} />
             <Route path="/admin/tuition" element={<TuitionPage />} />
+            <Route path="/admin/refunds" element={<RefundPage />} />
             <Route path="/admin/enrollments" element={<EnrollmentPage />} />
+            <Route path="/admin/enrollments/pending" element={<PendingEnrollmentPage />} />
             <Route path="/admin/tuition-enrollment" element={<Navigate to="/admin/tuition" replace />} />
             {/* ⚠️ /admin/courses/create dành cho Admin, phải đứng TRƯỚC /:id */}
             <Route path="/admin/courses/create" element={<AdminCourseCreatePage />} />

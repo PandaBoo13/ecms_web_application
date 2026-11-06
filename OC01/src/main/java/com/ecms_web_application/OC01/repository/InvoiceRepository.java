@@ -14,6 +14,8 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -23,6 +25,24 @@ public interface InvoiceRepository extends IRepository<Invoice, Long>, JpaSpecif
             Long accountId, Long courseId, InvoiceType type, InvoiceStatus status);
     boolean existsByOriginalInvoiceId(Long originalInvoiceId);
     Optional<Invoice> findByOriginalInvoiceId(Long originalInvoiceId);
+
+    boolean existsByLeadIdAndCourseIdAndTypeAndStatusIn(
+            Long leadId, Long courseId, InvoiceType type, java.util.Collection<InvoiceStatus> statuses);
+
+    boolean existsByStudentIdAndCourseIdAndTypeAndStatusIn(
+            Long studentId, Long courseId, InvoiceType type, java.util.Collection<InvoiceStatus> statuses);
+
+    /** Lấy nhanh danh sách leadId đang có hóa đơn học phí ở các trạng thái đang mở. */
+    @Query("""
+            SELECT DISTINCT i.leadId FROM Invoice i
+            WHERE i.leadId IN :leadIds
+              AND i.type = :type
+              AND i.status IN :statuses
+            """)
+    List<Long> findLeadIdsWithActiveInvoice(
+            @Param("leadIds") Collection<Long> leadIds,
+            @Param("type") InvoiceType type,
+            @Param("statuses") Collection<InvoiceStatus> statuses);
 
     @Query(value = """
             SELECT i FROM Invoice i
@@ -49,6 +69,12 @@ public interface InvoiceRepository extends IRepository<Invoice, Long>, JpaSpecif
               AND (i.studentId IS NOT NULL OR i.leadId IS NOT NULL OR i.accountId IS NOT NULL
                    OR EXISTS (SELECT sa.id FROM Student sa WHERE sa.userId = i.accountId))
             AND EXISTS (SELECT c.id FROM Course c WHERE c.id = i.courseId AND c.courseType = :courseType)
+              AND EXISTS (
+                  SELECT sp.id FROM Student sp
+                  WHERE sp.id = i.studentId
+                     OR (i.accountId IS NOT NULL AND sp.userId = i.accountId)
+                     OR (i.leadId IS NOT NULL AND sp.leadId = i.leadId)
+              )
               AND NOT EXISTS (
                   SELECT e.id FROM Enrollment e
                   WHERE e.courseId = i.courseId
@@ -86,6 +112,12 @@ public interface InvoiceRepository extends IRepository<Invoice, Long>, JpaSpecif
               AND (i.studentId IS NOT NULL OR i.leadId IS NOT NULL OR i.accountId IS NOT NULL
                    OR EXISTS (SELECT sa.id FROM Student sa WHERE sa.userId = i.accountId))
             AND EXISTS (SELECT c.id FROM Course c WHERE c.id = i.courseId AND c.courseType = :courseType)
+              AND EXISTS (
+                  SELECT sp.id FROM Student sp
+                  WHERE sp.id = i.studentId
+                     OR (i.accountId IS NOT NULL AND sp.userId = i.accountId)
+                     OR (i.leadId IS NOT NULL AND sp.leadId = i.leadId)
+              )
               AND NOT EXISTS (
                   SELECT e.id FROM Enrollment e
                   WHERE e.courseId = i.courseId
@@ -108,7 +140,9 @@ public interface InvoiceRepository extends IRepository<Invoice, Long>, JpaSpecif
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT i FROM Invoice i WHERE i.type = :type AND i.status = :status " +
-            "AND i.dueAt IS NOT NULL AND i.dueAt <= :now")
+            "AND i.dueAt IS NOT NULL AND i.dueAt <= :now " +
+            "AND i.courseId IN (SELECT c.id FROM Course c WHERE c.courseType = :courseType)")
     java.util.List<Invoice> findDueInvoicesForUpdate(@Param("type") InvoiceType type,
-            @Param("status") InvoiceStatus status, @Param("now") java.time.LocalDateTime now);
+            @Param("status") InvoiceStatus status, @Param("now") java.time.LocalDateTime now,
+            @Param("courseType") CourseType courseType);
 }

@@ -13,9 +13,12 @@ import com.ecms_web_application.OC01.dto.response.LeadResponse;
 import com.ecms_web_application.OC01.entity.Lead;
 import com.ecms_web_application.OC01.entity.LeadAssignmentLog;
 import com.ecms_web_application.OC01.entity.LeadInteraction;
+import com.ecms_web_application.OC01.entity.enums.InvoiceStatus;
+import com.ecms_web_application.OC01.entity.enums.InvoiceType;
 import com.ecms_web_application.OC01.exception.ErrorHandler;
 import com.ecms_web_application.OC01.dto.response.ConsultantResponse;
 import com.ecms_web_application.OC01.repository.AccountRepository;
+import com.ecms_web_application.OC01.repository.InvoiceRepository;
 import com.ecms_web_application.OC01.repository.LeadAssignmentLogRepository;
 import com.ecms_web_application.OC01.repository.LeadRepository;
 import com.ecms_web_application.OC01.service.LeadService;
@@ -32,9 +35,11 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -42,17 +47,21 @@ import java.util.stream.Collectors;
 @Slf4j
 public class LeadServiceImpl implements LeadService {
 
+    private static final List<InvoiceStatus> ACTIVE_INVOICE_STATUSES = List.of(
+            InvoiceStatus.PENDING, InvoiceStatus.PAID, InvoiceStatus.OVERDUE);
+
     private final LeadRepository leadRepository;
     private final LeadAssignmentLogRepository assignmentLogRepository;
     private final AccountRepository accountRepository;
+    private final InvoiceRepository invoiceRepository;
 
     @Override
     @Transactional(readOnly = true)
-    public Page<LeadResponse> search(String search, String status, Long courseId, Long sourceId, Long consultantId, Boolean inQueue, Pageable pageable) {
+    public Page<LeadResponse> search(String search, String status, Long courseId, Long sourceId, Long consultantId,
+                                     Boolean inQueue, Boolean hasOpenInvoice, Pageable pageable) {
         if (pageable.getSort().isUnsorted()) {
             pageable = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), Sort.by("createdAt").descending());
         }
-
         // Nếu người dùng là role LEAD (Tư vấn viên), tự động chỉ xem khách hàng được giao cho mình
         if (SecurityUtils.hasRole("LEAD")) {
             consultantId = SecurityUtils.getCurrentAccountId();
@@ -60,16 +69,30 @@ public class LeadServiceImpl implements LeadService {
         }
 
         Map<Long, ConsultantResponse> consultantMap = getConsultantMap();
-        return leadRepository
-                .searchLeads(emptyToNull(status), courseId, consultantId, inQueue, emptyToNull(search), pageable)
-                .map(lead -> toResponse(lead, consultantMap));
+        Page<Lead> leads = leadRepository.searchLeads(
+                emptyToNull(status), courseId, consultantId, inQueue, hasOpenInvoice,
+                InvoiceType.TUITION_PAYMENT, ACTIVE_INVOICE_STATUSES, emptyToNull(search), pageable);
+
+        Set<Long> leadIds = new HashSet<>();
+        leads.getContent().forEach(lead -> leadIds.add(lead.getId()));
+
+        Set<Long> leadIdsWithInvoice = new HashSet<>();
+        if (!leadIds.isEmpty()) {
+            leadIdsWithInvoice.addAll(invoiceRepository.findLeadIdsWithActiveInvoice(
+                    leadIds, InvoiceType.TUITION_PAYMENT, ACTIVE_INVOICE_STATUSES));
+        }
+        return leads.map(lead -> {
+            LeadResponse response = toResponse(lead, consultantMap);
+            response.setHasOpenInvoice(leadIdsWithInvoice.contains(lead.getId()));
+            return response;
+        });
     }
 
     @Override
     @Transactional(readOnly = true)
     public LeadResponse getById(Long id) {
         Lead lead = findLeadById(id);
-        return toResponse(lead);
+        return toResponse(lead, hasOpenInvoice(lead.getId()));
     }
 
     @Override
@@ -78,6 +101,7 @@ public class LeadServiceImpl implements LeadService {
         Lead lead = findLeadById(id);
         LeadDetailResponse detail = new LeadDetailResponse();
         copyPropertiesToResponse(lead, detail, getConsultantMap());
+        detail.setHasOpenInvoice(hasOpenInvoice(lead.getId()));
 
         List<LeadInteractionResponse> interactions = getInteractions(id);
         List<LeadPlacementTestResponse> placementTests = getPlacementTests(id);
@@ -450,7 +474,19 @@ public class LeadServiceImpl implements LeadService {
     private LeadResponse toResponse(Lead lead, Map<Long, ConsultantResponse> consultantMap) {
         LeadResponse response = new LeadResponse();
         copyPropertiesToResponse(lead, response, consultantMap);
+        response.setHasOpenInvoice(false);
         return response;
+    }
+
+    private LeadResponse toResponse(Lead lead, boolean hasOpenInvoice) {
+        LeadResponse response = toResponse(lead);
+        response.setHasOpenInvoice(hasOpenInvoice);
+        return response;
+    }
+
+    private boolean hasOpenInvoice(Long leadId) {
+        return !invoiceRepository.findLeadIdsWithActiveInvoice(
+                List.of(leadId), InvoiceType.TUITION_PAYMENT, ACTIVE_INVOICE_STATUSES).isEmpty();
     }
 
     private LeadInteractionResponse toInteractionResponse(LeadInteraction interaction) {

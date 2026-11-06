@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import PublicRoute from './PublicRoute';
 import StudentRoute from './StudentRoute';
+import ProtectedRoute from './ProtectedRoute';
 import PublicLayout from '@/components/layout/PublicLayout';
 import StudentLayout from '@/components/layout/StudentLayout';
 import LoginPage from '@/pages/auth/LoginPage';
@@ -24,6 +25,9 @@ import GradesPage from '@/pages/student/grades/GradesPage';
 import ProfilePage from '@/pages/ProfilePage';
 import TuitionPage from '@/pages/student/tuition/TuitionPage';
 import EnrollmentPage from '@/pages/student/enrollment/EnrollmentPage';
+import PaymentLinkPage from '@/pages/payment/PaymentLinkPage';
+import VnpayReturnPage from '@/pages/payment/VnpayReturnPage';
+import OnlineCheckoutPage from '@/pages/checkout/OnlineCheckoutPage';
 
 export default function AppRouter() {
   return (
@@ -36,6 +40,11 @@ export default function AppRouter() {
         <Route path="/blog" element={<BlogPage />} />
         <Route path="/about" element={<AboutPage />} />
         <Route path="/contact" element={<ContactPage />} />
+        <Route path="/pay" element={<PaymentLinkPage />} />
+        <Route path="/payment/vnpay-return" element={<VnpayReturnPage />} />
+        <Route element={<ProtectedRoute />}>
+          <Route path="/checkout/:courseId" element={<OnlineCheckoutPage />} />
+        </Route>
       </Route>
       <Route element={<PublicRoute redirectIfAuthenticated />}>
         <Route path="/login" element={<LoginPage />} />

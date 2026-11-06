@@ -80,6 +80,20 @@ public class JwtService {
                 .compact();
     }
 
+    /**
+     * Token dùng một lần cho link công khai (vd. link thanh toán học phí).
+     * Không lưu DB; hạn dùng do caller quyết định.
+     */
+    public String generateLinkToken(Map<String, Object> claims, String subject, long ttlMillis) {
+        return Jwts.builder()
+                .claims(claims)
+                .subject(subject)
+                .issuedAt(new Date(System.currentTimeMillis()))
+                .expiration(new Date(System.currentTimeMillis() + ttlMillis))
+                .signWith(getSignKey())
+                .compact();
+    }
+
     // ============================================================
     // EXTRACT
     // ============================================================

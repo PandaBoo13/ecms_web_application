@@ -1,4 +1,8 @@
 spring:
+  config:
+    import:
+      - optional:file:./.env[.properties]
+      - optional:file:./OC01/.env[.properties]
   application:
     name: OC01
 
@@ -295,11 +299,11 @@ logging:
 cookie:
   access-token-name: access_token
   refresh-token-name: refresh_token
-  domain:
+  domain: ${COOKIE_DOMAIN:}
   path: /
-  secure: true       # 🔥 ĐÃ SỬA: Bắt buộc true cho HTTPS (Vercel/Render)
+  secure: ${COOKIE_SECURE:false}       # 🔥 Mặc định false cho localhost HTTP, set true khi chạy HTTPS production
   http-only: true
-  same-site: None    # 🔥 ĐÃ SỬA: Bắt buộc None để cho phép Cross-site
+  same-site: ${COOKIE_SAME_SITE:Lax}   # 🔥 Mặc định Lax cho localhost, set None khi chạy Cross-site production
   access-token-max-age: 900
   refresh-token-max-age: 2592000
 

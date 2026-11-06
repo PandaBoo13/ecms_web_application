@@ -66,6 +66,7 @@ public class EnrollmentServiceImpl implements EnrollmentService {
     private final SessionRepository sessionRepository;
     private final CourseResourceRepository courseResourceRepository;
     private final ProgressRepository progressRepository;
+    private final com.ecms_web_application.OC01.service.ProgressCalculationService progressCalculationService;
     private final EntityManager entityManager;
     private final PlatformTransactionManager transactionManager;
 
@@ -122,8 +123,8 @@ public class EnrollmentServiceImpl implements EnrollmentService {
             }
             return response(existing);
         }
-        ensureOfflineStudentProfile(invoice);
-        if (enrollmentRepository.existsByCourseIdAndStudentId(course.getId(), invoice.getStudentId())) {
+        Long studentId = ensureOfflineStudentProfile(invoice);
+        if (enrollmentRepository.existsByCourseIdAndStudentId(course.getId(), studentId)) {
             throw new ErrorHandler(HttpStatus.CONFLICT, "Học viên đã có ghi danh trong khóa học này");
         }
         Long actorId = invoice.getConfirmedBy() != null ? invoice.getConfirmedBy() : invoice.getCreatedBy();
@@ -131,7 +132,7 @@ public class EnrollmentServiceImpl implements EnrollmentService {
                 course.getStartDate() != null && !course.getStartDate().isAfter(LocalDate.now())
                         ? EnrollmentStatus.ACTIVE
                         : EnrollmentStatus.PENDING,
-                actorId);
+                actorId, studentId);
     }
 
     /**
@@ -139,29 +140,21 @@ public class EnrollmentServiceImpl implements EnrollmentService {
      * Nếu hóa đơn đã thanh toán nhưng mới chỉ liên kết Lead, hệ thống tự chuyển Lead sang
      * Student (idempotent) rồi gắn studentId vào hóa đơn để hoàn tất ghi danh.
      */
-    private void ensureOfflineStudentProfile(Invoice invoice) {
+    private Long ensureOfflineStudentProfile(Invoice invoice) {
         if (invoice.getStudentId() != null) {
-            return;
-        }
-        if (invoice.getAccountId() != null) {
-            Student existing = studentRepository.findByUserId(invoice.getAccountId()).orElse(null);
-            if (existing != null) {
-                invoice.setStudentId(existing.getId());
-                invoiceRepository.save(invoice);
-                return;
-            }
+            return invoice.getStudentId();
         }
         if (invoice.getLeadId() == null) {
             throw new ErrorHandler(HttpStatus.CONFLICT,
-                    "Hóa đơn chưa liên kết hồ sơ học viên hoặc lead; không thể tạo ghi danh OFFLINE");
+                    "Hóa đơn OFFLINE phải liên kết với hồ sơ học viên hoặc Lead mới");
         }
         StudentConvertFromLeadRequest request = new StudentConvertFromLeadRequest();
         request.setLeadId(invoice.getLeadId());
         request.setCourseId(invoice.getCourseId());
         request.setNote("Tự động tạo hồ sơ học viên khi ghi danh từ hóa đơn " + invoice.getInvoiceCode());
-        StudentResponse student = studentService.convertFromLead(request);
-        invoice.setStudentId(student.getId());
-        invoiceRepository.save(invoice);
+        Long actorId = invoice.getConfirmedBy() != null ? invoice.getConfirmedBy() : invoice.getCreatedBy();
+        StudentResponse student = studentService.convertFromLeadForPayment(request, actorId);
+        return student.getId();
     }
 
     @Override
@@ -174,6 +167,7 @@ public class EnrollmentServiceImpl implements EnrollmentService {
             if (existing.getEnrollmentType() != EnrollmentType.ONLINE) {
                 throw new ErrorHandler(HttpStatus.CONFLICT, "Hóa đơn đã được dùng cho ghi danh OFFLINE");
             }
+            progressCalculationService.recalculateForStudent(existing.getAccountId(), existing.getCourseId());
             return response(existing);
         }
         if (invoice.getAccountId() == null) {
@@ -185,7 +179,10 @@ public class EnrollmentServiceImpl implements EnrollmentService {
             throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Hóa đơn này không thuộc khóa ONLINE");
         }
         Long actorId = invoice.getConfirmedBy() != null ? invoice.getConfirmedBy() : invoice.getCreatedBy();
-        return createEnrollment(invoice, course, EnrollmentType.ONLINE, EnrollmentStatus.ACTIVE, actorId);
+        EnrollmentResponse enrollment = createEnrollment(
+                invoice, course, EnrollmentType.ONLINE, EnrollmentStatus.ACTIVE, actorId, null);
+        progressCalculationService.recalculateForStudent(invoice.getAccountId(), course.getId());
+        return enrollment;
     }
 
     @Override
@@ -545,7 +542,7 @@ public class EnrollmentServiceImpl implements EnrollmentService {
 
     private EnrollmentResponse createEnrollment(Invoice invoice, Course course,
             EnrollmentType type, EnrollmentStatus status,
-            Long actorId) {
+            Long actorId, Long studentId) {
         if (enrollmentRepository.existsByInvoiceId(invoice.getId())) {
             throw new ErrorHandler(HttpStatus.CONFLICT, "Hóa đơn này đã được ghi danh");
         }
@@ -554,7 +551,7 @@ public class EnrollmentServiceImpl implements EnrollmentService {
         Enrollment enrollment = new Enrollment();
         enrollment.setEnrollmentType(type);
         enrollment.setAccountId(type == EnrollmentType.ONLINE ? invoice.getAccountId() : null);
-        enrollment.setStudentId(type == EnrollmentType.OFFLINE ? invoice.getStudentId() : null);
+        enrollment.setStudentId(type == EnrollmentType.OFFLINE ? studentId : null);
         enrollment.setCourseId(course.getId());
         enrollment.setInvoiceId(invoice.getId());
         enrollment.setEnrolledBy(actorId);
