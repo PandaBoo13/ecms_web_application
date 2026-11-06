@@ -1,3 +1,4 @@
+
 import PlaceholderPage from '@/components/common/PlaceholderPage';
 
 const StudentDetailPage = () => (

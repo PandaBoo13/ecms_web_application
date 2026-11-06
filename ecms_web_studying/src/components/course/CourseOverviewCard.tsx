@@ -35,9 +35,6 @@ const CourseOverviewCard = ({ course }: Props) => {
         <Descriptions.Item label="Trạng thái">
           <StatusTag status={course.status} />
         </Descriptions.Item>
-        <Descriptions.Item label="Trạng thái lớp">
-          {course.classStatus ? <StatusTag status={course.classStatus} /> : <Tag>—</Tag>}
-        </Descriptions.Item>
 
         <Descriptions.Item label="Giá">
           <MoneyDisplay value={course.isFree ? 0 : course.price} strong />

@@ -19,6 +19,7 @@ interface AuthState {
   isAdmin: () => boolean;
   isInstructor: () => boolean;
   isStudent: () => boolean;
+  isConsultant: () => boolean;
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -68,4 +69,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isAdmin: () => get().user?.roleCode === ROLE.ADMIN,
   isInstructor: () => get().user?.roleCode === ROLE.INSTRUCTOR,
   isStudent: () => get().user?.roleCode === ROLE.STUDENT,
+  isConsultant: () =>
+    get().user?.roleCode === ROLE.LEAD || get().user?.roleCode === ROLE.CONSULTANT,
 }));

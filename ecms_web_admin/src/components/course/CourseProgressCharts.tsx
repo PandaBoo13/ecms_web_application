@@ -1,5 +1,5 @@
-import { Card, Row, Col, Tag, Tooltip, Typography } from 'antd';
-import { InfoCircleOutlined } from '@ant-design/icons';
+import { useEffect, useState, useMemo } from 'react';
+import { Card, Row, Col, Typography, Spin, Empty } from 'antd';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -14,6 +14,8 @@ import {
   Filler,
 } from 'chart.js';
 import { Line, Doughnut } from 'react-chartjs-2';
+import { studentApi } from '@/services/api/students';
+import type { Student } from '@/services/types/student';
 
 const { Text } = Typography;
 
@@ -30,32 +32,93 @@ ChartJS.register(
   Filler,
 );
 
-const MOCK_WEEKLY_PROGRESS = {
-  labels: ['Tuần 1', 'Tuần 2', 'Tuần 3', 'Tuần 4', 'Tuần 5', 'Tuần 6', 'Tuần 7', 'Tuần 8'],
-  values: [5, 15, 28, 42, 55, 62, 68, 72],
-};
-
-const MOCK_DISTRIBUTION = {
-  labels: ['Chưa bắt đầu', 'Đang học', 'Hoàn thành', 'Tạm dừng'],
-  values: [3, 20, 12, 7],
-  colors: ['#94a3b8', '#1677ff', '#52c41a', '#faad14'],
-};
-
 interface Props {
   courseId: number;
 }
 
 const CourseProgressCharts = ({ courseId }: Props) => {
-  const weekly = MOCK_WEEKLY_PROGRESS;
-  const dist = MOCK_DISTRIBUTION;
+  const [loading, setLoading] = useState<boolean>(true);
+  const [students, setStudents] = useState<Student[]>([]);
 
-  // Line Chart
+  useEffect(() => {
+    let isMounted = true;
+    const fetchStudents = async () => {
+      setLoading(true);
+      try {
+        const res = await studentApi.search({ courseId, size: 200 });
+        if (isMounted) {
+          setStudents(res.content || []);
+        }
+      } catch (err) {
+        console.error('Lỗi khi tải danh sách học viên biểu đồ:', err);
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    };
+
+    if (courseId) {
+      fetchStudents();
+    }
+
+    return () => {
+      isMounted = false;
+    };
+  }, [courseId]);
+
+  // Tính toán xu hướng học viên tích lũy theo mốc thời gian đăng ký (createdAt)
+  const lineChartData = useMemo(() => {
+    if (students.length === 0) {
+      return {
+        labels: ['Không có dữ liệu'],
+        values: [0],
+      };
+    }
+
+    // Nhóm theo định dạng Tháng (YYYY-MM)
+    const monthMap: Record<string, number> = {};
+    const sorted = [...students].sort(
+      (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    );
+
+    sorted.forEach((s) => {
+      if (s.createdAt) {
+        const d = new Date(s.createdAt);
+        const key = `T${d.getMonth() + 1}/${d.getFullYear()}`;
+        monthMap[key] = (monthMap[key] || 0) + 1;
+      }
+    });
+
+    const labels = Object.keys(monthMap);
+    let runningTotal = 0;
+    const values = labels.map((l) => {
+      runningTotal += monthMap[l];
+      return runningTotal;
+    });
+
+    return { labels, values };
+  }, [students]);
+
+  // Phân bố học viên theo trạng thái thực tế
+  const distributionData = useMemo(() => {
+    const activeCount = students.filter((s) => s.status === 'ACTIVE' && !s.isAccountLocked).length;
+    const inactiveCount = students.filter((s) => s.status !== 'ACTIVE' && !s.isAccountLocked).length;
+    const lockedCount = students.filter((s) => s.isAccountLocked).length;
+    const noAccountCount = students.filter((s) => !s.hasAccount).length;
+
+    return {
+      labels: ['Đang học', 'Đã hoàn thành', 'Tài khoản khóa', 'Chưa kích hoạt'],
+      values: [activeCount, inactiveCount, lockedCount, noAccountCount],
+      colors: ['#1677ff', '#52c41a', '#faad14', '#94a3b8'],
+    };
+  }, [students]);
+
+  // ═════ Line Chart Config ═════
   const lineData = {
-    labels: weekly.labels,
+    labels: lineChartData.labels,
     datasets: [
       {
-        label: 'Tiến độ TB (%)',
-        data: weekly.values,
+        label: 'Học viên tích lũy',
+        data: lineChartData.values,
         borderColor: '#1677ff',
         backgroundColor: 'rgba(22, 119, 255, 0.12)',
         borderWidth: 2.5,
@@ -82,17 +145,15 @@ const CourseProgressCharts = ({ courseId }: Props) => {
         titleFont: { size: 12 },
         bodyFont: { size: 12 },
         callbacks: {
-          label: (ctx: any) => `Tiến độ: ${ctx.parsed.y}%`,
+          label: (ctx: any) => `Học viên: ${ctx.parsed.y} người`,
         },
       },
     },
     scales: {
       y: {
         beginAtZero: true,
-        max: 100,
         ticks: {
-          stepSize: 25,
-          callback: (v: any) => `${v}%`,
+          stepSize: 2,
           font: { size: 11 },
           color: '#94a3b8',
         },
@@ -107,13 +168,13 @@ const CourseProgressCharts = ({ courseId }: Props) => {
     },
   };
 
-  // Doughnut Chart
+  // ═════ Doughnut Chart Config ═════
   const doughnutData = {
-    labels: dist.labels,
+    labels: distributionData.labels,
     datasets: [
       {
-        data: dist.values,
-        backgroundColor: dist.colors,
+        data: distributionData.values,
+        backgroundColor: distributionData.colors,
         borderColor: '#fff',
         borderWidth: 3,
         hoverOffset: 6,
@@ -146,8 +207,8 @@ const CourseProgressCharts = ({ courseId }: Props) => {
         bodyFont: { size: 12 },
         callbacks: {
           label: (ctx: any) => {
-            const total = ctx.dataset.data.reduce((a: number, b: number) => a + b, 0);
-            const pct = total > 0 ? Math.round((ctx.parsed / total) * 100) : 0;
+            const sum = ctx.dataset.data.reduce((a: number, b: number) => a + b, 0);
+            const pct = sum > 0 ? Math.round((ctx.parsed / sum) * 100) : 0;
             return `${ctx.label}: ${ctx.parsed} HV (${pct}%)`;
           },
         },
@@ -155,58 +216,72 @@ const CourseProgressCharts = ({ courseId }: Props) => {
     },
   };
 
-  const total = dist.values.reduce((a, b) => a + b, 0);
+  const total = students.length;
 
   return (
     <div>
       <div className="flex items-center gap-2 mb-2.5">
         <span className="text-[14px] font-semibold text-slate-900">
-          Biểu đồ tiến độ
+          Biểu đồ theo dõi học viên
         </span>
-        <Tag color="orange" className="!m-0 !text-[10px] !leading-[16px]">
-          MOCK
-        </Tag>
-        <Tooltip title="Dữ liệu đang là mock, sẽ thay bằng API khi BE sẵn sàng">
-          <InfoCircleOutlined className="text-[12px] text-slate-400" />
-        </Tooltip>
       </div>
 
-      <Row gutter={[16, 16]} data-course-id={courseId}>
-        <Col xs={24} lg={14}>
-          <Card
-            size="small"
-            bordered
-            style={{ borderRadius: 10, border: '1px solid #e2e8f0', height: '100%' }}
-            title={<span style={{ fontSize: 13, fontWeight: 600 }}>Tiến độ trung bình theo tuần</span>}
-            bodyStyle={{ padding: 14 }}
-          >
-            <div style={{ height: 260 }}>
-              <Line data={lineData} options={lineOptions} />
-            </div>
+      <Spin spinning={loading}>
+        {total === 0 && !loading ? (
+          <Card bordered style={{ borderRadius: 10, border: '1px solid #e2e8f0', textAlign: 'center', padding: '20px' }}>
+            <Empty description="Chưa có học viên nào tham gia khóa học này" />
           </Card>
-        </Col>
+        ) : (
+          <Row gutter={[16, 16]} data-course-id={courseId}>
+            <Col xs={24} lg={14}>
+              <Card
+                size="small"
+                bordered
+                style={{ borderRadius: 10, border: '1px solid #e2e8f0', height: '100%' }}
+                title={
+                  <span style={{ fontSize: 13, fontWeight: 600 }}>
+                    Học viên tích lũy theo thời gian
+                  </span>
+                }
+                styles={{ body: { padding: 14 } }}
+              >
+                <div style={{ height: 260 }}>
+                  <Line data={lineData} options={lineOptions} />
+                </div>
+              </Card>
+            </Col>
 
-        <Col xs={24} lg={10}>
-          <Card
-            size="small"
-            bordered
-            style={{ borderRadius: 10, border: '1px solid #e2e8f0', height: '100%' }}
-            title={
-              <div className="flex justify-between items-center">
-                <span style={{ fontSize: 13, fontWeight: 600 }}>Phân bố học viên</span>
-                <Text type="secondary" style={{ fontSize: 11.5 }}>
-                  {total} HV
-                </Text>
-              </div>
-            }
-            bodyStyle={{ padding: 14 }}
-          >
-            <div style={{ height: 260 }}>
-              <Doughnut data={doughnutData} options={doughnutOptions} />
-            </div>
-          </Card>
-        </Col>
-      </Row>
+            <Col xs={24} lg={10}>
+              <Card
+                size="small"
+                bordered
+                style={{ borderRadius: 10, border: '1px solid #e2e8f0', height: '100%' }}
+                title={
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                    }}
+                  >
+                    <span style={{ fontSize: 13, fontWeight: 600 }}>
+                      Phân bố học viên
+                    </span>
+                    <Text type="secondary" style={{ fontSize: 11.5 }}>
+                      {total} HV
+                    </Text>
+                  </div>
+                }
+                styles={{ body: { padding: 14 } }}
+              >
+                <div style={{ height: 260 }}>
+                  <Doughnut data={doughnutData} options={doughnutOptions} />
+                </div>
+              </Card>
+            </Col>
+          </Row>
+        )}
+      </Spin>
     </div>
   );
 };

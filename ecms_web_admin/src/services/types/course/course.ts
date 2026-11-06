@@ -1,5 +1,6 @@
 // src/services/types/course/course.ts
 import type {
+  ClassStatus,
   CourseStatus,
   CourseType,
   LearningMode,
@@ -23,6 +24,7 @@ export interface CourseResponse {
   courseType: CourseType;
   progressType: ProgressType;
   status: CourseStatus;
+  classStatus?: ClassStatus;
 
   // 🆕 Tổng số buổi dự kiến (COURSE OFFLINE)
   totalSessionsExpected?: number;

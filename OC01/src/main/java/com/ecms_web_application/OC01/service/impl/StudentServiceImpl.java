@@ -26,6 +26,11 @@ import com.ecms_web_application.OC01.repository.LeadRepository;
 import com.ecms_web_application.OC01.repository.StudentRepository;
 import com.ecms_web_application.OC01.repository.StudentStatusLogRepository;
 import com.ecms_web_application.OC01.service.StudentService;
+import com.ecms_web_application.OC01.repository.RoleRepository;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import com.ecms_web_application.OC01.entity.Account;
+import com.ecms_web_application.OC01.entity.UserProfile;
+import com.ecms_web_application.OC01.entity.Role;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -51,6 +56,8 @@ public class StudentServiceImpl implements StudentService {
     private final AcademicHistoryRepository academicHistoryRepository;
     private final StudentStatusLogRepository statusLogRepository;
     private final AccountRepository accountRepository;
+    private final RoleRepository roleRepository;
+    private final PasswordEncoder passwordEncoder;
     private final AuthSessionRepository authSessionRepository;
 
     @Override
@@ -98,7 +105,7 @@ public class StudentServiceImpl implements StudentService {
     @Override
     @Transactional
     public StudentResponse create(StudentCreateRequest request) {
-        // 1. Mã học viên: nếu để trống thì sinh mã tự động STD + yyyyMM + 4 số ngẫu nhiên
+        // 1. Mã học viên: nếu để trống thì sinh mã tự động STD + yyyyMM + 2 chữ số ngẫu nhiên
         String code = emptyToNull(request.getStudentCode());
         if (code == null) {
             code = generateUniqueStudentCode();
@@ -136,12 +143,39 @@ public class StudentServiceImpl implements StudentService {
         Student student = new Student();
         student.setStudentCode(code);
         student.setFullName(request.getFullName().trim());
-        student.setEmail(request.getEmail() != null ? request.getEmail().trim().toLowerCase() : ("std_" + code.toLowerCase() + "@ecms.local"));
+        String studentEmail = request.getEmail() != null ? request.getEmail().trim().toLowerCase() : ("std_" + code.toLowerCase() + "@ecms.local");
+        student.setEmail(studentEmail);
         student.setPhone(request.getPhone() != null && !request.getPhone().isBlank() ? request.getPhone().trim() : "0000000000");
         student.setDob(request.getDateOfBirth());
         student.setAddress(emptyToNull(request.getAddress()));
         student.setLeadId(leadId);
-        student.setUserId(request.getUserId());
+
+        Long studentUserId = request.getUserId();
+        if (studentUserId == null && !studentEmail.isBlank()) {
+            Optional<Account> existingAcc = accountRepository.findByEmail(studentEmail);
+            if (existingAcc.isPresent()) {
+                studentUserId = existingAcc.get().getId();
+            } else {
+                Role studentRole = roleRepository.findByCode("STUDENT").orElse(null);
+                Account newAcc = new Account();
+                newAcc.setEmail(studentEmail);
+                newAcc.setPasswordHash(passwordEncoder.encode("Password123@"));
+                newAcc.setRole(studentRole);
+                newAcc.setIsActive(true);
+                newAcc.setIsLocked(false);
+                newAcc.setFailedLoginCount(0);
+
+                UserProfile profile = new UserProfile();
+                profile.setAccount(newAcc);
+                profile.setFullName(student.getFullName());
+                profile.setPhone(student.getPhone());
+                newAcc.setUserProfile(profile);
+
+                Account savedAcc = accountRepository.save(newAcc);
+                studentUserId = savedAcc.getId();
+            }
+        }
+        student.setUserId(studentUserId);
 
         String status = (request.getStatus() != null && !request.getStatus().isBlank())
                 ? request.getStatus().trim().toUpperCase()
@@ -198,6 +232,35 @@ public class StudentServiceImpl implements StudentService {
         student.setEmail(lead.getEmail());
         student.setPhone(lead.getPhone());
         student.setStatus("ACTIVE");
+
+        // Tự động cấp tài khoản cho Học viên theo chuẩn AUTH_MODULE (BR-ST-02)
+        Long studentUserId = null;
+        String normalizedEmail = lead.getEmail() != null ? lead.getEmail().trim().toLowerCase() : "";
+        if (!normalizedEmail.isBlank()) {
+            Optional<Account> existingAcc = accountRepository.findByEmail(normalizedEmail);
+            if (existingAcc.isPresent()) {
+                studentUserId = existingAcc.get().getId();
+            } else {
+                Role studentRole = roleRepository.findByCode("STUDENT").orElse(null);
+                Account newAcc = new Account();
+                newAcc.setEmail(normalizedEmail);
+                newAcc.setPasswordHash(passwordEncoder.encode("Password123@"));
+                newAcc.setRole(studentRole);
+                newAcc.setIsActive(true);
+                newAcc.setIsLocked(false);
+                newAcc.setFailedLoginCount(0);
+
+                UserProfile profile = new UserProfile();
+                profile.setAccount(newAcc);
+                profile.setFullName(lead.getFullName());
+                profile.setPhone(lead.getPhone());
+                newAcc.setUserProfile(profile);
+
+                Account savedAcc = accountRepository.save(newAcc);
+                studentUserId = savedAcc.getId();
+            }
+        }
+        student.setUserId(studentUserId);
 
         Student savedStudent = studentRepository.save(student);
 
@@ -416,20 +479,24 @@ public class StudentServiceImpl implements StudentService {
     }
 
     /**
-     * Sinh mã học viên theo định dạng STD + yyyyMM + 4 số ngẫu nhiên (VD: STD2026101234).
-     * Thử tối đa 10 lần theo đúng yêu cầu REQ-STD-02.
+     * Sinh mã học viên theo định dạng STD + yyyyMM + 2 chữ số ngẫu nhiên (VD: STD20261004)
+     * hoặc mở rộng 4 chữ số (VD: STD2026100483) theo quy tắc nghiệp vụ BR-ST-01.
      */
     private String generateUniqueStudentCode() {
         String prefix = "STD" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMM"));
         int attempts = 0;
         String code;
         do {
-            int randomNum = ThreadLocalRandom.current().nextInt(1000, 9999);
-            code = prefix + randomNum;
             attempts++;
-            if (attempts > 10) {
-                log.error("CẢNH BÁO QUẢN TRỊ: Đã thử sinh mã học viên 10 lần nhưng bị trùng: prefix={}", prefix);
-                throw new ErrorHandler(HttpStatus.INTERNAL_SERVER_ERROR, "Không thể sinh mã học viên duy nhất sau 10 lần thử. Vui lòng liên hệ quản trị hệ thống");
+            if (attempts <= 50) {
+                int randomNum = ThreadLocalRandom.current().nextInt(0, 100);
+                code = String.format("%s%02d", prefix, randomNum);
+            } else if (attempts <= 200) {
+                int randomNum = ThreadLocalRandom.current().nextInt(1000, 10000);
+                code = String.format("%s%04d", prefix, randomNum);
+            } else {
+                log.error("CẢNH BÁO QUẢN TRỊ: Đã thử sinh mã học viên nhiều lần nhưng bị trùng: prefix={}", prefix);
+                throw new ErrorHandler(HttpStatus.INTERNAL_SERVER_ERROR, "Không thể sinh mã học viên duy nhất. Vui lòng liên hệ quản trị hệ thống");
             }
         } while (studentRepository.existsByStudentCode(code));
         return code;

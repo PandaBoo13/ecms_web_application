@@ -14,6 +14,8 @@ import com.ecms_web_application.OC01.entity.Lead;
 import com.ecms_web_application.OC01.entity.LeadAssignmentLog;
 import com.ecms_web_application.OC01.entity.LeadInteraction;
 import com.ecms_web_application.OC01.exception.ErrorHandler;
+import com.ecms_web_application.OC01.dto.response.ConsultantResponse;
+import com.ecms_web_application.OC01.repository.AccountRepository;
 import com.ecms_web_application.OC01.repository.LeadAssignmentLogRepository;
 import com.ecms_web_application.OC01.repository.LeadRepository;
 import com.ecms_web_application.OC01.service.LeadService;
@@ -31,7 +33,9 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -40,6 +44,7 @@ public class LeadServiceImpl implements LeadService {
 
     private final LeadRepository leadRepository;
     private final LeadAssignmentLogRepository assignmentLogRepository;
+    private final AccountRepository accountRepository;
 
     @Override
     @Transactional(readOnly = true)
@@ -47,9 +52,17 @@ public class LeadServiceImpl implements LeadService {
         if (pageable.getSort().isUnsorted()) {
             pageable = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), Sort.by("createdAt").descending());
         }
+
+        // Nếu người dùng là role LEAD (Tư vấn viên), tự động chỉ xem khách hàng được giao cho mình
+        if (SecurityUtils.hasRole("LEAD")) {
+            consultantId = SecurityUtils.getCurrentAccountId();
+            inQueue = false;
+        }
+
+        Map<Long, ConsultantResponse> consultantMap = getConsultantMap();
         return leadRepository
                 .searchLeads(emptyToNull(status), courseId, consultantId, inQueue, emptyToNull(search), pageable)
-                .map(this::toResponse);
+                .map(lead -> toResponse(lead, consultantMap));
     }
 
     @Override
@@ -64,7 +77,7 @@ public class LeadServiceImpl implements LeadService {
     public LeadDetailResponse getDetailById(Long id) {
         Lead lead = findLeadById(id);
         LeadDetailResponse detail = new LeadDetailResponse();
-        copyPropertiesToResponse(lead, detail);
+        copyPropertiesToResponse(lead, detail, getConsultantMap());
 
         List<LeadInteractionResponse> interactions = getInteractions(id);
         List<LeadPlacementTestResponse> placementTests = getPlacementTests(id);
@@ -110,6 +123,9 @@ public class LeadServiceImpl implements LeadService {
                 : "ONLINE";
         lead.setChannelType(channelType);
 
+        if (request.getAssignedConsultantId() != null) {
+            validateConsultant(request.getAssignedConsultantId());
+        }
         lead.setAssignedConsultantId(request.getAssignedConsultantId());
         lead.setNote(emptyToNull(request.getNote()));
 
@@ -205,6 +221,10 @@ public class LeadServiceImpl implements LeadService {
         Lead lead = findLeadById(id);
         Long oldConsultantId = lead.getAssignedConsultantId();
         Long newConsultantId = request.getConsultantId();
+
+        if (newConsultantId != null) {
+            validateConsultant(newConsultantId);
+        }
 
         lead.setAssignedConsultantId(newConsultantId);
         Lead saved = leadRepository.save(lead);
@@ -322,6 +342,21 @@ public class LeadServiceImpl implements LeadService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public List<ConsultantResponse> getConsultants() {
+        return accountRepository.findByRoleCode("LEAD").stream()
+                .filter(a -> Boolean.TRUE.equals(a.getIsActive()) && a.getDeletedAt() == null)
+                .map(a -> new ConsultantResponse(
+                        a.getId(),
+                        a.getUserProfile() != null && a.getUserProfile().getFullName() != null && !a.getUserProfile().getFullName().isBlank()
+                                ? a.getUserProfile().getFullName()
+                                : a.getEmail(),
+                        a.getEmail()
+                ))
+                .toList();
+    }
+
+    @Override
     @Transactional
     public void delete(Long id) {
         Lead lead = findLeadById(id);
@@ -352,7 +387,23 @@ public class LeadServiceImpl implements LeadService {
         assignmentLogRepository.save(logEntity);
     }
 
-    private void copyPropertiesToResponse(Lead lead, LeadResponse response) {
+    private void validateConsultant(Long consultantId) {
+        if (consultantId == null) {
+            return;
+        }
+        com.ecms_web_application.OC01.entity.Account consultant = accountRepository.findById(consultantId)
+                .orElseThrow(() -> new ErrorHandler(HttpStatus.BAD_REQUEST, "Tư vấn viên không tồn tại"));
+        if (consultant.getRole() == null || !"LEAD".equalsIgnoreCase(consultant.getRole().getCode()) || !Boolean.TRUE.equals(consultant.getIsActive())) {
+            throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Tài khoản không phải là tư vấn viên hợp lệ của trung tâm");
+        }
+    }
+
+    private Map<Long, ConsultantResponse> getConsultantMap() {
+        return getConsultants().stream()
+                .collect(Collectors.toMap(ConsultantResponse::getId, c -> c, (a, b) -> a));
+    }
+
+    private void copyPropertiesToResponse(Lead lead, LeadResponse response, Map<Long, ConsultantResponse> consultantMap) {
         response.setId(lead.getId());
         response.setFullName(lead.getFullName());
         response.setEmail(lead.getEmail());
@@ -366,6 +417,21 @@ public class LeadServiceImpl implements LeadService {
         response.setChannelType(lead.getChannelType());
         response.setSourceId(lead.getSourceId());
         response.setAssignedConsultantId(lead.getAssignedConsultantId());
+        if (lead.getAssignedConsultantId() != null) {
+            ConsultantResponse c = consultantMap != null ? consultantMap.get(lead.getAssignedConsultantId()) : null;
+            if (c != null) {
+                response.setAssignedConsultantName(c.getName());
+                response.setAssignedConsultantEmail(c.getEmail());
+            } else {
+                accountRepository.findByIdWithRoleAndProfile(lead.getAssignedConsultantId()).ifPresent(acc -> {
+                    String name = acc.getUserProfile() != null && acc.getUserProfile().getFullName() != null && !acc.getUserProfile().getFullName().isBlank()
+                            ? acc.getUserProfile().getFullName()
+                            : acc.getEmail();
+                    response.setAssignedConsultantName(name);
+                    response.setAssignedConsultantEmail(acc.getEmail());
+                });
+            }
+        }
         response.setNote(lead.getNote());
         response.setPlacementTestStatus(lead.getPlacementTestStatus());
         response.setPlacementTestScore(lead.getPlacementTestScore());
@@ -378,8 +444,12 @@ public class LeadServiceImpl implements LeadService {
     }
 
     private LeadResponse toResponse(Lead lead) {
+        return toResponse(lead, getConsultantMap());
+    }
+
+    private LeadResponse toResponse(Lead lead, Map<Long, ConsultantResponse> consultantMap) {
         LeadResponse response = new LeadResponse();
-        copyPropertiesToResponse(lead, response);
+        copyPropertiesToResponse(lead, response, consultantMap);
         return response;
     }
 

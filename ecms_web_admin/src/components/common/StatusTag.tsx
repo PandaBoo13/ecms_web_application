@@ -36,6 +36,8 @@ const STATUS_COLOR_MAP: Record<string, string> = {
   ADMIN: 'red',
   INSTRUCTOR: 'blue',
   STUDENT: 'green',
+  LEAD: 'cyan',
+  CONSULTANT: 'cyan',
   // Types
   ONLINE: 'cyan',
   OFFLINE: 'gold',

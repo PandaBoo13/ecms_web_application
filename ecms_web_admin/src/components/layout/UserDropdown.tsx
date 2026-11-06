@@ -10,8 +10,7 @@ import { useTranslation } from '@/hooks/useTranslation';
 import { ROLE_LABEL } from '@/constants/roles';
 
 const UserDropdown = () => {
-  // Bổ sung thêm isInstructor và isStudent để phân route chuẩn xác
-  const { user, logout, isAdmin, isInstructor, isStudent } = useAuth();
+  const { user, logout, isInstructor } = useAuth();
   const { t } = useTranslation();
   const navigate = useNavigate();
 
@@ -25,13 +24,7 @@ const UserDropdown = () => {
     }
   };
 
-  const profilePath = isAdmin()
-    ? '/admin/profile'
-    : isInstructor()
-      ? '/instructor/profile'
-      : isStudent()
-        ? '/student/profile'
-        : '/profile';
+  const profilePath = isInstructor() ? '/instructor/profile' : '/admin/profile';
 
   const menuItems = [
     {
