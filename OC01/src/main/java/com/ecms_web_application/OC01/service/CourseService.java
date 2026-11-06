@@ -5,6 +5,7 @@ import com.ecms_web_application.OC01.dto.response.course.CourseDetailResponse;
 import com.ecms_web_application.OC01.dto.response.course.CourseResponse;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.transaction.annotation.Transactional;
 
 public interface CourseService {
     CourseResponse create(CourseCreateRequest request);
@@ -21,4 +22,7 @@ public interface CourseService {
     void softDelete(Long id);
     void hardDelete(Long id);
     CourseResponse changeTeacher(Long courseId, Long newTeacherId);
+
+    @Transactional
+    CourseResponse finalizeSchedule(Long courseId);
 }

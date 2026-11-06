@@ -1,31 +1,52 @@
 package com.ecms_web_application.OC01.service.impl.enrollment;
 
 import com.ecms_web_application.OC01.config.SecurityUtils;
+import com.ecms_web_application.OC01.dto.request.StudentConvertFromLeadRequest;
 import com.ecms_web_application.OC01.dto.request.enrollment.RecordFinalScoreRequest;
 import com.ecms_web_application.OC01.dto.request.enrollment.ReplaceSessionAbsencesRequest;
 import com.ecms_web_application.OC01.dto.request.enrollment.ReserveEnrollmentRequest;
 import com.ecms_web_application.OC01.dto.request.enrollment.TerminateEnrollmentRequest;
+import com.ecms_web_application.OC01.dto.response.StudentResponse;
 import com.ecms_web_application.OC01.dto.response.enrollment.AttendanceAbsenceResponse;
 import com.ecms_web_application.OC01.dto.response.enrollment.EnrollmentResponse;
 import com.ecms_web_application.OC01.dto.response.enrollment.EnrollmentStatusLogResponse;
+import com.ecms_web_application.OC01.dto.response.enrollment.OfflineEnrollmentCandidateResponse;
+import com.ecms_web_application.OC01.dto.response.enrollment.OfflineEnrollmentBatchResponse;
+import com.ecms_web_application.OC01.dto.response.enrollment.EnrollmentSummaryResponse;
+import com.ecms_web_application.OC01.dto.response.enrollment.EnrollmentBatchActionResponse;
 import com.ecms_web_application.OC01.dto.response.enrollment.SessionAttendanceResponse;
 import com.ecms_web_application.OC01.entity.*;
 import com.ecms_web_application.OC01.entity.enums.*;
 import com.ecms_web_application.OC01.exception.ErrorHandler;
 import com.ecms_web_application.OC01.repository.*;
 import com.ecms_web_application.OC01.service.EnrollmentService;
+import com.ecms_web_application.OC01.service.StudentService;
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.criteria.Predicate;
+import jakarta.persistence.criteria.Root;
+import jakarta.persistence.criteria.Subquery;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
+import com.ecms_web_application.OC01.entity.course.Course;
+import com.ecms_web_application.OC01.entity.course.CourseResource;
+import com.ecms_web_application.OC01.entity.course.Progress;
+import com.ecms_web_application.OC01.entity.course.Session;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -35,34 +56,112 @@ public class EnrollmentServiceImpl implements EnrollmentService {
 
     private final EnrollmentRepository enrollmentRepository;
     private final EnrollmentStatusLogRepository statusLogRepository;
+    private final StudentService studentService;
     private final AttendanceAbsenceRepository attendanceRepository;
     private final InvoiceRepository invoiceRepository;
+    private final LeadRepository leadRepository;
     private final CourseRepository courseRepository;
     private final StudentRepository studentRepository;
+    private final AccountRepository accountRepository;
     private final SessionRepository sessionRepository;
     private final CourseResourceRepository courseResourceRepository;
     private final ProgressRepository progressRepository;
     private final EntityManager entityManager;
+    private final PlatformTransactionManager transactionManager;
 
     @Override
     @Transactional
     public EnrollmentResponse createOffline(Long invoiceId) {
         requireAdmin();
+        return createOfflineFromPaidInvoice(invoiceId);
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public EnrollmentResponse createOfflineAfterPayment(Long invoiceId) {
+        return createOfflineFromPaidInvoice(invoiceId);
+    }
+
+    @Override
+    public OfflineEnrollmentBatchResponse createOfflineBatch(List<Long> invoiceIds) {
+        requireAdmin();
+        if (invoiceIds == null || invoiceIds.isEmpty() || invoiceIds.size() > 100) {
+            throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Mỗi lần cần chọn từ 1 đến 100 học viên");
+        }
+
+        TransactionTemplate transaction = new TransactionTemplate(transactionManager);
+        transaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        List<OfflineEnrollmentBatchResponse.Item> results = new ArrayList<>();
+        Set<Long> uniqueInvoiceIds = new LinkedHashSet<>(invoiceIds);
+        int enrolled = 0;
+        for (Long invoiceId : uniqueInvoiceIds) {
+            try {
+                EnrollmentResponse result = transaction.execute(status -> createOfflineFromPaidInvoice(invoiceId));
+                results.add(new OfflineEnrollmentBatchResponse.Item(
+                        invoiceId, true, result != null ? result.enrollmentId() : null, "Ghi danh thành công"));
+                enrolled++;
+            } catch (Exception ex) {
+                results.add(new OfflineEnrollmentBatchResponse.Item(
+                        invoiceId, false, null, ex.getMessage() != null ? ex.getMessage() : "Không thể ghi danh"));
+            }
+        }
+        return new OfflineEnrollmentBatchResponse(enrolled, results.size() - enrolled, results);
+    }
+
+    private EnrollmentResponse createOfflineFromPaidInvoice(Long invoiceId) {
         Invoice invoice = getInvoice(invoiceId);
         validatePaidTuitionInvoice(invoice);
-        if (invoice.getStudentId() == null) {
-            throw new ErrorHandler(HttpStatus.CONFLICT,
-                    "Cần có hồ sơ học viên trước khi tạo ghi danh OFFLINE");
-        }
         Course course = lockAndGetCourse(invoice.getCourseId());
         if (course.getCourseType() != CourseType.OFFLINE) {
             throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Hóa đơn này không thuộc khóa OFFLINE");
         }
+        Enrollment existing = enrollmentRepository.findByInvoiceId(invoiceId).orElse(null);
+        if (existing != null) {
+            if (existing.getEnrollmentType() != EnrollmentType.OFFLINE) {
+                throw new ErrorHandler(HttpStatus.CONFLICT, "Hóa đơn đã được dùng cho ghi danh ONLINE");
+            }
+            return response(existing);
+        }
+        ensureOfflineStudentProfile(invoice);
+        if (enrollmentRepository.existsByCourseIdAndStudentId(course.getId(), invoice.getStudentId())) {
+            throw new ErrorHandler(HttpStatus.CONFLICT, "Học viên đã có ghi danh trong khóa học này");
+        }
+        Long actorId = invoice.getConfirmedBy() != null ? invoice.getConfirmedBy() : invoice.getCreatedBy();
         return createEnrollment(invoice, course, EnrollmentType.OFFLINE,
                 course.getStartDate() != null && !course.getStartDate().isAfter(LocalDate.now())
                         ? EnrollmentStatus.ACTIVE
                         : EnrollmentStatus.PENDING,
-                SecurityUtils.requireCurrentAccountId());
+                actorId);
+    }
+
+    /**
+     * Ghi danh OFFLINE bắt buộc phải có hồ sơ học viên.
+     * Nếu hóa đơn đã thanh toán nhưng mới chỉ liên kết Lead, hệ thống tự chuyển Lead sang
+     * Student (idempotent) rồi gắn studentId vào hóa đơn để hoàn tất ghi danh.
+     */
+    private void ensureOfflineStudentProfile(Invoice invoice) {
+        if (invoice.getStudentId() != null) {
+            return;
+        }
+        if (invoice.getAccountId() != null) {
+            Student existing = studentRepository.findByUserId(invoice.getAccountId()).orElse(null);
+            if (existing != null) {
+                invoice.setStudentId(existing.getId());
+                invoiceRepository.save(invoice);
+                return;
+            }
+        }
+        if (invoice.getLeadId() == null) {
+            throw new ErrorHandler(HttpStatus.CONFLICT,
+                    "Hóa đơn chưa liên kết hồ sơ học viên hoặc lead; không thể tạo ghi danh OFFLINE");
+        }
+        StudentConvertFromLeadRequest request = new StudentConvertFromLeadRequest();
+        request.setLeadId(invoice.getLeadId());
+        request.setCourseId(invoice.getCourseId());
+        request.setNote("Tự động tạo hồ sơ học viên khi ghi danh từ hóa đơn " + invoice.getInvoiceCode());
+        StudentResponse student = studentService.convertFromLead(request);
+        invoice.setStudentId(student.getId());
+        invoiceRepository.save(invoice);
     }
 
     @Override
@@ -91,8 +190,75 @@ public class EnrollmentServiceImpl implements EnrollmentService {
 
     @Override
     @Transactional(readOnly = true)
+    public Page<OfflineEnrollmentCandidateResponse> searchOfflineCandidates(Long courseId, String search, Pageable pageable) {
+        requireAdmin();
+        if (courseId != null) {
+            Course course = getCourse(courseId);
+            if (course.getCourseType() != CourseType.OFFLINE) {
+                throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Chỉ khóa OFFLINE mới có danh sách chờ ghi danh");
+            }
+        }
+
+        // Truyền chuỗi rỗng thay vì null: tránh PostgreSQL không suy luận được kiểu tham số
+        // trong "LOWER(CONCAT('%', :search, '%'))" và báo lỗi "function lower(bytea) does not exist".
+        String searchTerm = search == null || search.isBlank() ? "" : search.trim();
+        Page<Invoice> invoices = invoiceRepository.findOfflineEnrollmentCandidates(
+                courseId, InvoiceType.TUITION_PAYMENT, InvoiceStatus.PAID,
+                searchTerm, CourseType.OFFLINE, pageable);
+        Set<Long> leadIds = invoices.stream().map(Invoice::getLeadId)
+                .filter(Objects::nonNull).collect(Collectors.toSet());
+        Set<Long> studentIds = invoices.stream().map(Invoice::getStudentId)
+                .filter(Objects::nonNull).collect(Collectors.toSet());
+        Set<Long> accountIds = invoices.stream().map(Invoice::getAccountId)
+                .filter(Objects::nonNull).collect(Collectors.toSet());
+        Set<Long> courseIds = invoices.stream().map(Invoice::getCourseId)
+                .filter(Objects::nonNull).collect(Collectors.toSet());
+        Map<Long, Lead> leads = leadRepository.findAllById(leadIds).stream()
+                .collect(Collectors.toMap(Lead::getId, lead -> lead));
+        leads.values().stream().map(Lead::getStudentId).filter(Objects::nonNull).forEach(studentIds::add);
+        List<Student> studentRows = new ArrayList<>(studentRepository.findAllById(studentIds));
+        if (!accountIds.isEmpty()) studentRows.addAll(studentRepository.findByUserIdIn(accountIds));
+        Map<Long, Student> students = studentRows.stream()
+                .collect(Collectors.toMap(Student::getId, student -> student, (first, ignored) -> first));
+        Map<Long, Student> studentsByAccount = studentRows.stream().filter(student -> student.getUserId() != null)
+                .collect(Collectors.toMap(Student::getUserId, student -> student, (first, ignored) -> first));
+        Map<Long, Account> accounts = accountRepository.findAllById(accountIds).stream()
+                .collect(Collectors.toMap(Account::getId, account -> account));
+        Map<Long, Course> courses = courseRepository.findAllById(courseIds).stream()
+                .collect(Collectors.toMap(Course::getId, course -> course));
+
+        return invoices.map(invoice -> {
+            Course course = courses.get(invoice.getCourseId());
+            Student student = invoice.getStudentId() != null ? students.get(invoice.getStudentId()) : null;
+            if (student == null && invoice.getAccountId() != null) {
+                student = studentsByAccount.get(invoice.getAccountId());
+            }
+            Lead lead = invoice.getLeadId() != null ? leads.get(invoice.getLeadId()) : null;
+            if (student == null && lead != null && lead.getStudentId() != null) {
+                student = students.get(lead.getStudentId());
+            }
+            Account account = invoice.getAccountId() != null ? accounts.get(invoice.getAccountId()) : null;
+            UserProfile profile = account != null ? account.getUserProfile() : null;
+            return new OfflineEnrollmentCandidateResponse(
+                    invoice.getCourseId(), course != null ? course.getTitle() : null,
+                    course != null ? course.getStartDate() : null,
+                    invoice.getId(), invoice.getInvoiceCode(), invoice.getPaidAt(), invoice.getAmount(),
+                    student != null ? student.getId() : null,
+                    student != null ? student.getStudentCode() : null,
+                    student != null ? student.getFullName()
+                            : lead != null ? lead.getFullName() : profile != null ? profile.getFullName() : null,
+                    student != null ? student.getEmail()
+                            : lead != null ? lead.getEmail() : account != null ? account.getEmail() : null,
+                    student != null ? student.getPhone()
+                            : lead != null ? lead.getPhone() : profile != null ? profile.getPhone() : null,
+                    student != null, lead != null);
+        });
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public Page<EnrollmentResponse> search(EnrollmentType type, EnrollmentStatus status, Long courseId,
-            Long studentId, Long accountId, Pageable pageable) {
+            Long studentId, Long accountId, String search, boolean includeCompletionEligibility, Pageable pageable) {
         Long ownerAccountId = null;
         Long ownerStudentId = null;
         if (!SecurityUtils.hasRole("ADMIN")) {
@@ -104,9 +270,65 @@ public class EnrollmentServiceImpl implements EnrollmentService {
             ownerStudentId = studentRepository.findByUserId(currentAccountId)
                     .map(Student::getId).orElse(-1L);
         }
-        return enrollmentRepository.search(type, status, courseId, studentId, accountId,
-                ownerAccountId, ownerStudentId, pageable)
-                .map(e -> EnrollmentResponse.from(e, attendanceRepository.countByEnrollmentId(e.getId())));
+        Page<Enrollment> page = enrollmentRepository.findAll(buildSearchSpecification(type, status, courseId,
+                studentId, accountId, ownerAccountId, ownerStudentId, search), pageable);
+        if (page.isEmpty()) {
+            return page.map(e -> null);
+        }
+
+        Set<Long> studentIds = page.stream().map(Enrollment::getStudentId).filter(Objects::nonNull).collect(Collectors.toSet());
+        Set<Long> courseIds = page.stream().map(Enrollment::getCourseId).filter(Objects::nonNull).collect(Collectors.toSet());
+        Set<Long> invoiceIds = page.stream().map(Enrollment::getInvoiceId).filter(Objects::nonNull).collect(Collectors.toSet());
+        Set<Long> accountIds = page.stream().map(Enrollment::getAccountId).filter(Objects::nonNull).collect(Collectors.toSet());
+
+        Map<Long, Student> studentMap = studentRepository.findAllById(studentIds).stream()
+                .collect(Collectors.toMap(Student::getId, s -> s));
+        Map<Long, Course> courseMap = courseRepository.findAllById(courseIds).stream()
+                .collect(Collectors.toMap(Course::getId, c -> c));
+        Map<Long, Invoice> invoiceMap = invoiceRepository.findAllById(invoiceIds).stream()
+                .collect(Collectors.toMap(Invoice::getId, i -> i));
+        Map<Long, Account> accountMap = accountRepository.findAllById(accountIds).stream()
+                .collect(Collectors.toMap(Account::getId, a -> a));
+
+        return page.map(e -> {
+            Student s = e.getStudentId() != null ? studentMap.get(e.getStudentId()) : null;
+            Account a = e.getAccountId() != null ? accountMap.get(e.getAccountId()) : null;
+            Course c = e.getCourseId() != null ? courseMap.get(e.getCourseId()) : null;
+            Invoice inv = e.getInvoiceId() != null ? invoiceMap.get(e.getInvoiceId()) : null;
+
+            UserProfile profile = a != null ? a.getUserProfile() : null;
+            String studentName = s != null ? s.getFullName()
+                    : (profile != null ? profile.getFullName() : (a != null ? a.getEmail() : null));
+            String studentCode = s != null ? s.getStudentCode() : null;
+            String studentEmail = s != null ? s.getEmail() : (a != null ? a.getEmail() : null);
+            String studentPhone = s != null ? s.getPhone() : (profile != null ? profile.getPhone() : null);
+            String courseTitle = c != null ? c.getTitle() : null;
+            String invoiceCode = inv != null ? inv.getInvoiceCode() : null;
+            long absences = attendanceRepository.countByEnrollmentId(e.getId());
+            CompletionEligibility eligibility = includeCompletionEligibility
+                    ? evaluateCompletionEligibility(e, c)
+                    : new CompletionEligibility(false, null);
+
+            return EnrollmentResponse.from(e, absences, studentName, studentCode, studentEmail, studentPhone,
+                    courseTitle, invoiceCode, eligibility.eligible(), eligibility.reason());
+        });
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public EnrollmentSummaryResponse getSummary() {
+        requireAdmin();
+        Map<EnrollmentStatus, Long> counts = new EnumMap<>(EnrollmentStatus.class);
+        for (EnrollmentStatus status : EnrollmentStatus.values()) counts.put(status, 0L);
+        enrollmentRepository.countGroupedByStatus().forEach(row ->
+                counts.put((EnrollmentStatus) row[0], ((Number) row[1]).longValue()));
+        long awaitingOffline = invoiceRepository.findOfflineEnrollmentCandidates(
+                null, InvoiceType.TUITION_PAYMENT, InvoiceStatus.PAID, null, CourseType.OFFLINE,
+                PageRequest.of(0, 1)).getTotalElements();
+        return new EnrollmentSummaryResponse(
+                counts.get(EnrollmentStatus.PENDING), counts.get(EnrollmentStatus.ACTIVE),
+                counts.get(EnrollmentStatus.RESERVED), counts.get(EnrollmentStatus.TERMINATED),
+                counts.get(EnrollmentStatus.COMPLETED), awaitingOffline);
     }
 
     @Override
@@ -114,8 +336,7 @@ public class EnrollmentServiceImpl implements EnrollmentService {
     public EnrollmentResponse getById(Long enrollmentId) {
         Enrollment enrollment = getEnrollment(enrollmentId);
         requireCanView(enrollment);
-        return EnrollmentResponse.from(enrollment,
-                attendanceRepository.countByEnrollmentId(enrollment.getId()));
+        return enrich(enrollment);
     }
 
     @Override
@@ -182,6 +403,7 @@ public class EnrollmentServiceImpl implements EnrollmentService {
     public EnrollmentResponse recordFinalScore(Long enrollmentId, RecordFinalScoreRequest request) {
         requireAdmin();
         Enrollment enrollment = getEnrollmentForUpdate(enrollmentId);
+        requireOffline(enrollment);
         if (enrollment.getStatus() != EnrollmentStatus.ACTIVE) {
             throw new ErrorHandler(HttpStatus.CONFLICT, "Chỉ ghi điểm cho ghi danh ACTIVE");
         }
@@ -196,12 +418,47 @@ public class EnrollmentServiceImpl implements EnrollmentService {
     @Transactional
     public EnrollmentResponse complete(Long enrollmentId) {
         requireAdmin();
+        return completeEnrollment(enrollmentId, null);
+    }
+
+    @Override
+    public EnrollmentBatchActionResponse completeBatch(Long courseId, List<Long> enrollmentIds) {
+        requireAdmin();
+        if (courseId == null || enrollmentIds == null || enrollmentIds.isEmpty() || enrollmentIds.size() > 100) {
+            throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Mỗi lần cần chọn từ 1 đến 100 học viên trong một khóa");
+        }
+
+        TransactionTemplate transaction = new TransactionTemplate(transactionManager);
+        transaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        List<EnrollmentBatchActionResponse.Item> results = new ArrayList<>();
+        Set<Long> uniqueEnrollmentIds = new LinkedHashSet<>(enrollmentIds);
+        int completed = 0;
+        for (Long enrollmentId : uniqueEnrollmentIds) {
+            try {
+                transaction.execute(status -> completeEnrollment(enrollmentId, courseId));
+                results.add(new EnrollmentBatchActionResponse.Item(enrollmentId, true, "Đã hoàn thành"));
+                completed++;
+            } catch (Exception ex) {
+                results.add(new EnrollmentBatchActionResponse.Item(enrollmentId, false,
+                        ex.getMessage() != null ? ex.getMessage() : "Không thể hoàn thành"));
+            }
+        }
+        return new EnrollmentBatchActionResponse(completed, results.size() - completed, results);
+    }
+
+    private EnrollmentResponse completeEnrollment(Long enrollmentId, Long expectedCourseId) {
         Enrollment enrollment = getEnrollmentForUpdate(enrollmentId);
+        if (expectedCourseId != null && !expectedCourseId.equals(enrollment.getCourseId())) {
+            throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Ghi danh không thuộc khóa học đã chọn");
+        }
         if (enrollment.getStatus() != EnrollmentStatus.ACTIVE) {
             throw new ErrorHandler(HttpStatus.CONFLICT, "Chỉ ghi danh ACTIVE mới được xét hoàn thành");
         }
         Course course = courseRepository.findById(enrollment.getCourseId())
                 .orElseThrow(() -> new ErrorHandler(HttpStatus.NOT_FOUND, "Khóa học không tồn tại"));
+        if (course.getStatus() != CourseStatus.FINISHED) {
+            throw new ErrorHandler(HttpStatus.CONFLICT, "Chỉ xét hoàn thành sau khi khóa học kết thúc");
+        }
         if (course.getCourseType() == CourseType.OFFLINE) {
             // Eligibility thresholds for absences and scores are intentionally deferred.
             if (enrollment.getFinalScore() == null) {
@@ -339,6 +596,31 @@ public class EnrollmentServiceImpl implements EnrollmentService {
         }
     }
 
+    private CompletionEligibility evaluateCompletionEligibility(Enrollment enrollment, Course course) {
+        if (enrollment.getStatus() != EnrollmentStatus.ACTIVE) {
+            return new CompletionEligibility(false, "Chỉ ghi danh ACTIVE mới được xét hoàn thành");
+        }
+        if (course == null) {
+            return new CompletionEligibility(false, "Không tìm thấy khóa học");
+        }
+        if (course.getStatus() != CourseStatus.FINISHED) {
+            return new CompletionEligibility(false, "Chỉ xét hoàn thành sau khi khóa học kết thúc");
+        }
+        if (course.getCourseType() == CourseType.OFFLINE && enrollment.getFinalScore() == null) {
+            return new CompletionEligibility(false, "Cần ghi nhận điểm cuối khóa trước");
+        }
+        if (course.getCourseType() == CourseType.ONLINE) {
+            try {
+                validateOnlineCompletion(enrollment, course);
+            } catch (ErrorHandler ex) {
+                return new CompletionEligibility(false, ex.getMessage());
+            }
+        }
+        return new CompletionEligibility(true, null);
+    }
+
+    private record CompletionEligibility(boolean eligible, String reason) {}
+
     private EnrollmentResponse changeStatus(Enrollment enrollment, EnrollmentStatus newStatus, String reason) {
         EnrollmentStatus oldStatus = enrollment.getStatus();
         if (oldStatus == newStatus) {
@@ -362,6 +644,69 @@ public class EnrollmentServiceImpl implements EnrollmentService {
         statusLogRepository.save(log);
     }
 
+    private Specification<Enrollment> buildSearchSpecification(EnrollmentType type, EnrollmentStatus status,
+            Long courseId, Long studentId, Long accountId, Long ownerAccountId, Long ownerStudentId, String search) {
+        return (root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
+            if (type != null) {
+                predicates.add(cb.equal(root.get("enrollmentType"), type));
+            }
+            if (status != null) {
+                predicates.add(cb.equal(root.get("status"), status));
+            }
+            if (courseId != null) {
+                predicates.add(cb.equal(root.get("courseId"), courseId));
+            }
+            if (studentId != null) {
+                predicates.add(cb.equal(root.get("studentId"), studentId));
+            }
+            if (accountId != null) {
+                predicates.add(cb.equal(root.get("accountId"), accountId));
+            }
+            if (ownerAccountId != null) {
+                predicates.add(cb.or(cb.equal(root.get("accountId"), ownerAccountId),
+                        cb.equal(root.get("studentId"), ownerStudentId)));
+            }
+            if (search != null && !search.isBlank()) {
+                String pattern = "%" + search.trim().toLowerCase(Locale.ROOT) + "%";
+                Subquery<Long> studentMatch = query.subquery(Long.class);
+                Root<Student> student = studentMatch.from(Student.class);
+                studentMatch.select(student.get("id")).where(cb.and(
+                        cb.equal(student.get("id"), root.get("studentId")),
+                        cb.or(cb.like(cb.lower(student.get("fullName")), pattern),
+                                cb.like(cb.lower(student.get("studentCode")), pattern),
+                                cb.like(cb.lower(student.get("email")), pattern),
+                                cb.like(cb.lower(student.get("phone")), pattern))));
+
+                Subquery<Long> accountMatch = query.subquery(Long.class);
+                Root<Account> account = accountMatch.from(Account.class);
+                accountMatch.select(account.get("id")).where(cb.and(
+                        cb.equal(account.get("id"), root.get("accountId")),
+                        cb.or(cb.like(cb.lower(account.get("email")), pattern),
+                                cb.like(cb.lower(account.get("userProfile").get("fullName")), pattern),
+                                cb.like(cb.lower(account.get("userProfile").get("phone")), pattern))));
+
+                Subquery<Long> courseMatch = query.subquery(Long.class);
+                Root<Course> course = courseMatch.from(Course.class);
+                courseMatch.select(course.get("id")).where(cb.and(
+                        cb.equal(course.get("id"), root.get("courseId")),
+                        cb.or(cb.like(cb.lower(course.get("title")), pattern),
+                                cb.like(cb.lower(course.get("code")), pattern),
+                                cb.like(cb.lower(course.get("displayCode")), pattern))));
+
+                Subquery<Long> invoiceMatch = query.subquery(Long.class);
+                Root<Invoice> invoice = invoiceMatch.from(Invoice.class);
+                invoiceMatch.select(invoice.get("id")).where(cb.and(
+                        cb.equal(invoice.get("id"), root.get("invoiceId")),
+                        cb.like(cb.lower(invoice.get("invoiceCode")), pattern)));
+
+                predicates.add(cb.or(cb.exists(studentMatch), cb.exists(accountMatch),
+                        cb.exists(courseMatch), cb.exists(invoiceMatch)));
+            }
+            return cb.and(predicates.toArray(Predicate[]::new));
+        };
+    }
+
     private void touch(Enrollment enrollment) {
         enrollment.setUpdatedAt(LocalDateTime.now());
         enrollment.setUpdatedBy(SecurityUtils.requireCurrentAccountId());
@@ -372,8 +717,26 @@ public class EnrollmentServiceImpl implements EnrollmentService {
     }
 
     private EnrollmentResponse response(Enrollment enrollment) {
-        return EnrollmentResponse.from(enrollment,
-                attendanceRepository.countByEnrollmentId(enrollment.getId()));
+        return enrich(enrollment);
+    }
+
+    private EnrollmentResponse enrich(Enrollment e) {
+        Student s = e.getStudentId() != null ? studentRepository.findById(e.getStudentId()).orElse(null) : null;
+        Account a = e.getAccountId() != null ? accountRepository.findById(e.getAccountId()).orElse(null) : null;
+        Course c = e.getCourseId() != null ? courseRepository.findById(e.getCourseId()).orElse(null) : null;
+        Invoice inv = e.getInvoiceId() != null ? invoiceRepository.findById(e.getInvoiceId()).orElse(null) : null;
+
+        UserProfile profile = a != null ? a.getUserProfile() : null;
+        String studentName = s != null ? s.getFullName()
+                : (profile != null ? profile.getFullName() : (a != null ? a.getEmail() : null));
+        String studentCode = s != null ? s.getStudentCode() : null;
+        String studentEmail = s != null ? s.getEmail() : (a != null ? a.getEmail() : null);
+        String studentPhone = s != null ? s.getPhone() : (profile != null ? profile.getPhone() : null);
+        String courseTitle = c != null ? c.getTitle() : null;
+        String invoiceCode = inv != null ? inv.getInvoiceCode() : null;
+        long absences = attendanceRepository.countByEnrollmentId(e.getId());
+
+        return EnrollmentResponse.from(e, absences, studentName, studentCode, studentEmail, studentPhone, courseTitle, invoiceCode);
     }
 
     private Invoice getInvoice(Long invoiceId) {

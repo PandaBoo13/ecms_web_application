@@ -158,6 +158,16 @@ export const API_ENDPOINT = {
   RBAC_ACCOUNT_RESET_PASSWORD: (id: number) => `/api/rbac/accounts/${id}/reset-password`,
 
   // ══════════════════════════════════════════════════════════════
+  // REQUEST — workflow xin duyệt/hủy cho mọi loại entity
+  // ══════════════════════════════════════════════════════════════
+  REQUESTS: '/api/requests',
+  REQUEST_DETAIL: (id: number) => `/api/requests/${id}`,
+  REQUEST_REVIEW: (id: number) => `/api/requests/${id}/review`,
+  REQUEST_CANCEL: (id: number) => `/api/requests/${id}/cancel`,
+  // 🆕 Preview conflict cho COURSE_REVIEW trước khi duyệt
+  REQUEST_COURSE_CONFLICTS: (id: number) => `/api/requests/${id}/course-conflicts`,
+
+  // ══════════════════════════════════════════════════════════════
   // AUDIT
   // ══════════════════════════════════════════════════════════════
   AUDIT_LOGS: '/api/audit-logs',
@@ -222,7 +232,10 @@ export const API_ENDPOINT = {
   TUITION_CANCEL: (id: number) => `/api/tuition/invoices/${id}/cancel`,
   TUITION_REFUND: (id: number) => `/api/tuition/invoices/${id}/refund`,
   ENROLLMENTS: '/api/enrollments',
+  ENROLLMENT_SUMMARY: '/api/enrollments/summary',
   ENROLLMENT_OFFLINE: '/api/enrollments/offline',
+  ENROLLMENT_OFFLINE_BULK: '/api/enrollments/offline/bulk',
+  ENROLLMENT_OFFLINE_ELIGIBLE: '/api/enrollments/offline/eligible',
   ENROLLMENT_DETAIL: (id: number) => `/api/enrollments/${id}`,
   ENROLLMENT_ATTENDANCE_HISTORY: (id: number) => `/api/enrollments/${id}/attendance`,
   ENROLLMENT_STATUS_HISTORY: (id: number) => `/api/enrollments/${id}/status-history`,
@@ -231,6 +244,7 @@ export const API_ENDPOINT = {
   ENROLLMENT_TERMINATE: (id: number) => `/api/enrollments/${id}/terminate`,
   ENROLLMENT_FINAL_SCORE: (id: number) => `/api/enrollments/${id}/final-score`,
   ENROLLMENT_COMPLETE: (id: number) => `/api/enrollments/${id}/complete`,
+  ENROLLMENT_COMPLETE_BULK: '/api/enrollments/complete/bulk',
   SESSION_ATTENDANCE: (courseId: number, sessionId: number) =>
     `/api/courses/${courseId}/sessions/${sessionId}/attendance`,
   SESSION_ABSENCES: (courseId: number, sessionId: number) =>

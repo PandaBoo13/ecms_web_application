@@ -2,9 +2,9 @@ package com.ecms_web_application.OC01.service.impl.course;
 
 import com.ecms_web_application.OC01.dto.request.course.QuestionCreateRequest;
 import com.ecms_web_application.OC01.dto.response.course.QuestionResponse;
-import com.ecms_web_application.OC01.entity.Course;
-import com.ecms_web_application.OC01.entity.CourseResource;
-import com.ecms_web_application.OC01.entity.Question;
+import com.ecms_web_application.OC01.entity.course.Course;
+import com.ecms_web_application.OC01.entity.course.CourseResource;
+import com.ecms_web_application.OC01.entity.course.Question;
 import com.ecms_web_application.OC01.entity.enums.QuestionStatus;
 import com.ecms_web_application.OC01.entity.enums.QuestionType;
 import com.ecms_web_application.OC01.entity.enums.ResourceType;
@@ -59,16 +59,18 @@ public class QuestionServiceImpl implements QuestionService {
         Course course = courseRepository.findById(courseId)
                 .orElseThrow(() -> new ErrorHandler(HttpStatus.NOT_FOUND, "Course không tồn tại"));
 
-        CourseResource lesson = null;
-        if (request.getLessonId() != null) {
-            lesson = resourceRepository.findById(request.getLessonId())
-                    .orElseThrow(() -> new ErrorHandler(HttpStatus.NOT_FOUND, "Lesson không tồn tại"));
-            if (lesson.getResourceType() != ResourceType.LESSON) {
-                throw new ErrorHandler(HttpStatus.BAD_REQUEST, "lessonId phải là LESSON");
-            }
-            if (!lesson.getCourse().getId().equals(courseId)) {
-                throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Lesson không thuộc course");
-            }
+        // ✅ FIX: lessonId là bắt buộc — khớp cột NOT NULL trong DB
+        if (request.getLessonId() == null) {
+            throw new ErrorHandler(HttpStatus.BAD_REQUEST,
+                    "lessonId là bắt buộc — mọi câu hỏi phải thuộc một LESSON");
+        }
+        CourseResource lesson = resourceRepository.findById(request.getLessonId())
+                .orElseThrow(() -> new ErrorHandler(HttpStatus.NOT_FOUND, "Lesson không tồn tại"));
+        if (lesson.getResourceType() != ResourceType.LESSON) {
+            throw new ErrorHandler(HttpStatus.BAD_REQUEST, "lessonId phải là LESSON");
+        }
+        if (!lesson.getCourse().getId().equals(courseId)) {
+            throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Lesson không thuộc course");
         }
 
         Question q = new Question();
@@ -93,11 +95,21 @@ public class QuestionServiceImpl implements QuestionService {
     @Transactional
     public QuestionResponse update(Long id, QuestionCreateRequest request) {
         Question q = getOrThrow(id);
+
+        // ── SỬA LỖI: Validate chéo Lesson khi cập nhật ──
+        // lessonId KHÔNG được null (DB NOT NULL); nếu client không gửi → giữ nguyên.
         if (request.getLessonId() != null) {
             CourseResource lesson = resourceRepository.findById(request.getLessonId())
                     .orElseThrow(() -> new ErrorHandler(HttpStatus.NOT_FOUND, "Lesson không tồn tại"));
+            if (lesson.getResourceType() != ResourceType.LESSON) {
+                throw new ErrorHandler(HttpStatus.BAD_REQUEST, "lessonId phải là LESSON");
+            }
+            if (!lesson.getCourse().getId().equals(q.getCourse().getId())) {
+                throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Lesson không thuộc cùng khóa học với câu hỏi");
+            }
             q.setLesson(lesson);
         }
+
         if (request.getQuestionType() != null) q.setQuestionType(request.getQuestionType());
         if (request.getContent() != null) q.setContent(request.getContent());
         if (request.getOptions() != null) q.setOptions(request.getOptions());
@@ -107,6 +119,7 @@ public class QuestionServiceImpl implements QuestionService {
         if (request.getPoints() != null) q.setPoints(request.getPoints());
         if (request.getOrderIndex() != null) q.setOrderIndex(request.getOrderIndex());
         if (request.getStatus() != null) q.setStatus(request.getStatus());
+
         Question saved = questionRepository.save(q);
         auditLogService.log("UPDATE", "QUESTION", id, null);
         return toResponse(saved);

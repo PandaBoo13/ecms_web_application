@@ -1,4 +1,4 @@
-import { Layout, Menu } from 'antd';
+import { Layout, Menu, Drawer, Grid } from 'antd';
 import type { MenuProps } from 'antd';
 import {
   DashboardOutlined,
@@ -18,8 +18,10 @@ import { useAuth } from '@/hooks/useAuth';
 import { ADMIN_MENU, INSTRUCTOR_MENU } from '@/constants/routes';
 import type { MenuItem } from '@/constants/routes';
 import { useTranslation } from '@/hooks/useTranslation';
+import { useUIStore } from '@/stores/uiStore';
 
 const { Sider } = Layout;
+const { useBreakpoint } = Grid;
 
 type AntdMenuItem = NonNullable<MenuProps['items']>[number];
 
@@ -46,7 +48,7 @@ const MENU_KEY_TRANSLATION_MAP: Record<string, string> = {
   'tuition': 'Học phí',
   '/admin/tuition': 'Quản lý học phí',
   'enrollment': 'Ghi danh',
-  '/admin/enrollments': 'Quản lý ghi danh',
+  '/admin/enrollments': 'Danh sách ghi danh',
   'courses': 'menu.courses',
   '/admin/courses': 'menu.courseList',
   '/admin/categories': 'menu.categories',
@@ -74,6 +76,11 @@ const Sidebar = ({ collapsed }: Props) => {
   const { t } = useTranslation();
   const location = useLocation();
   const navigate = useNavigate();
+  const { toggleSidebar } = useUIStore();
+
+  // Nhận biết kích thước màn hình
+  const screens = useBreakpoint();
+  const isMobile = !screens.md; // Màn hình nhỏ hơn 768px
 
   const userRole = user?.roleCode;
 
@@ -128,6 +135,60 @@ const Sidebar = ({ collapsed }: Props) => {
     return path;
   };
 
+  const menuContent = (
+    <>
+      <div
+        style={{
+          height: 64,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: '#fff',
+          fontSize: collapsed && !isMobile ? 16 : 18,
+          fontWeight: 700,
+          letterSpacing: 1,
+          borderBottom: '1px solid rgba(255,255,255,.1)',
+        }}
+      >
+        {collapsed && !isMobile ? 'E' : 'ECMS'}
+      </div>
+
+      <Menu
+        theme="dark"
+        mode="inline"
+        selectedKeys={[getSelectedKey()]}
+        defaultOpenKeys={menu.filter((m) => m.children).map((m) => m.key)}
+        items={items}
+        onClick={({ key }) => {
+          if (typeof key === 'string' && key.startsWith('/')) {
+            navigate(key);
+            // Tự đóng menu trượt khi chuyển trang trên Mobile
+            if (isMobile) {
+              toggleSidebar();
+            }
+          }
+        }}
+      />
+    </>
+  );
+
+  // Trên Mobile: Hiển thị dạng Drawer trượt (không làm mất diện tích khung nhìn chính)
+  if (isMobile) {
+    return (
+      <Drawer
+        placement="left"
+        open={!collapsed} // Khi collapsed = false -> Mở Drawer
+        onClose={toggleSidebar}
+        closable={false}
+        width={240}
+        styles={{ body: { padding: 0, backgroundColor: '#001529' } }}
+      >
+        {menuContent}
+      </Drawer>
+    );
+  }
+
+  // Trên Desktop: Hiển thị Sider cố định như bình thường
   return (
     <Sider
       trigger={null}
@@ -142,34 +203,7 @@ const Sidebar = ({ collapsed }: Props) => {
         left: 0,
       }}
     >
-      <div
-        style={{
-          height: 64,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: '#fff',
-          fontSize: collapsed ? 16 : 18,
-          fontWeight: 700,
-          letterSpacing: 1,
-          borderBottom: '1px solid rgba(255,255,255,.1)',
-        }}
-      >
-        {collapsed ? 'E' : 'ECMS'}
-      </div>
-
-      <Menu
-        theme="dark"
-        mode="inline"
-        selectedKeys={[getSelectedKey()]}
-        defaultOpenKeys={menu.filter((m) => m.children).map((m) => m.key)}
-        items={items}
-        onClick={({ key }) => {
-          if (typeof key === 'string' && key.startsWith('/')) {
-            navigate(key);
-          }
-        }}
-      />
+      {menuContent}
     </Sider>
   );
 };

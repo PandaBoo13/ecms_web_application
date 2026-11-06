@@ -220,15 +220,8 @@ const CourseProgressCharts = ({ courseId }: Props) => {
 
   return (
     <div>
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-          marginBottom: 10,
-        }}
-      >
-        <span style={{ fontSize: 14, fontWeight: 600, color: '#0f172a' }}>
+      <div className="flex items-center gap-2 mb-2.5">
+        <span className="text-[14px] font-semibold text-slate-900">
           Biểu đồ theo dõi học viên
         </span>
       </div>

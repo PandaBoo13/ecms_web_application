@@ -1,6 +1,6 @@
 package com.ecms_web_application.OC01.repository;
 
-import com.ecms_web_application.OC01.entity.CourseResource;
+import com.ecms_web_application.OC01.entity.course.CourseResource;
 import com.ecms_web_application.OC01.entity.enums.ResourceType;
 import com.ecms_web_application.OC01.generic.IRepository;
 import org.springframework.data.jpa.repository.Query;

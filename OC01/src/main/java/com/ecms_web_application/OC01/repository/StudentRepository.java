@@ -19,6 +19,7 @@ public interface StudentRepository extends IRepository<Student, Long> {
     Optional<Student> findByLeadId(Long leadId);
 
     Optional<Student> findByUserId(Long userId);
+    List<Student> findByUserIdIn(java.util.Collection<Long> userIds);
 
     boolean existsByStudentCode(String studentCode);
 

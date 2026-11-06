@@ -8,7 +8,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.ecms_web_application.OC01.dto.request.SpecializationAddRequest;
 import com.ecms_web_application.OC01.dto.response.InstructorSpecializationResponse;
 import com.ecms_web_application.OC01.entity.Account;
-import com.ecms_web_application.OC01.entity.Category;
+import com.ecms_web_application.OC01.entity.course.Category;
 import com.ecms_web_application.OC01.entity.InstructorSpecialization;
 import com.ecms_web_application.OC01.exception.ErrorHandler;
 import com.ecms_web_application.OC01.repository.AccountRepository;

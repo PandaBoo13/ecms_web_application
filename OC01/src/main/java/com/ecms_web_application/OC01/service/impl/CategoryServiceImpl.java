@@ -11,7 +11,7 @@ import com.ecms_web_application.OC01.dto.request.CategoryCreateRequest;
 import com.ecms_web_application.OC01.dto.request.CategoryUpdateRequest;
 import com.ecms_web_application.OC01.dto.response.CategoryResponse;
 import com.ecms_web_application.OC01.dto.response.CategoryTreeResponse;
-import com.ecms_web_application.OC01.entity.Category;
+import com.ecms_web_application.OC01.entity.course.Category;
 import com.ecms_web_application.OC01.exception.ErrorHandler;
 import com.ecms_web_application.OC01.repository.CategoryRepository;
 import com.ecms_web_application.OC01.repository.InstructorSpecializationRepository;

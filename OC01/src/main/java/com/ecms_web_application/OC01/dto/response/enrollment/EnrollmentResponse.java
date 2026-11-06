@@ -33,15 +33,42 @@ public record EnrollmentResponse(
         Long scoreRecordedBy,
         LocalDateTime completedAt,
         Long completedBy,
-        long absences
+        long absences,
+        String studentName,
+        String studentCode,
+        String studentEmail,
+        String studentPhone,
+        String courseTitle,
+        String invoiceCode,
+        boolean completionEligible,
+        String completionBlockedReason
 ) {
     public static EnrollmentResponse from(Enrollment e, long absences) {
-        return new EnrollmentResponse(e.getId(), e.getEnrollmentType(), e.getAccountId(),
+        return from(e, absences, null, null, null, null, null, null);
+    }
+
+    public static EnrollmentResponse from(Enrollment e, long absences,
+                                          String studentName, String studentCode,
+                                          String studentEmail, String studentPhone,
+                                          String courseTitle, String invoiceCode) {
+        return from(e, absences, studentName, studentCode, studentEmail, studentPhone,
+                courseTitle, invoiceCode, false, null);
+    }
+
+    public static EnrollmentResponse from(Enrollment e, long absences,
+                                          String studentName, String studentCode,
+                                          String studentEmail, String studentPhone,
+                                          String courseTitle, String invoiceCode,
+                                          boolean completionEligible, String completionBlockedReason) {
+        return new EnrollmentResponse(
+                e.getId(), e.getEnrollmentType(), e.getAccountId(),
                 e.getStudentId(), e.getCourseId(), e.getInvoiceId(), e.getStatus(),
                 e.getEnrolledAt(), e.getEnrolledBy(), e.getUpdatedAt(), e.getUpdatedBy(),
                 e.getHoldReason(), e.getHoldStartDate(), e.getHoldEndDate(), e.getActualReturnDate(),
                 e.getHoldProcessedBy(), e.getTerminationReason(), e.getTerminatedAt(),
                 e.getTerminatedBy(), e.getFinalScore(), e.getScoreRecordedAt(),
-                e.getScoreRecordedBy(), e.getCompletedAt(), e.getCompletedBy(), absences);
+                e.getScoreRecordedBy(), e.getCompletedAt(), e.getCompletedBy(), absences,
+                studentName, studentCode, studentEmail, studentPhone, courseTitle, invoiceCode,
+                completionEligible, completionBlockedReason);
     }
 }

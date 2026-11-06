@@ -1,5 +1,6 @@
 package com.ecms_web_application.OC01.entity;
 
+import com.ecms_web_application.OC01.entity.course.Category;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;

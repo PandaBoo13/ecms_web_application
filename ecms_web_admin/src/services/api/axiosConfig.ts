@@ -26,19 +26,21 @@ interface QueueItem {
   resolve: () => void;
   reject: (reason?: unknown) => void;
 }
-// http://localhost:8080
+
 // ══════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════
 export const API_HOST = import.meta.env.VITE_API_URL || '';
-
-/** ⚠️ KHÔNG append `/api` — endpoint đã có prefix này */
 export const API_BASE_URL = API_HOST;
 
 export const APP_CONFIG = {
   API_BASE_URL: API_HOST,
   API_TIMEOUT: 30000,
   REFRESH_TIMEOUT: 10000,
+  /** Số lần retry ngầm khi refresh fail do network/5xx */
+  REFRESH_MAX_RETRIES: 2,
+  /** Delay giữa các lần retry (nhân với attempt number) */
+  REFRESH_RETRY_DELAY: 1500,
 } as const;
 
 // ══════════════════════════════════════════════════════════════
@@ -47,11 +49,10 @@ export const APP_CONFIG = {
 const api: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
   timeout: APP_CONFIG.API_TIMEOUT,
-  withCredentials: true, // ✅ Cookie-based auth khớp BE
+  withCredentials: true,
   headers: { 'Content-Type': 'application/json' },
 });
 
-// Auto-bỏ Content-Type khi gửi FormData (multipart)
 api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   if (config.data instanceof FormData) {
     delete config.headers['Content-Type'];
@@ -116,6 +117,8 @@ const emitSessionExpired = () => {
 // ══════════════════════════════════════════════════════════════
 // HELPERS
 // ══════════════════════════════════════════════════════════════
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
 const processQueue = (error: unknown) => {
   failedQueue.forEach((p) => {
     if (error) p.reject(error);
@@ -124,11 +127,21 @@ const processQueue = (error: unknown) => {
   failedQueue = [];
 };
 
+/**
+ * Đánh dấu lỗi là "silent" + "authError"
+ * → Component dùng helper `showError` sẽ KHÔNG hiện toast
+ * → Component dùng `toast.error` trực tiếp vẫn sẽ hiện (xem ghi chú cuối)
+ */
+const markAsSilent = (err: AppAxiosError): AppAxiosError => {
+  err.isSilent = true;
+  err.isAuthError = true;
+  return err;
+};
+
 const extractErrorMessage = (error: AppAxiosError): string => {
   if (!error.response) {
     return 'Không thể kết nối đến server. Vui lòng kiểm tra kết nối mạng.';
   }
-
   const data = error.response.data as ApiResponse | undefined;
   if (data?.message) return data.message;
   if (data?.error) return data.error;
@@ -143,7 +156,6 @@ const extractErrorMessage = (error: AppAxiosError): string => {
     429: 'Quá nhiều yêu cầu, vui lòng thử lại sau',
     500: 'Lỗi hệ thống, vui lòng thử lại sau',
   };
-
   return statusMessages[error.response.status] || 'Có lỗi xảy ra';
 };
 
@@ -152,6 +164,48 @@ const shouldSkipRefresh = (url?: string): boolean =>
 
 const shouldBeSilent = (url?: string): boolean =>
   url ? SILENT_URLS.some((e) => url.includes(e)) : false;
+
+// ══════════════════════════════════════════════════════════════
+// REFRESH TOKEN (retry ngầm với backoff)
+// ══════════════════════════════════════════════════════════════
+const doRefreshToken = async (): Promise<void> => {
+  let lastError: AppAxiosError | null = null;
+
+  for (let attempt = 0; attempt <= APP_CONFIG.REFRESH_MAX_RETRIES; attempt++) {
+    try {
+      await api.post(API_ENDPOINT.AUTH_REFRESH_TOKEN, null, {
+        timeout: APP_CONFIG.REFRESH_TIMEOUT,
+      });
+      log(`✅ Refresh token thành công (attempt ${attempt + 1})`);
+      return;
+    } catch (err) {
+      lastError = err as AppAxiosError;
+
+      // 401 (refresh token invalid/expired) → không retry, fail ngay
+      if (lastError.response?.status === 401) {
+        throw lastError;
+      }
+
+      // 5xx / network / timeout → retry ngầm
+      const isRetryable =
+        !lastError.response ||
+        lastError.response.status >= 500 ||
+        lastError.code === 'ECONNABORTED' ||
+        lastError.code === 'ERR_NETWORK';
+
+      if (!isRetryable || attempt === APP_CONFIG.REFRESH_MAX_RETRIES) {
+        throw lastError;
+      }
+
+      log(
+        `⚠️ Refresh fail (${lastError.message}), retry ${attempt + 1}/${APP_CONFIG.REFRESH_MAX_RETRIES} sau ${APP_CONFIG.REFRESH_RETRY_DELAY * (attempt + 1)}ms...`
+      );
+      await sleep(APP_CONFIG.REFRESH_RETRY_DELAY * (attempt + 1));
+    }
+  }
+
+  throw lastError || new Error('Refresh token thất bại');
+};
 
 // ══════════════════════════════════════════════════════════════
 // REQUEST INTERCEPTOR
@@ -178,8 +232,6 @@ api.interceptors.response.use(
     if (!shouldBeSilent(response.config.url)) {
       log('🟢 Response:', response.status, response.config.url);
     }
-
-    // BE trả { status: 'error' } dù HTTP 200 → reject
     const data = response.data as ApiResponse | undefined;
     if (data?.status === 'error') {
       const err = new Error(
@@ -190,7 +242,6 @@ api.interceptors.response.use(
       err.isSilent = shouldBeSilent(response.config.url);
       return Promise.reject(err);
     }
-
     return response;
   },
 
@@ -206,19 +257,24 @@ api.interceptors.response.use(
 
     // ── Silent URL fail 401 ──
     if (silent && appErr.response?.status === 401) {
-      appErr.isSilent = true;
-      appErr.isAuthError = true;
+      markAsSilent(appErr);
       appErr.isSessionExpired = true;
       emitSessionExpired();
       return Promise.reject(appErr);
     }
 
-    // ── Không phải 401, hoặc đã retry ──
+    // ── Không phải 401, hoặc đã retry xong ──
     if (
       appErr.response?.status !== 401 ||
       !originalRequest ||
       originalRequest._retry
     ) {
+      // ⚠️ 401 do retry (đã refresh xong mà vẫn fail) → đánh dấu silent
+      if (appErr.response?.status === 401 && originalRequest?._retry) {
+        markAsSilent(appErr);
+        appErr.isSessionExpired = true;
+        emitSessionExpired();
+      }
       return Promise.reject(appErr);
     }
 
@@ -227,9 +283,9 @@ api.interceptors.response.use(
       return Promise.reject(appErr);
     }
 
-    // ── Đang refresh → queue ──
+    // ── Đang refresh → queue (reject LUÔN silent để component không hiện) ──
     if (isRefreshing) {
-      originalRequest._retry = true; // 🆕 tránh loop vô tận
+      originalRequest._retry = true;
       log('⏳ Đang refresh, queue request:', originalRequest.url);
 
       return new Promise<void>((resolve, reject) => {
@@ -239,7 +295,10 @@ api.interceptors.response.use(
           log('🔄 Retry từ queue:', originalRequest.url);
           return api(originalRequest);
         })
-        .catch((err) => Promise.reject(err));
+        .catch((err) => {
+          // Đảm bảo lỗi từ queue luôn silent
+          return Promise.reject(markAsSilent(err as AppAxiosError));
+        });
     }
 
     // ── Bắt đầu refresh ──
@@ -247,33 +306,28 @@ api.interceptors.response.use(
     isRefreshing = true;
 
     try {
-      log('⚠️ Access token hết hạn — gọi refresh-token...');
-      await api.post(API_ENDPOINT.AUTH_REFRESH_TOKEN, null, {
-        timeout: APP_CONFIG.REFRESH_TIMEOUT,
-      });
-      log('✅ Refresh thành công, cookie mới đã set');
-
+      await doRefreshToken();
       processQueue(null);
       isRefreshing = false;
 
+      // Retry request gốc sau khi refresh thành công
       return api(originalRequest);
-    } catch (refreshError: unknown) {
-      const err = refreshError as AppAxiosError;
-      const isAuthFail = err?.response?.status === 401;
+    } catch (refreshError) {
+      const err = markAsSilent(refreshError as AppAxiosError);
 
-      if (isAuthFail) {
-        err.isSilent = true;
-        err.isAuthError = true;
+      // Chỉ emit session expired khi thực sự 401 (refresh token invalid)
+      if (err.response?.status === 401) {
         err.isSessionExpired = true;
         emitSessionExpired();
       } else {
-        log('❌ Refresh thất bại:', err?.message);
+        log('❌ Refresh thất bại sau retry:', err?.message);
       }
 
-      processQueue(refreshError);
+      // Queue luôn reject với lỗi silent → component không hiện toast
+      processQueue(err);
       isRefreshing = false;
 
-      return Promise.reject(refreshError);
+      return Promise.reject(err);
     }
   }
 );

@@ -348,7 +348,7 @@ const CourseListPage = () => {
             <Button
               type="primary"
               icon={<PlusOutlined />}
-              onClick={() => navigate('/instructor/courses/create')}
+             onClick={() => navigate('/admin/courses/create')}
             >
               {t('course.create')}
             </Button>

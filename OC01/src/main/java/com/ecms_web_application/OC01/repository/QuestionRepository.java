@@ -1,6 +1,6 @@
 package com.ecms_web_application.OC01.repository;
 
-import com.ecms_web_application.OC01.entity.Question;
+import com.ecms_web_application.OC01.entity.course.Question;
 import com.ecms_web_application.OC01.entity.enums.QuestionStatus;
 import com.ecms_web_application.OC01.entity.enums.QuestionType;
 import com.ecms_web_application.OC01.generic.IRepository;

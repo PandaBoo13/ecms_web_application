@@ -45,15 +45,29 @@ const UserDropdown = () => {
 
   return (
     <Dropdown menu={{ items: menuItems }} placement="bottomRight" trigger={['click']}>
-      <Space style={{ cursor: 'pointer' }}>
+      <Space style={{ cursor: 'pointer' }} align="center">
         <Avatar
           size={32}
           src={user?.avatarUrl || undefined}
           icon={!user?.avatarUrl ? <UserOutlined /> : undefined}
-          style={{ backgroundColor: '#1677ff' }}
+          style={{ backgroundColor: '#1677ff', flexShrink: 0 }}
         />
-        <div style={{ lineHeight: 1.2 }}>
-          <div style={{ fontSize: 13, fontWeight: 500 }}>{user?.fullName || 'User'}</div>
+        
+        {/* 🆕 Ẩn thông tin chữ trên Mobile (<768px), chỉ hiện từ màn hình md trở lên */}
+        <div 
+          className="hidden md:flex flex-col justify-center" 
+          style={{ lineHeight: 1.2, whiteSpace: 'nowrap', maxWidth: 140 }}
+        >
+          <div 
+            style={{ 
+              fontSize: 13, 
+              fontWeight: 500, 
+              overflow: 'hidden', 
+              textOverflow: 'ellipsis' 
+            }}
+          >
+            {user?.fullName || 'User'}
+          </div>
           <div style={{ fontSize: 11, color: '#8c8c8c' }}>
             {user?.roleCode ? ROLE_LABEL[user.roleCode] : ''}
           </div>

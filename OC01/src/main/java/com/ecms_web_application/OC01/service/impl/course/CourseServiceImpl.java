@@ -10,10 +10,12 @@ import com.ecms_web_application.OC01.generic.mapper.CourseMapper;
 import com.ecms_web_application.OC01.generic.validator.CourseValidator;
 import com.ecms_web_application.OC01.repository.*;
 import com.ecms_web_application.OC01.service.AuditLogService;
+import com.ecms_web_application.OC01.service.CourseConflictService;
 import com.ecms_web_application.OC01.service.CourseService;
 import com.ecms_web_application.OC01.service.SessionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
@@ -23,10 +25,16 @@ import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.text.Normalizer;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import com.ecms_web_application.OC01.entity.course.Course;
+import com.ecms_web_application.OC01.entity.course.CourseResource;
+import com.ecms_web_application.OC01.entity.course.Question;
 
 @Service
 @RequiredArgsConstructor
@@ -41,8 +49,13 @@ public class CourseServiceImpl implements CourseService {
     private final QuestionRepository questionRepository;
     private final AuditLogService auditLogService;
     private final SessionService sessionService;
+    private final SessionRepository sessionRepository;
+    private final EnrollmentRepository enrollmentRepository;
+    private final EnrollmentStatusLogRepository enrollmentStatusLogRepository;
+    private final ApplicationEventPublisher eventPublisher;
     private final CourseValidator courseValidator;
     private final CourseMapper courseMapper;
+    private final CourseConflictService courseConflictService;
 
     private static final Pattern NON_ALNUM = Pattern.compile("[^a-z0-9]+");
 
@@ -112,7 +125,7 @@ public class CourseServiceImpl implements CourseService {
     }
 
     // ============================================================
-    // SEARCH (ĐÃ SỬA)
+    // SEARCH
     // ============================================================
     @Override
     @Transactional(readOnly = true)
@@ -122,7 +135,6 @@ public class CourseServiceImpl implements CourseService {
         CourseType tp = StringUtils.hasText(type) ? CourseType.valueOf(type.toUpperCase()) : null;
         String kw = StringUtils.hasText(search) ? search.trim() : "";
 
-        // Truyền thẳng categoryId, không dùng đệ quy lấy con nữa
         return courseRepository.searchCourses(st, tp, teacherId, categoryId, kw, pageable)
                 .map(courseMapper::toResponse);
     }
@@ -185,29 +197,35 @@ public class CourseServiceImpl implements CourseService {
         Course c = getCourseOrThrow(id);
         assertCanEdit(c);
 
-        if (request.getStartDate().isAfter(request.getEndDate())) {
+        LocalDate startDate = request.getStartDate() != null ? request.getStartDate() : c.getStartDate();
+        LocalDate endDate   = request.getEndDate()   != null ? request.getEndDate()   : c.getEndDate();
+        Integer minStudents = request.getMinStudents() != null ? request.getMinStudents() : c.getMinStudents();
+        Integer maxStudents = request.getMaxStudents() != null ? request.getMaxStudents() : c.getMaxStudents();
+        LocalTime startTime = request.getSessionStartTime() != null ? request.getSessionStartTime() : c.getSessionStartTime();
+        LocalTime endTime   = request.getSessionEndTime()   != null ? request.getSessionEndTime()   : c.getSessionEndTime();
+
+        if (startDate != null && endDate != null && startDate.isAfter(endDate)) {
             throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Ngày bắt đầu phải <= ngày kết thúc");
         }
-        if (request.getMaxStudents() < request.getMinStudents()) {
+        if (minStudents != null && maxStudents != null && maxStudents < minStudents) {
             throw new ErrorHandler(HttpStatus.BAD_REQUEST, "max_students phải >= min_students");
         }
-        if (!request.getSessionStartTime().isBefore(request.getSessionEndTime())) {
+        if (startTime != null && endTime != null && !startTime.isBefore(endTime)) {
             throw new ErrorHandler(HttpStatus.BAD_REQUEST, "session_start_time phải < session_end_time");
         }
-        if (request.getScheduleDays() == null || request.getScheduleDays().isEmpty()) {
-            throw new ErrorHandler(HttpStatus.BAD_REQUEST, "schedule_days không được rỗng");
-        }
 
-        c.setMinStudents(request.getMinStudents());
-        c.setMaxStudents(request.getMaxStudents());
-        c.setStartDate(request.getStartDate());
-        c.setEndDate(request.getEndDate());
-        c.setScheduleDays(request.getScheduleDays());
-        c.setSessionStartTime(request.getSessionStartTime());
-        c.setSessionEndTime(request.getSessionEndTime());
+        if (request.getMinStudents() != null) c.setMinStudents(request.getMinStudents());
+        if (request.getMaxStudents() != null) c.setMaxStudents(request.getMaxStudents());
+        if (request.getStartDate() != null) c.setStartDate(request.getStartDate());
+        if (request.getEndDate() != null) c.setEndDate(request.getEndDate());
+        if (request.getScheduleDays() != null) c.setScheduleDays(request.getScheduleDays());
+        if (request.getSessionStartTime() != null) c.setSessionStartTime(request.getSessionStartTime());
+        if (request.getSessionEndTime() != null) c.setSessionEndTime(request.getSessionEndTime());
+
         c.setCourseType(CourseType.OFFLINE);
         c.setProgressType(ProgressType.SESSION_BASED);
         if (c.getLearningMode() == null) c.setLearningMode("SEQUENTIAL");
+
         if (request.getTeacherId() != null) {
             c.setTeacher(accountRepository.findById(request.getTeacherId())
                     .orElseThrow(() -> new ErrorHandler(HttpStatus.NOT_FOUND, "GV không tồn tại")));
@@ -218,20 +236,12 @@ public class CourseServiceImpl implements CourseService {
         }
 
         Course saved = courseRepository.save(c);
-        auditLogService.log("UPDATE_OFFLINE", "COURSE", id, "Chuyển OFFLINE");
-        try {
-            if (saved.getCourseType() == CourseType.OFFLINE) {
-                sessionService.generateSessions(id);
-            }
-        } catch (Exception ex) {
-            log.warn("[AutoGenerate] Không sinh được session cho course {}: {}",
-                    id, ex.getMessage());
-        }
+        auditLogService.log("UPDATE_OFFLINE", "COURSE", id, "Cập nhật cấu hình OFFLINE");
         return courseMapper.toResponse(saved);
     }
 
     // ============================================================
-    // SUBMIT FOR REVIEW
+    // SUBMIT FOR REVIEW (DEPRECATED — dùng Request API)
     // ============================================================
     @Override
     @Transactional
@@ -248,7 +258,7 @@ public class CourseServiceImpl implements CourseService {
     }
 
     // ============================================================
-    // REVIEW
+    // REVIEW (DEPRECATED — dùng Request API)
     // ============================================================
     @Override
     @Transactional
@@ -299,10 +309,41 @@ public class CourseServiceImpl implements CourseService {
         }
         c.setStatus(CourseStatus.CANCELLED);
         Course saved = courseRepository.save(c);
+
+        // ── Cascade terminate enrollments ──
+        // Repo không có findByCourseIdAndStatusIn → gọi 3 lần findByCourseIdAndStatus
+        List<Enrollment> active = new ArrayList<>();
+        active.addAll(enrollmentRepository.findByCourseIdAndStatus(
+                id, EnrollmentStatus.PENDING));
+        active.addAll(enrollmentRepository.findByCourseIdAndStatus(
+                id, EnrollmentStatus.ACTIVE));
+        active.addAll(enrollmentRepository.findByCourseIdAndStatus(
+                id, EnrollmentStatus.RESERVED));
+
+        Long actorId = SecurityUtils.getCurrentAccountId();
+        LocalDateTime now = LocalDateTime.now();
+
+        for (Enrollment e : active) {
+            EnrollmentStatus oldStatus = e.getStatus();
+            e.setStatus(EnrollmentStatus.TERMINATED);
+            e.setTerminationReason("Khóa học bị hủy: " + reason);
+            e.setTerminatedAt(now);
+            e.setTerminatedBy(actorId);
+            enrollmentRepository.save(e);
+
+            EnrollmentStatusLog logEntry = new EnrollmentStatusLog();
+            logEntry.setEnrollmentId(e.getId());
+            logEntry.setOldStatus(oldStatus);
+            logEntry.setNewStatus(EnrollmentStatus.TERMINATED);
+            logEntry.setReason("Khóa học bị hủy: " + reason);
+            logEntry.setChangedBy(actorId);
+            enrollmentStatusLogRepository.save(logEntry);
+        }
+        log.info("[Course] CANCELLED courseId={}, terminated {} enrollments", id, active.size());
+
         auditLogService.log("CANCEL", "COURSE", id, reason);
         return courseMapper.toResponse(saved);
     }
-
     // ============================================================
     // COPY
     // ============================================================
@@ -477,7 +518,7 @@ public class CourseServiceImpl implements CourseService {
     }
 
     private String generateCode(String typeCode) {
-        String ym = DateTimeFormatter.ofPattern("yyyyMM").format(java.time.LocalDate.now());
+        String ym = DateTimeFormatter.ofPattern("yyyyMM").format(LocalDate.now());
         long count = courseRepository.count() + 1;
         return String.format("CRS-%s-%s-%03d", typeCode, ym, count);
     }
@@ -500,5 +541,118 @@ public class CourseServiceImpl implements CourseService {
         temp = temp.toLowerCase(Locale.ROOT);
         temp = NON_ALNUM.matcher(temp).replaceAll("-");
         return temp.replaceAll("^-+|-+$", "");
+    }
+
+    // ============================================================
+    // FINALIZE SCHEDULE — PLANNED → PUBLISHED (chỉ OFFLINE)
+    // ============================================================
+    @Transactional
+    @Override
+    public CourseResponse finalizeSchedule(Long courseId) {
+        Course c = getCourseOrThrow(courseId);
+
+        if (c.getCourseType() != CourseType.OFFLINE) {
+            throw new ErrorHandler(HttpStatus.BAD_REQUEST,
+                    "finalizeSchedule chỉ áp dụng cho khóa OFFLINE");
+        }
+        if (c.getStatus() != CourseStatus.PLANNED) {
+            throw new ErrorHandler(HttpStatus.CONFLICT,
+                    "Chỉ finalize khóa ở PLANNED (hiện tại: " + c.getStatus() + ")");
+        }
+
+        // ── Validate đầy đủ cấu hình ──
+        if (c.getTeacher() == null) {
+            throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Thiếu giảng viên chính");
+        }
+        boolean hasRoom = c.getRoom() != null
+                || (c.getAllowedRoomIds() != null && !c.getAllowedRoomIds().isEmpty());
+        if (!hasRoom) {
+            throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Thiếu phòng học");
+        }
+        if (c.getStartDate() == null || c.getEndDate() == null) {
+            throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Thiếu start_date / end_date");
+        }
+        if (c.getScheduleDays() == null || c.getScheduleDays().isEmpty()) {
+            throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Thiếu schedule_days");
+        }
+        if (c.getSessionStartTime() == null || c.getSessionEndTime() == null
+                || !c.getSessionStartTime().isBefore(c.getSessionEndTime())) {
+            throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Giờ học không hợp lệ");
+        }
+        if (c.getMinStudents() == null || c.getMaxStudents() == null
+                || c.getMaxStudents() < c.getMinStudents()) {
+            throw new ErrorHandler(HttpStatus.BAD_REQUEST, "min/max students không hợp lệ");
+        }
+        if (c.getTotalSessionsExpected() == null || c.getTotalSessionsExpected() <= 0) {
+            throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Thiếu total_sessions_expected");
+        }
+
+        // ── Validate tất cả session đã có room + teacher ──
+        List<com.ecms_web_application.OC01.entity.course.Session> sessions =
+                sessionRepository.findByCourse_IdOrderBySessionNumberAsc(courseId);
+
+        if (sessions.isEmpty()) {
+            throw new ErrorHandler(HttpStatus.BAD_REQUEST,
+                    "Chưa có session nào — cần generate-sessions trước");
+        }
+
+        List<Long> missingRoom = new ArrayList<>();
+        List<Long> missingTeacher = new ArrayList<>();
+        for (var s : sessions) {
+            if (s.getStatus() == SessionStatus.CANCELLED) continue;
+            boolean hasSessionRoom = s.getRoom() != null || s.getEffectiveRoomId() != null;
+            if (!hasSessionRoom) missingRoom.add(s.getId());
+            if (s.getTeacher() == null) missingTeacher.add(s.getId());
+        }
+        if (!missingRoom.isEmpty() || !missingTeacher.isEmpty()) {
+            throw new ErrorHandler(HttpStatus.BAD_REQUEST,
+                    "Thiếu room/teacher. missingRoom=" + missingRoom
+                            + ", missingTeacher=" + missingTeacher);
+        }
+
+        // ── ⚠️ CHECK SESSION CONFLICT với course khác TRƯỚC KHI PUBLIC ──
+        List<CourseConflictDetail> conflicts =
+                courseConflictService.checkSessionConflict(courseId);
+
+        if (!conflicts.isEmpty()) {
+            String detail = conflicts.stream()
+                    .limit(5)
+                    .map(cf -> {
+                        String types = String.join("+", cf.getConflictTypes());
+                        return "Buổi " + cf.getConflictingSessionNumber()
+                                + " (" + types + "): trùng course '"
+                                + cf.getConflictingCourseTitle() + "'";
+                    })
+                    .collect(Collectors.joining(" | "));
+            if (conflicts.size() > 5) {
+                detail += " | ... và " + (conflicts.size() - 5) + " conflict khác";
+            }
+
+            throw new ErrorHandler(HttpStatus.CONFLICT,
+                    "Không thể finalize → PUBLISHED. Có " + conflicts.size()
+                            + " session bị TRÙNG lịch với course khác: " + detail
+                            + ". Vui lòng điều chỉnh lịch (GV/phòng) trước khi finalize.");
+        }
+
+        // ── Update sessions DRAFT → SCHEDULED ──
+        int scheduled = 0;
+        for (var s : sessions) {
+            if (s.getStatus() == SessionStatus.DRAFT) {
+                s.setStatus(SessionStatus.SCHEDULED);
+                sessionRepository.save(s);
+                scheduled++;
+            }
+        }
+
+        // ── Update course ──
+        c.setStatus(CourseStatus.PUBLISHED);
+        Course saved = courseRepository.save(c);
+
+        auditLogService.log("FINALIZE_SCHEDULE", "COURSE", courseId,
+                "scheduled " + scheduled + "/" + sessions.size() + " sessions → PUBLISHED");
+        log.info("[Course] finalizeSchedule courseId={}, {} sessions → SCHEDULED, course → PUBLISHED",
+                courseId, scheduled);
+
+        return courseMapper.toResponse(saved);
     }
 }

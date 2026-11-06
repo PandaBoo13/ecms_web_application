@@ -20,17 +20,6 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 
-/**
- * Filter phân quyền — TỐI GIẢN HÓA (FAIL-CLOSED).
- * 
- * Logic: 
- * 1. OPTIONS -> pass
- * 2. PUBLIC -> pass
- * 3. Chưa đăng nhập -> 401
- * 4. ADMIN -> pass (Bypass)
- * 5. USER_URLS -> pass (Chỉ cần đăng nhập)
- * 6. TẤT CẢ CÁC URL CÒN LẠI -> Check quyền trong DB (RBAC)
- */
 @Component
 @Slf4j
 public class PermissionAuthorizationFilter extends OncePerRequestFilter {
@@ -40,6 +29,12 @@ public class PermissionAuthorizationFilter extends OncePerRequestFilter {
     private final ObjectMapper objectMapper;
 
     private static final AntPathMatcher PATH_MATCHER = new AntPathMatcher();
+
+    // Danh sách Auth path (luôn bypass)
+    private static final String[] AUTH_PATHS = {
+            "/api/auth/login", "/api/auth/register", "/api/auth/refresh-token",
+            "/api/auth/forgot-password", "/api/auth/verify-otp", "/api/auth/reset-password"
+    };
 
     public PermissionAuthorizationFilter(
             @Lazy AccountPermissionService accountPermissionService,
@@ -65,34 +60,40 @@ public class PermissionAuthorizationFilter extends OncePerRequestFilter {
             return;
         }
 
-        // ── 2. PUBLIC → pass luôn ──
-        if (matchesPath(APIURL.PUBLIC_URLS, path)) {
+        // ── 2. AUTH PATHS → luôn pass ──
+        if (matchesAuthPath(path)) {
             filterChain.doFilter(request, response);
             return;
         }
 
-        // ── 3. Bắt buộc đăng nhập ──
+        // ── 3. PUBLIC → CHỈ pass nếu là GET ──
+        if ("GET".equals(method) && matchesPath(APIURL.PUBLIC_URLS, path)) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
+        // ── 4. Bắt buộc đăng nhập ──
         if (!SecurityUtils.isAuthenticated()) {
             sendError(response, HttpStatus.UNAUTHORIZED, "Vui lòng đăng nhập để tiếp tục");
             return;
         }
 
-        // ── 4. ADMIN bypass ──
+        // ── 5. ADMIN bypass ──
         if (SecurityUtils.hasRole("ADMIN")) {
             filterChain.doFilter(request, response);
             return;
         }
 
-        // ── 5. USER_URLS → chỉ cần đăng nhập là pass ──
+        // ── 6. USER_URLS → chỉ cần đăng nhập là pass ──
         if (matchesPath(APIURL.USER_URLS, path)) {
             filterChain.doFilter(request, response);
             return;
         }
 
-        // ── 6. TẤT CẢ CÁC URL CÒN LẠI → CHECK QUYỀN TRONG DB (RBAC) ──
+        // ── 7. TẤT CẢ CÁC URL CÒN LẠI → CHECK QUYỀN TRONG DB (RBAC) ──
         Long accountId = SecurityUtils.getCurrentAccountId();
 
-        // 6a. Kiểm tra Endpoint này đã được khai báo trong bảng Permission chưa
+        // 7a. Kiểm tra Endpoint này đã được khai báo trong bảng Permission chưa
         boolean hasMapping = permissionService.existsByMethodAndEndpoint(method, path);
         if (!hasMapping) {
             log.warn("[SECURITY] Deny — Endpoint chưa mapping: {} {} (accountId={})", method, path, accountId);
@@ -100,7 +101,7 @@ public class PermissionAuthorizationFilter extends OncePerRequestFilter {
             return;
         }
 
-        // 6b. Kiểm tra Role của User có quyền này không
+        // 7b. Kiểm tra Role của User có quyền này không
         boolean allowed = accountPermissionService.hasPermission(accountId, method, path);
         if (allowed) {
             filterChain.doFilter(request, response);
@@ -120,6 +121,13 @@ public class PermissionAuthorizationFilter extends OncePerRequestFilter {
             if (PATH_MATCHER.match(pattern, path)) {
                 return true;
             }
+        }
+        return false;
+    }
+
+    private boolean matchesAuthPath(String path) {
+        for (String authPath : AUTH_PATHS) {
+            if (authPath.equals(path)) return true;
         }
         return false;
     }

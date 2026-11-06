@@ -37,8 +37,10 @@ export const courseApi = {
     return data.data;
   },
 
+  // ⚠️ ĐÃ SỬA: Thêm Partial<CourseOfflineInfoRequest> để hỗ trợ update từng field
   updateOfflineInfo: async (
-    id: number, payload: CourseOfflineInfoRequest,
+    id: number, 
+    payload: Partial<CourseOfflineInfoRequest>, 
   ): Promise<CourseResponse> => {
     const { data } = await api.put<RequestResponse<CourseResponse>>(
       API_ENDPOINT.COURSE_OFFLINE_INFO(id), payload);

@@ -1,6 +1,6 @@
 package com.ecms_web_application.OC01.repository;
 
-import com.ecms_web_application.OC01.entity.Session;
+import com.ecms_web_application.OC01.entity.course.Session;
 import com.ecms_web_application.OC01.entity.enums.SessionStatus;
 import com.ecms_web_application.OC01.generic.IRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -44,11 +44,11 @@ public interface SessionRepository extends IRepository<Session, Long> {
             @Param("courseId") Long courseId,
             @Param("fromTime") LocalDateTime fromTime);
 
-    // ⚠️ FIX: block SCHEDULED + ONGOING (bỏ 'RESCHEDULED' không tồn tại trong DB)
+    // ⚠️ Block SCHEDULED + ONGOING + DRAFT (DRAFT vẫn giữ chỗ để tránh sinh trùng)
     @Query("""
         SELECT s FROM Session s
         WHERE s.effectiveTeacherId = :teacherId
-          AND s.status IN ('SCHEDULED', 'ONGOING')
+          AND s.status IN ('DRAFT', 'SCHEDULED', 'ONGOING')
           AND s.startTime < :endTime
           AND s.endTime   > :startTime
           AND (:excludeId IS NULL OR s.id <> :excludeId)
@@ -59,11 +59,11 @@ public interface SessionRepository extends IRepository<Session, Long> {
             @Param("endTime")   LocalDateTime endTime,
             @Param("excludeId") Long excludeId);
 
-    // ⚠️ FIX: block SCHEDULED + ONGOING
+    // ⚠️ Block SCHEDULED + ONGOING + DRAFT
     @Query("""
         SELECT s FROM Session s
         WHERE s.effectiveRoomId = :roomId
-          AND s.status IN ('SCHEDULED', 'ONGOING')
+          AND s.status IN ('DRAFT', 'SCHEDULED', 'ONGOING')
           AND s.startTime < :endTime
           AND s.endTime   > :startTime
           AND (:excludeId IS NULL OR s.id <> :excludeId)
@@ -74,10 +74,38 @@ public interface SessionRepository extends IRepository<Session, Long> {
             @Param("endTime")   LocalDateTime endTime,
             @Param("excludeId") Long excludeId);
 
+    // ── Conflict check dùng cho generateSessions: exclude toàn bộ course hiện tại ──
+    @Query("""
+        SELECT s FROM Session s
+        WHERE s.effectiveTeacherId = :teacherId
+          AND s.status IN ('DRAFT', 'SCHEDULED', 'ONGOING')
+          AND s.startTime < :endTime
+          AND s.endTime   > :startTime
+          AND s.course.id <> :excludeCourseId
+    """)
+    List<Session> findTeacherConflictsExcludingCourse(
+            @Param("teacherId") Long teacherId,
+            @Param("startTime") LocalDateTime startTime,
+            @Param("endTime")   LocalDateTime endTime,
+            @Param("excludeCourseId") Long excludeCourseId);
+
+    @Query("""
+        SELECT s FROM Session s
+        WHERE s.effectiveRoomId = :roomId
+          AND s.status IN ('DRAFT', 'SCHEDULED', 'ONGOING')
+          AND s.startTime < :endTime
+          AND s.endTime   > :startTime
+          AND s.course.id <> :excludeCourseId
+    """)
+    List<Session> findRoomConflictsExcludingCourse(
+            @Param("roomId")    Long roomId,
+            @Param("startTime") LocalDateTime startTime,
+            @Param("endTime")   LocalDateTime endTime,
+            @Param("excludeCourseId") Long excludeCourseId);
+
     List<Session> findBySubstituteTeacher_IdAndStatusIn(
             Long substituteTeacherId, Collection<SessionStatus> statuses);
 
-    // ⚠️ FIX: SCHEDULED + ONGOING
     @Query("""
         SELECT s FROM Session s
         WHERE s.effectiveTeacherId = :teacherId
@@ -90,7 +118,6 @@ public interface SessionRepository extends IRepository<Session, Long> {
             @Param("from") LocalDate from,
             @Param("to")   LocalDate to);
 
-    // ⚠️ FIX: SCHEDULED + ONGOING
     @Query("""
         SELECT s FROM Session s
         WHERE s.effectiveRoomId = :roomId
@@ -111,12 +138,10 @@ public interface SessionRepository extends IRepository<Session, Long> {
     """)
     List<Session> findScheduledSessionsWithoutSubstitute(@Param("courseId") Long courseId);
 
-    // ⚠️ FIX: DRAFT không tính vào "số buổi cần dạy"
     @Query("SELECT COUNT(s) FROM Session s WHERE s.course.id = :courseId " +
             "AND s.status <> 'CANCELLED' AND s.status <> 'DRAFT'")
     long countActiveSessions(@Param("courseId") Long courseId);
 
-    // ⚠️ FIX: 'DONE' → 'COMPLETED'
     @Query("SELECT COUNT(s) FROM Session s WHERE s.course.id = :courseId AND s.status = 'COMPLETED'")
     long countDoneSessions(@Param("courseId") Long courseId);
 }

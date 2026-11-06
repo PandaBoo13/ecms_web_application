@@ -1,6 +1,6 @@
 package com.ecms_web_application.OC01.repository;
 
-import com.ecms_web_application.OC01.entity.Progress;
+import com.ecms_web_application.OC01.entity.course.Progress;
 import com.ecms_web_application.OC01.entity.enums.ProgressScope;
 import com.ecms_web_application.OC01.generic.IRepository;
 import org.springframework.data.domain.Page;

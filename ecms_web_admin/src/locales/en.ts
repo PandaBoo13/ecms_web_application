@@ -286,4 +286,87 @@ export const en: Record<keyof typeof vi, string> = {
   'course.duration': 'Duration',
   'course.searchPlaceholder': 'Search by course code, name...',
   'course.filterStatus': 'Course Status',
+
+
+
+    // ══════════════════════════════════════════════════════════════
+  // REQUEST MODULE
+  // ══════════════════════════════════════════════════════════════
+  'menu.requests': 'Requests & Reviews',
+  'menu.requestList': 'Request Management',
+
+  'status.PENDING': 'Pending',
+  'status.APPROVED': 'Approved',
+  'status.REJECTED': 'Rejected',
+
+  'request.title': 'Request Management',
+  'request.subtitle': 'Review, approve, or reject user requests',
+
+  'request.tab.all': 'All',
+  'request.group.course': 'Course Review',
+  'request.group.schedule': 'Schedule & Sessions',
+  'request.group.finance': 'Finance',
+  'request.group.enrollment': 'Enrollment',
+  'request.group.student': 'Student',
+  'request.group.lead': 'Lead',
+  'request.group.account': 'Account',
+  'request.group.support': 'Support',
+  'request.group.hr': 'HR',
+
+  'request.stats.total': 'Total Requests',
+  'request.stats.pending': 'Pending',
+  'request.stats.approved': 'Approved',
+  'request.stats.rejected': 'Rejected',
+
+  'request.filter.status': 'Status',
+  'request.filter.type': 'Request Type',
+  'request.filter.searchPlaceholder': 'Search by code, title, requester...',
+
+  'request.column.code': 'Code',
+  'request.column.title': 'Title',
+  'request.column.type': 'Type',
+  'request.column.requester': 'Requester',
+  'request.column.status': 'Status',
+  'request.column.createdAt': 'Created At',
+  'request.column.actions': 'Actions',
+
+  'request.detail.title': 'Request Details',
+  'request.detail.basicInfo': 'Basic Information',
+  'request.detail.requestCode': 'Request Code',
+  'request.detail.requestType': 'Request Type',
+  'request.detail.requester': 'Requester',
+  'request.detail.target': 'Target Entity',
+  'request.detail.titleField': 'Title',
+  'request.detail.description': 'Description',
+  'request.detail.status': 'Status',
+  'request.detail.createdAt': 'Submitted At',
+  'request.detail.resolvedAt': 'Resolved At',
+  'request.detail.resolvedBy': 'Resolved By',
+  'request.detail.rejectReason': 'Reject Reason',
+  'request.detail.payload': 'Payload',
+  'request.detail.alreadyResolved': 'Request already processed — no further action available.',
+
+  'request.review.approveBtn': 'Approve',
+  'request.review.rejectBtn': 'Reject',
+  'request.review.approveConfirmTitle': 'Approve this request?',
+  'request.review.rejectConfirmTitle': 'Reject this request?',
+  'request.review.rejectReasonLabel': 'Reject Reason',
+  'request.review.rejectReasonPlaceholder': 'Enter reject reason (required)...',
+  'request.review.rejectReasonRequired': 'Please enter reject reason',
+  'request.review.approveSuccess': 'Request approved',
+  'request.review.rejectSuccess': 'Request rejected',
+  'request.review.blockedByConflict': 'Cannot approve — schedule conflict',
+
+  'request.conflict.title': 'Schedule Conflict Warning',
+  'request.conflict.noneMessage': 'No schedule conflict detected',
+  'request.conflict.hasConflicts': 'Found {count} conflicting courses',
+  'request.conflict.instruction': 'Please adjust schedule (teacher/room/time) before approving',
+  'request.conflict.column.course': 'Course',
+  'request.conflict.column.type': 'Type',
+  'request.conflict.column.teacher': 'Teacher',
+  'request.conflict.column.room': 'Room',
+  'request.conflict.column.schedule': 'Schedule',
+  'request.conflict.type.TEACHER': 'Teacher conflict',
+  'request.conflict.type.ROOM': 'Room conflict',
+  'request.conflict.loading': 'Checking conflicts...',
 };

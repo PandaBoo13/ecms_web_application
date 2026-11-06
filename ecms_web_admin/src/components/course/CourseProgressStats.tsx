@@ -72,7 +72,7 @@ const CourseProgressStats = ({ courseId }: Props) => {
       icon: <TeamOutlined />,
       color: '#1677ff',
       bg: '#e6f4ff',
-      suffix: undefined as string | undefined,
+      suffix: undefined,
     },
     {
       key: 'active',
@@ -105,15 +105,8 @@ const CourseProgressStats = ({ courseId }: Props) => {
 
   return (
     <div>
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-          marginBottom: 10,
-        }}
-      >
-        <span style={{ fontSize: 14, fontWeight: 600, color: '#0f172a' }}>
+      <div className="flex items-center gap-2 mb-2.5">
+        <span className="text-[14px] font-semibold text-slate-900">
           Tiến độ học tập
         </span>
       </div>

@@ -2,11 +2,12 @@ package com.ecms_web_application.OC01.service.impl.course;
 
 import com.ecms_web_application.OC01.dto.request.course.SessionCancelRequest;
 import com.ecms_web_application.OC01.dto.request.course.SessionCreateRequest;
+import com.ecms_web_application.OC01.dto.response.course.SessionGenerationResult;
 import com.ecms_web_application.OC01.dto.response.course.SessionResponse;
 import com.ecms_web_application.OC01.entity.Account;
-import com.ecms_web_application.OC01.entity.Course;
-import com.ecms_web_application.OC01.entity.Room;
-import com.ecms_web_application.OC01.entity.Session;
+import com.ecms_web_application.OC01.entity.course.Course;
+import com.ecms_web_application.OC01.entity.course.Room;
+import com.ecms_web_application.OC01.entity.course.Session;
 import com.ecms_web_application.OC01.entity.enums.CourseType;
 import com.ecms_web_application.OC01.entity.enums.SessionStatus;
 import com.ecms_web_application.OC01.exception.ErrorHandler;
@@ -24,7 +25,14 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -69,7 +77,6 @@ public class SessionServiceImpl implements SessionService {
         sessionValidator.validateForCreate(request,
                 course.getTeacher() != null ? course.getTeacher().getId() : null);
 
-        // ── Resolve teacher ──
         Long teacherIdToUse = request.getTeacherId() != null
                 ? request.getTeacherId()
                 : (course.getTeacher() != null ? course.getTeacher().getId() : null);
@@ -80,7 +87,6 @@ public class SessionServiceImpl implements SessionService {
         Account teacher = accountRepository.findById(teacherIdToUse)
                 .orElseThrow(() -> new ErrorHandler(HttpStatus.NOT_FOUND, "GV không tồn tại"));
 
-        // ── Resolve substitute (normalize nếu trùng teacher) ──
         Account substitute = null;
         if (request.getSubstituteTeacherId() != null
                 && !request.getSubstituteTeacherId().equals(teacher.getId())) {
@@ -89,7 +95,6 @@ public class SessionServiceImpl implements SessionService {
                             "GV dạy thay không tồn tại"));
         }
 
-        // ── Resolve assistant ──
         Account assistant = null;
         if (request.getAssistantId() != null) {
             assistant = accountRepository.findById(request.getAssistantId())
@@ -97,14 +102,12 @@ public class SessionServiceImpl implements SessionService {
                             "Trợ giảng không tồn tại"));
         }
 
-        // ── Resolve room (override) ──
         Room room = null;
         if (request.getRoomId() != null) {
             room = roomRepository.findById(request.getRoomId())
                     .orElseThrow(() -> new ErrorHandler(HttpStatus.NOT_FOUND, "Phòng không tồn tại"));
         }
 
-        // ══════════ CONFLICT CHECK (Q4=A, FR_CRS_007) ══════════
         Long effectiveTeacherId = substitute != null ? substitute.getId() : teacher.getId();
         List<Session> teacherConflicts = sessionRepository.findTeacherConflicts(
                 effectiveTeacherId, request.getStartTime(), request.getEndTime(), null);
@@ -173,7 +176,7 @@ public class SessionServiceImpl implements SessionService {
         if (s.getStatus() == SessionStatus.CANCELLED) {
             throw new ErrorHandler(HttpStatus.CONFLICT, "Session đã hủy");
         }
-if (s.getStatus() == SessionStatus.COMPLETED) {
+        if (s.getStatus() == SessionStatus.COMPLETED) {
             return toResponse(s); // idempotent
         }
         s.setStatus(SessionStatus.COMPLETED);
@@ -251,11 +254,9 @@ if (s.getStatus() == SessionStatus.COMPLETED) {
             return;
         }
 
-        // 1. Update course.teacher_id
         course.setTeacher(newTeacher);
         courseRepository.save(course);
 
-        // 2. Sync session SCHEDULED chưa có dạy thay (BA §5.10)
         List<Session> scheduled = sessionRepository.findScheduledSessionsWithoutSubstitute(courseId);
         for (Session s : scheduled) {
             s.setTeacher(newTeacher);
@@ -264,7 +265,6 @@ if (s.getStatus() == SessionStatus.COMPLETED) {
             sessionRepository.saveAll(scheduled);
         }
 
-        // 3. Audit log
         auditLogService.log("CHANGE_MAIN_TEACHER", "COURSE", courseId,
                 String.format("oldTeacher=%s, newTeacher=%s, sessionsSynced=%d",
                         oldTeacher != null ? oldTeacher.getId() : null,
@@ -286,24 +286,41 @@ if (s.getStatus() == SessionStatus.COMPLETED) {
         auditLogService.log("DELETE", "SESSION", id, null);
     }
 
+    // ============================================================
+    // GENERATE SESSIONS — sinh DRAFT, đủ total_sessions_expected
+    // ============================================================
     @Override
     @Transactional
-    public com.ecms_web_application.OC01.dto.response.course.SessionGenerationResult generateSessions(Long courseId) {
+    public SessionGenerationResult generateSessions(Long courseId) {
         Course course = courseRepository.findById(courseId)
-                .orElseThrow(() -> new ErrorHandler(HttpStatus.NOT_FOUND, "Khóa học không tồn tại"));
+                .orElseThrow(() -> new ErrorHandler(HttpStatus.NOT_FOUND,
+                        "Khóa học không tồn tại"));
 
+        // ── 1. Validate course ──
         if (course.getCourseType() != CourseType.OFFLINE) {
             throw new ErrorHandler(HttpStatus.BAD_REQUEST,
                     "Chỉ sinh session cho khóa OFFLINE");
         }
         if (course.getStartDate() == null || course.getEndDate() == null) {
-            throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Course thiếu start_date/end_date");
+            throw new ErrorHandler(HttpStatus.BAD_REQUEST,
+                    "Course thiếu start_date/end_date");
+        }
+        if (course.getEndDate().isBefore(course.getStartDate())) {
+            throw new ErrorHandler(HttpStatus.BAD_REQUEST,
+                    "end_date phải >= start_date (start=" + course.getStartDate()
+                            + ", end=" + course.getEndDate() + ")");
         }
         if (course.getScheduleDays() == null || course.getScheduleDays().isEmpty()) {
-            throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Course thiếu schedule_days");
+            throw new ErrorHandler(HttpStatus.BAD_REQUEST,
+                    "Course thiếu schedule_days");
         }
         if (course.getSessionStartTime() == null || course.getSessionEndTime() == null) {
-            throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Course thiếu session_start/end_time");
+            throw new ErrorHandler(HttpStatus.BAD_REQUEST,
+                    "Course thiếu session_start/end_time");
+        }
+        if (!course.getSessionStartTime().isBefore(course.getSessionEndTime())) {
+            throw new ErrorHandler(HttpStatus.BAD_REQUEST,
+                    "session_start_time phải < session_end_time");
         }
         if (course.getTeacher() == null) {
             throw new ErrorHandler(HttpStatus.BAD_REQUEST,
@@ -314,98 +331,138 @@ if (s.getStatus() == SessionStatus.COMPLETED) {
                     "Course chưa có room_id — không thể sinh session");
         }
 
-        // Idempotent: đã có session → skip
-        long existingCount = sessionRepository.countByCourse_Id(courseId);
-        if (existingCount > 0) {
-            return com.ecms_web_application.OC01.dto.response.course.SessionGenerationResult.builder()
-                    .courseId(courseId)
-                    .totalDates(0)
-                    .generated(0)
-                    .message("Course đã có " + existingCount + " session — không sinh lại")
-                    .build();
+        Integer expected = course.getTotalSessionsExpected();
+        if (expected == null || expected <= 0) {
+            throw new ErrorHandler(HttpStatus.BAD_REQUEST,
+                    "Course chưa cấu hình total_sessions_expected (> 0)");
         }
 
-        // Danh sách ngày khớp schedule_days
-        java.util.List<java.time.LocalDate> dates = new java.util.ArrayList<>();
-        java.time.LocalDate cur = course.getStartDate();
+        // ── 2. Quét ngày khớp schedule_days ──
+        List<LocalDate> matchedDates = new ArrayList<>();
+        LocalDate cur = course.getStartDate();
         while (!cur.isAfter(course.getEndDate())) {
             int dow = (cur.getDayOfWeek().getValue() % 7) + 1; // 1=CN..7=T7
             if (course.getScheduleDays().contains(dow)) {
-                dates.add(cur);
+                matchedDates.add(cur);
             }
             cur = cur.plusDays(1);
         }
-        if (dates.isEmpty()) {
+
+        if (matchedDates.size() < expected) {
             throw new ErrorHandler(HttpStatus.BAD_REQUEST,
-                    "Không có ngày nào khớp schedule_days trong khoảng start..end");
-        }
-        if (dates.size() > 500) {
-            throw new ErrorHandler(HttpStatus.BAD_REQUEST,
-                    "Số session cần sinh (" + dates.size() + ") vượt quá giới hạn 500");
+                    "Khoảng [" + course.getStartDate() + " → " + course.getEndDate()
+                            + "] chỉ có " + matchedDates.size()
+                            + " buổi khớp schedule_days, nhưng cần " + expected
+                            + " buổi. Vui lòng mở rộng end_date hoặc thêm thứ.");
         }
 
-        // Sinh + conflict check
-        java.util.List<Session> toSave = new java.util.ArrayList<>();
-        java.util.List<com.ecms_web_application.OC01.dto.response.course.SessionGenerationResult.SkippedDate> skipped
-                = new java.util.ArrayList<>();
-        int counter = 0;
+        // Cắt đúng expected buổi (N buổi đầu)
+        List<LocalDate> targetDates = matchedDates.subList(0, expected);
+        if (matchedDates.size() > expected) {
+            log.info("[Generate] Cắt {} buổi dư (matched={}, expected={})",
+                    matchedDates.size() - expected, matchedDates.size(), expected);
+        }
+
+        // ── 3. Session đã có (không tính CANCELLED) ──
+        List<Session> existing = sessionRepository
+                .findByCourse_IdOrderBySessionNumberAsc(courseId);
+        Set<LocalDate> existingDates = existing.stream()
+                .filter(s -> s.getStatus() != SessionStatus.CANCELLED)
+                .map(Session::getSessionDate)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+
+        // ── 4. Ngày cần sinh thêm ──
+        List<LocalDate> datesToGenerate = targetDates.stream()
+                .filter(d -> !existingDates.contains(d))
+                .toList();
+
+        if (datesToGenerate.isEmpty()) {
+            return SessionGenerationResult.builder()
+                    .courseId(courseId)
+                    .totalDates(matchedDates.size())
+                    .generated(0)
+                    .message("Đã đủ " + existingDates.size() + "/" + expected
+                            + " session — không cần sinh thêm")
+                    .build();
+        }
+
+        // ── 5. Sinh DRAFT + conflict check (exclude course hiện tại) ──
+        List<Session> toSave = new ArrayList<>();
+        List<SessionGenerationResult.SkippedDate> skipped = new ArrayList<>();
+        int nextNumber = existing.stream()
+                .mapToInt(s -> s.getSessionNumber() != null ? s.getSessionNumber() : 0)
+                .max().orElse(0) + 1;
 
         Long teacherId = course.getTeacher().getId();
         Long roomId = course.getRoom().getId();
 
-        for (java.time.LocalDate date : dates) {
-            java.time.LocalDateTime start = java.time.LocalDateTime.of(date, course.getSessionStartTime());
-            java.time.LocalDateTime end = java.time.LocalDateTime.of(date, course.getSessionEndTime());
+        for (LocalDate date : datesToGenerate) {
+            LocalDateTime start = LocalDateTime.of(date, course.getSessionStartTime());
+            LocalDateTime end = LocalDateTime.of(date, course.getSessionEndTime());
 
-            boolean teacherConflict = !sessionRepository.findTeacherConflicts(
-                    teacherId, start, end, null).isEmpty();
+            boolean teacherConflict = !sessionRepository
+                    .findTeacherConflictsExcludingCourse(teacherId, start, end, courseId)
+                    .isEmpty();
             if (teacherConflict) {
-                skipped.add(new com.ecms_web_application.OC01.dto.response.course.SessionGenerationResult.SkippedDate(
-                        date, "GV bận"));
+                skipped.add(new SessionGenerationResult.SkippedDate(date, "GV bận (course khác)"));
                 continue;
             }
-            boolean roomConflict = !sessionRepository.findRoomConflicts(
-                    roomId, start, end, null).isEmpty();
+            boolean roomConflict = !sessionRepository
+                    .findRoomConflictsExcludingCourse(roomId, start, end, courseId)
+                    .isEmpty();
             if (roomConflict) {
-                skipped.add(new com.ecms_web_application.OC01.dto.response.course.SessionGenerationResult.SkippedDate(
-                        date, "Phòng bận"));
+                skipped.add(new SessionGenerationResult.SkippedDate(date, "Phòng bận (course khác)"));
                 continue;
             }
 
             Session s = new Session();
             s.setCourse(course);
-            s.setSessionNumber(++counter);
-            s.setTitle("Buổi " + counter);
+            s.setSessionNumber(nextNumber++);
+            s.setTitle("Buổi " + s.getSessionNumber());
             s.setStartTime(start);
             s.setEndTime(end);
             s.setSessionDate(date);
             s.setTeacher(course.getTeacher());
             s.setRoom(null); // kế thừa course.room_id
-            s.setStatus(SessionStatus.SCHEDULED);
+            // FR_CRS_006 + State Transition dòng 1: sinh DRAFT, admin gán room/teacher xong mới finalize
+            s.setStatus(SessionStatus.DRAFT);
             toSave.add(s);
         }
 
         if (toSave.isEmpty()) {
             throw new ErrorHandler(HttpStatus.CONFLICT,
-                    "Tất cả " + dates.size() + " ngày đều conflict — không sinh được session nào");
+                    "Tất cả " + datesToGenerate.size()
+                            + " ngày đều conflict — không sinh được session nào. Chi tiết: " + skipped);
         }
 
         sessionRepository.saveAll(toSave);
+        int newTotal = existingDates.size() + toSave.size();
         auditLogService.log("GENERATE_SESSIONS", "COURSE", courseId,
-                "generated=" + toSave.size() + ", skipped=" + skipped.size());
+                "generated=" + toSave.size() + ", skipped=" + skipped.size()
+                        + ", total=" + newTotal + "/" + expected);
 
-        return com.ecms_web_application.OC01.dto.response.course.SessionGenerationResult.builder()
+        String msg = "Sinh " + toSave.size() + " session (tổng " + newTotal + "/" + expected + ")";
+        if (!skipped.isEmpty()) {
+            msg += ". Bỏ qua " + skipped.size() + " ngày do conflict";
+        }
+
+        return SessionGenerationResult.builder()
                 .courseId(courseId)
-                .totalDates(dates.size())
+                .totalDates(matchedDates.size())
                 .generated(toSave.size())
                 .skipped(skipped)
-                .message("Sinh " + toSave.size() + "/" + dates.size() + " session")
+                .message(msg)
                 .build();
     }
 
+    // ============================================================
+    // HELPERS
+    // ============================================================
     private Session getOrThrow(Long id) {
         return sessionRepository.findById(id)
-                .orElseThrow(() -> new ErrorHandler(HttpStatus.NOT_FOUND, "Session không tồn tại"));
+                .orElseThrow(() -> new ErrorHandler(HttpStatus.NOT_FOUND,
+                        "Session không tồn tại"));
     }
 
     private SessionResponse toResponse(Session s) {

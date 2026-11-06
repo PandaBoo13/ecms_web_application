@@ -3,8 +3,8 @@ package com.ecms_web_application.OC01.generic.mapper;
 import com.ecms_web_application.OC01.dto.response.course.CourseDetailResponse;
 import com.ecms_web_application.OC01.dto.response.course.CourseResourceResponse;
 import com.ecms_web_application.OC01.dto.response.course.CourseResponse;
-import com.ecms_web_application.OC01.entity.Course;
-import com.ecms_web_application.OC01.entity.CourseResource;
+import com.ecms_web_application.OC01.entity.course.Course;
+import com.ecms_web_application.OC01.entity.course.CourseResource;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -13,10 +13,6 @@ import java.util.List;
 /**
  * Mapper chuyển đổi giữa Entity ↔ DTO cho COURSE_MODULE.
  * Chỉ mapping dữ liệu, KHÔNG chứa business logic.
- *
- * Lưu ý:
- *  - KHÔNG map classStatus (cột class_status không tồn tại trong DB).
- *  - totalSessionsExpected được map đầy đủ.
  */
 @Component
 public class CourseMapper {
@@ -109,7 +105,6 @@ public class CourseMapper {
         r.setCourseType(c.getCourseType() != null ? c.getCourseType().name() : null);
         r.setProgressType(c.getProgressType() != null ? c.getProgressType().name() : null);
         r.setStatus(c.getStatus() != null ? c.getStatus().name() : null);
-        // ❌ KHÔNG map classStatus — cột class_status không tồn tại trong DB
 
         if (c.getTeacher() != null) {
             r.setTeacherId(c.getTeacher().getId());

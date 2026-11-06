@@ -1,6 +1,6 @@
 package com.ecms_web_application.OC01.repository;
 
-import com.ecms_web_application.OC01.entity.Course;
+import com.ecms_web_application.OC01.entity.course.Course;
 import com.ecms_web_application.OC01.entity.enums.CourseStatus;
 import com.ecms_web_application.OC01.entity.enums.CourseType;
 import com.ecms_web_application.OC01.generic.IRepository;
@@ -10,6 +10,8 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -26,8 +28,7 @@ public interface CourseRepository extends IRepository<Course, Long> {
     boolean existsByDisplayCodeAndIdNot(String displayCode, Long id);
 
     // ══════════════════════════════════════════════════════════════
-    // ✅ FIX: Khai báo countQuery tường minh để tránh lỗi
-    //         "No argument for named parameter ':categoryId_1'"
+    // SEARCH — phân trang
     // ══════════════════════════════════════════════════════════════
     @Query(value = """
         SELECT c FROM Course c
@@ -71,4 +72,70 @@ public interface CourseRepository extends IRepository<Course, Long> {
     Optional<Course> findByIdWithRelations(@Param("id") Long id);
 
     long countByTeacherId(Long teacherId);
+
+    List<Course> findByStatus(CourseStatus status);
+
+    // ══════════════════════════════════════════════════════════════
+    // CONFLICT — tìm course OFFLINE active overlap thời gian
+    // ══════════════════════════════════════════════════════════════
+
+    /** Tìm course OFFLINE active (PLANNED/PUBLISHED/ONGOING) trùng GV + overlap khoảng ngày. */
+    @Query("""
+        SELECT c FROM Course c
+        LEFT JOIN FETCH c.teacher t
+        LEFT JOIN FETCH c.room r
+        WHERE c.id <> :excludeId
+          AND c.deletedAt IS NULL
+          AND c.courseType = com.ecms_web_application.OC01.entity.enums.CourseType.OFFLINE
+          AND c.status IN (com.ecms_web_application.OC01.entity.enums.CourseStatus.PLANNED,
+                           com.ecms_web_application.OC01.entity.enums.CourseStatus.PUBLISHED,
+                           com.ecms_web_application.OC01.entity.enums.CourseStatus.ONGOING)
+          AND c.startDate <= :endDate
+          AND c.endDate >= :startDate
+          AND t.id = :teacherId
+    """)
+    List<Course> findOverlappingByTeacher(
+            @Param("excludeId") Long excludeId,
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate,
+            @Param("teacherId") Long teacherId);
+
+    /** Tìm course OFFLINE active trùng phòng + overlap khoảng ngày. */
+    @Query("""
+        SELECT c FROM Course c
+        LEFT JOIN FETCH c.teacher t
+        LEFT JOIN FETCH c.room r
+        WHERE c.id <> :excludeId
+          AND c.deletedAt IS NULL
+          AND c.courseType = com.ecms_web_application.OC01.entity.enums.CourseType.OFFLINE
+          AND c.status IN (com.ecms_web_application.OC01.entity.enums.CourseStatus.PLANNED,
+                           com.ecms_web_application.OC01.entity.enums.CourseStatus.PUBLISHED,
+                           com.ecms_web_application.OC01.entity.enums.CourseStatus.ONGOING)
+          AND c.startDate <= :endDate
+          AND c.endDate >= :startDate
+          AND r.id = :roomId
+    """)
+    List<Course> findOverlappingByRoom(
+            @Param("excludeId") Long excludeId,
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate,
+            @Param("roomId") Long roomId);
+
+    @Query("""
+    SELECT c FROM Course c
+    LEFT JOIN FETCH c.teacher t
+    LEFT JOIN FETCH c.room r
+    WHERE c.id <> :excludeId
+      AND c.deletedAt IS NULL
+      AND c.courseType = com.ecms_web_application.OC01.entity.enums.CourseType.OFFLINE
+      AND c.status IN (com.ecms_web_application.OC01.entity.enums.CourseStatus.PLANNED,
+                       com.ecms_web_application.OC01.entity.enums.CourseStatus.PUBLISHED,
+                       com.ecms_web_application.OC01.entity.enums.CourseStatus.ONGOING)
+      AND c.startDate <= :endDate
+      AND c.endDate >= :startDate
+""")
+    List<Course> findAllOverlappingOfflineCourses(
+            @Param("excludeId") Long excludeId,
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate);
 }
