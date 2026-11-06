@@ -1,6 +1,10 @@
 import { z } from 'zod';
 
-export const emailSchema = z.email('Email không hợp lệ');
+export const emailSchema = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .email('Email không hợp lệ');
 
 export const passwordSchema = z
   .string()
@@ -48,6 +52,21 @@ export const changePasswordSchema = z
 export const forgotPasswordSchema = z.object({
   email: emailSchema,
 });
+
+export const verifyOtpSchema = z.object({
+  email: emailSchema,
+  otp: z.string().length(6, 'Mã OTP gồm đúng 6 chữ số'),
+});
+
+export const resetPasswordSchema = z
+  .object({
+    newPassword: passwordSchema,
+    confirmPassword: z.string().min(1, 'Vui lòng xác nhận mật khẩu'),
+  })
+  .refine((d) => d.newPassword === d.confirmPassword, {
+    message: 'Mật khẩu xác nhận không khớp',
+    path: ['confirmPassword'],
+  });
 
 export const courseCreateSchema = z.object({
   title: z.string().min(1, 'Vui lòng nhập tiêu đề').max(255),

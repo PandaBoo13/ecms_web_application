@@ -100,6 +100,13 @@ export const leadApi = {
     return data.data;
   },
 
+  getConsultants: async (): Promise<{ id: number; name: string; email: string }[]> => {
+    const { data } = await api.get<RequestResponse<{ id: number; name: string; email: string }[]>>(
+      '/api/leads/consultants'
+    );
+    return data.data;
+  },
+
   delete: async (id: number): Promise<void> => {
     await api.delete<RequestResponse<void>>(API_ENDPOINT.LEAD_DETAIL(id));
   },

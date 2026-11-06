@@ -1,8 +1,11 @@
+import { ROLE } from './roles';
+
 export interface MenuItem {
   key: string;
   label: string;
   icon?: string;
   path?: string;
+  roles?: string[];
   children?: MenuItem[];
 }
 
@@ -12,46 +15,52 @@ export const ADMIN_MENU: MenuItem[] = [
     label: 'Tổng quan',
     icon: 'DashboardOutlined',
     path: '/admin/dashboard',
+    roles: [ROLE.ADMIN],
   },
   {
     key: 'leads',
     label: 'Tuyển sinh (Lead)',
     icon: 'UserAddOutlined',
+    roles: [ROLE.ADMIN, ROLE.LEAD, ROLE.CONSULTANT],
     children: [
-      { key: '/admin/leads', label: 'Danh sách Lead', path: '/admin/leads' },
+      { key: '/admin/leads', label: 'Danh sách Lead', path: '/admin/leads', roles: [ROLE.ADMIN, ROLE.LEAD, ROLE.CONSULTANT] },
     ],
   },
   {
     key: 'students',
     label: 'Học viên',
     icon: 'TeamOutlined',
+    roles: [ROLE.ADMIN, ROLE.LEAD, ROLE.CONSULTANT],
     children: [
-      { key: '/admin/students', label: 'Danh sách học viên', path: '/admin/students' },
+      { key: '/admin/students', label: 'Danh sách học viên', path: '/admin/students', roles: [ROLE.ADMIN, ROLE.LEAD, ROLE.CONSULTANT] },
     ],
   },
   {
     key: 'tuition',
     label: 'Học phí',
     icon: 'DollarOutlined',
+    roles: [ROLE.ADMIN],
     children: [
-      { key: '/admin/tuition', label: 'Quản lý học phí', path: '/admin/tuition' },
+      { key: '/admin/tuition', label: 'Quản lý học phí', path: '/admin/tuition', roles: [ROLE.ADMIN] },
     ],
   },
   {
     key: 'enrollment',
     label: 'Ghi danh',
     icon: 'SolutionOutlined',
+    roles: [ROLE.ADMIN],
     children: [
-      { key: '/admin/enrollments', label: 'Quản lý ghi danh', path: '/admin/enrollments' },
+      { key: '/admin/enrollments', label: 'Quản lý ghi danh', path: '/admin/enrollments', roles: [ROLE.ADMIN] },
     ],
   },
   {
     key: 'courses',
     label: 'Khóa học',
     icon: 'BookOutlined',
+    roles: [ROLE.ADMIN, ROLE.LEAD, ROLE.CONSULTANT],
     children: [
-      { key: '/admin/courses', label: 'Danh sách khóa học', path: '/admin/courses' },
-      { key: '/admin/categories', label: 'Danh mục', path: '/admin/categories' },
+      { key: '/admin/courses', label: 'Danh sách khóa học', path: '/admin/courses', roles: [ROLE.ADMIN, ROLE.LEAD, ROLE.CONSULTANT] },
+      { key: '/admin/categories', label: 'Danh mục', path: '/admin/categories', roles: [ROLE.ADMIN, ROLE.LEAD, ROLE.CONSULTANT] },
     ],
   },
   // 🆕 REQUEST MODULE — dùng icon SolutionOutlined có sẵn trong ICON_MAP
@@ -59,34 +68,38 @@ export const ADMIN_MENU: MenuItem[] = [
     key: 'requests',
     label: 'Yêu cầu & Kiểm duyệt',
     icon: 'SolutionOutlined',
+    roles: [ROLE.ADMIN],
     children: [
-      { key: '/admin/requests', label: 'Quản lý yêu cầu', path: '/admin/requests' },
+      { key: '/admin/requests', label: 'Quản lý yêu cầu', path: '/admin/requests', roles: [ROLE.ADMIN] },
     ],
   },
   {
     key: 'users',
     label: 'Users',
     icon: 'TeamOutlined',
+    roles: [ROLE.ADMIN],
     children: [
-      { key: '/admin/users', label: 'Danh sách Users', path: '/admin/users' },
+      { key: '/admin/users', label: 'Danh sách Users', path: '/admin/users', roles: [ROLE.ADMIN] },
     ],
   },
   {
     key: 'system',
     label: 'Hệ thống',
     icon: 'SettingOutlined',
+    roles: [ROLE.ADMIN],
     children: [
-      { key: '/admin/roles', label: 'Phân quyền', path: '/admin/roles' },
-      { key: '/admin/permissions', label: 'Quyền hạn', path: '/admin/permissions' },
-      { key: '/admin/audit-logs', label: 'Nhật ký', path: '/admin/audit-logs' },
+      { key: '/admin/roles', label: 'Phân quyền', path: '/admin/roles', roles: [ROLE.ADMIN] },
+      { key: '/admin/permissions', label: 'Quyền hạn', path: '/admin/permissions', roles: [ROLE.ADMIN] },
+      { key: '/admin/audit-logs', label: 'Nhật ký', path: '/admin/audit-logs', roles: [ROLE.ADMIN] },
     ],
   },
   {
     key: 'reports',
     label: 'Báo cáo',
     icon: 'FileTextOutlined',
+    roles: [ROLE.ADMIN],
     children: [
-      { key: '/admin/reports', label: 'Báo cáo chung', path: '/admin/reports' },
+      { key: '/admin/reports', label: 'Báo cáo chung', path: '/admin/reports', roles: [ROLE.ADMIN] },
     ],
   },
 ];

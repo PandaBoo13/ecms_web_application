@@ -44,11 +44,17 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
     @Transactional
     public OAuth2User loadUser(OAuth2UserRequest userRequest) throws OAuth2AuthenticationException {
         OAuth2User oAuth2User = super.loadUser(userRequest);
+        processUserAttributes(userRequest.getClientRegistration().getRegistrationId(), oAuth2User.getAttributes());
+        return new DefaultOAuth2User(
+                oAuth2User.getAuthorities(),
+                oAuth2User.getAttributes(),
+                "email"
+        );
+    }
 
-        String registrationId = userRequest.getClientRegistration().getRegistrationId();
+    @Transactional
+    public void processUserAttributes(String registrationId, Map<String, Object> attributes) {
         AuthProvider provider = mapToProvider(registrationId);
-        Map<String, Object> attributes = oAuth2User.getAttributes();
-
         String providerId = extractProviderId(attributes);
         String email = (String) attributes.getOrDefault(
                 "email",
@@ -60,12 +66,6 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         accountRepository.findByEmail(email.toLowerCase())
                 .map(existing -> updateExistingAccount(existing, provider, providerId, name, picture))
                 .orElseGet(() -> createNewAccount(email.toLowerCase(), name, picture, provider, providerId));
-
-        return new DefaultOAuth2User(
-                oAuth2User.getAuthorities(),
-                attributes,
-                "email"
-        );
     }
 
     // ============================================================

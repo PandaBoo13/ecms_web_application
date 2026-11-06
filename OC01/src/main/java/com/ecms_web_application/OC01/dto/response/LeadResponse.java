@@ -23,6 +23,8 @@ public class LeadResponse {
     private String channelType;
     private Long sourceId;
     private Long assignedConsultantId;
+    private String assignedConsultantName;
+    private String assignedConsultantEmail;
     private String note;
     private String placementTestStatus;
     private BigDecimal placementTestScore;

@@ -103,9 +103,10 @@ public class AuthenticationServiceImpl implements AuthenticationService {
     // ============================================================
     @Override
     public LoginResponse login(LoginRequest request) {
-        authValidator.validateForLogin(request.getEmail(), request.getPassword());
+        String normalizedEmail = request.getEmail() != null ? request.getEmail().trim().toLowerCase() : "";
+        authValidator.validateForLogin(normalizedEmail, request.getPassword());
 
-        Account account = accountRepository.findByEmail(request.getEmail().toLowerCase())
+        Account account = accountRepository.findByEmail(normalizedEmail)
                 .orElseThrow(() -> new ErrorHandler(HttpStatus.UNAUTHORIZED, "Email hoặc mật khẩu không đúng"));
 
         authValidator.validateAccountStatusForLogin(

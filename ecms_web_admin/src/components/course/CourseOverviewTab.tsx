@@ -9,6 +9,10 @@ interface Props {
   onRefresh: () => void;
 }
 
+/**
+ * Tab "Tổng quan" — dùng chung admin + instructor.
+ * Gộp: Form thông tin + Thống kê học viên + Biểu đồ phân bố thực tế.
+ */
 const CourseOverviewTab = ({ course, onRefresh }: Props) => {
   return (
     <div className="flex flex-col gap-6">

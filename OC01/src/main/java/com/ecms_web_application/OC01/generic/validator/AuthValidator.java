@@ -219,10 +219,11 @@ public class AuthValidator {
         if (email == null || email.trim().isEmpty()) {
             throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Email là bắt buộc");
         }
-        if (!email.matches(EMAIL_REGEX)) {
+        String trimmed = email.trim();
+        if (!trimmed.matches(EMAIL_REGEX)) {
             throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Email không đúng định dạng");
         }
-        if (email.length() > EMAIL_MAX_LENGTH) {
+        if (trimmed.length() > EMAIL_MAX_LENGTH) {
             throw new ErrorHandler(HttpStatus.BAD_REQUEST,
                     "Email không được vượt quá " + EMAIL_MAX_LENGTH + " ký tự");
         }

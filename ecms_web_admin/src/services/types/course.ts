@@ -132,6 +132,7 @@ export interface CourseResourceResponse {
   hashtagFilter?: string;
   totalQuestions?: number;
   shuffleQuestions?: boolean;
+  children?: CourseResourceResponse[];
   createdAt: string;
   updatedAt: string;
 }
@@ -228,6 +229,21 @@ export interface CategoryResponse {
   childCount: number;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface CategoryCreateRequest {
+  name: string;
+  slug?: string;
+  description?: string;
+  parentId?: number;
+}
+
+export interface CategoryUpdateRequest {
+  name?: string;
+  slug?: string;
+  description?: string;
+  parentId?: number;
+  isActive?: boolean;
 }
 
 export interface RoomResponse {

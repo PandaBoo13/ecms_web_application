@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Modal, Form, Input, DatePicker, Select, Space } from 'antd';
-import dayjs from 'dayjs';
 import toast from 'react-hot-toast';
 
 import { sessionApi } from '@/services/api/course';

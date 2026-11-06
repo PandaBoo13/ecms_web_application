@@ -72,7 +72,7 @@ interface Props {
 }
 
 const Sidebar = ({ collapsed }: Props) => {
-  const { isAdmin } = useAuth();
+  const { user, isInstructor } = useAuth();
   const { t } = useTranslation();
   const location = useLocation();
   const navigate = useNavigate();
@@ -82,6 +82,8 @@ const Sidebar = ({ collapsed }: Props) => {
   const screens = useBreakpoint();
   const isMobile = !screens.md; // Màn hình nhỏ hơn 768px
 
+  const userRole = user?.roleCode;
+
   const renderItem = (item: MenuItem): AntdMenuItem => ({
     key: item.key,
     label: MENU_KEY_TRANSLATION_MAP[item.key] ? t(MENU_KEY_TRANSLATION_MAP[item.key]) : item.label,
@@ -89,7 +91,35 @@ const Sidebar = ({ collapsed }: Props) => {
     children: item.children?.map(renderItem),
   });
 
-  const menu = isAdmin() ? ADMIN_MENU : INSTRUCTOR_MENU;
+  // Lọc bỏ hoàn toàn các trang người dùng không có quyền truy cập
+  const filterMenuItem = (item: MenuItem): MenuItem | null => {
+    if (item.roles && userRole && !item.roles.includes(userRole)) {
+      return null;
+    }
+
+    if (item.children) {
+      const filteredChildren = item.children
+        .map(filterMenuItem)
+        .filter((child): child is MenuItem => child !== null);
+
+      if (filteredChildren.length === 0) {
+        return null;
+      }
+
+      return {
+        ...item,
+        children: filteredChildren,
+      };
+    }
+
+    return item;
+  };
+
+  const baseMenu = isInstructor() ? INSTRUCTOR_MENU : ADMIN_MENU;
+  const menu = baseMenu
+    .map(filterMenuItem)
+    .filter((item): item is MenuItem => item !== null);
+
   const items = menu.map(renderItem);
 
   const getSelectedKey = (): string => {

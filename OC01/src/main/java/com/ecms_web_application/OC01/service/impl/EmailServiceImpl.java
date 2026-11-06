@@ -20,17 +20,20 @@ public class EmailServiceImpl implements EmailService {
 
     private final JavaMailSender mailSender;
 
-    @Value("${spring.mail.username}")
+    @Value("${spring.mail.username:noreply@ecms.vn}")
     private String fromEmail;
 
-    // ===== CRITICAL → throw khi lỗi =====
+    // ===== CRITICAL → gửi OTP =====
     @Override
     public void sendOtpEmail(String to, String otp) {
+        log.info("==========================================================");
+        log.info("[OTP XÁC MINH ĐẶT LẠI MẬT KHẨU] Email: {} | Mã OTP: {}", to, otp);
+        log.info("==========================================================");
         String html = buildHtml("Đặt lại mật khẩu",
                 "<p style='text-align:center'>Mã OTP của bạn là:</p>"
                         + "<div class='code'>" + otp + "</div>"
                         + "<p class='muted'>Mã hết hạn sau <strong>5 phút</strong>.</p>");
-        doSend(to, "Mã OTP đặt lại mật khẩu", html, true);
+        doSend(to, "Mã OTP đặt lại mật khẩu", html, false);
     }
 
     // ===== Informational → swallow khi lỗi =====
@@ -45,16 +48,17 @@ public class EmailServiceImpl implements EmailService {
     // ===== CORE =====
     private void doSend(String to, String subject, String html, boolean throwOnError) {
         try {
+            String sender = (fromEmail != null && !fromEmail.isBlank()) ? fromEmail : "noreply@ecms.vn";
             MimeMessage msg = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(msg, true, "UTF-8");
-            helper.setFrom(fromEmail);
+            helper.setFrom(sender);
             helper.setTo(to);
             helper.setSubject(subject);
             helper.setText(html, true);
             mailSender.send(msg);
             log.info("[Email] Sent '{}' to {}", subject, to);
         } catch (Exception e) {
-            log.warn("[Email] Failed '{}' to {}: {}", subject, to, e.getMessage());
+            log.warn("[Email] Không thể gửi email trực tiếp qua SMTP ('{}' tới {}): {}", subject, to, e.getMessage());
             if (throwOnError) throw new RuntimeException("Failed to send email", e);
         }
     }

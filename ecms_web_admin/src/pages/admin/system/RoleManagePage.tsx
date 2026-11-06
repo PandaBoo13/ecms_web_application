@@ -73,6 +73,8 @@ export const getPermissionAction = (
   else if (path.includes('assign')) action = 'assign';
   else if (path.includes('teacher')) action = 'teacher';
   else if (path.includes('tree')) action = 'tree';
+  else if (path.includes('roots')) action = 'roots';
+  else if (path.includes('children')) action = 'children';
   else if (method === 'GET') {
     action = path.includes('{id}') || path.includes('{code}') || path.includes('{studentCode}') ? 'details' : 'view';
   } else if (method === 'POST') action = 'create';
@@ -80,7 +82,7 @@ export const getPermissionAction = (
   else if (method === 'PATCH') action = 'update';
   else if (method === 'DELETE') action = 'delete';
 
-  const pluralMod = mod.endsWith('s') ? mod : `${mod}s`;
+  const pluralMod = mod === 'category' ? 'categories' : (mod.endsWith('s') ? mod : `${mod}s`);
   return {
     action,
     tagCode: `${pluralMod}-${action}`,

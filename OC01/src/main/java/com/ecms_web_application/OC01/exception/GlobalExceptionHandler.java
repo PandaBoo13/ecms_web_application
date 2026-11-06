@@ -45,6 +45,16 @@ public class GlobalExceptionHandler {
                 .body(response);
     }
 
+    @ExceptionHandler({IllegalStateException.class, IllegalArgumentException.class})
+    public ResponseEntity<ExceptionResponse> handleIllegalStateAndArgument(RuntimeException ex) {
+        log.warn("Illegal state / argument: {}", ex.getMessage());
+        ExceptionResponse response = new ExceptionResponse(ex.getMessage());
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(response);
+    }
+
     // ==================== 400 - DỮ LIỆU GỬI LÊN SAI ====================
     // Giữ tên field để user biết cần sửa gì
     @ExceptionHandler(MethodArgumentNotValidException.class)

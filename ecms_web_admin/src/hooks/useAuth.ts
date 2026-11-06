@@ -22,6 +22,7 @@ export const useAuth = () => {
   const isAdmin = useAuthStore((s) => s.isAdmin);
   const isInstructor = useAuthStore((s) => s.isInstructor);
   const isStudent = useAuthStore((s) => s.isStudent);
+  const isConsultant = useAuthStore((s) => s.isConsultant);
 
   return {
     user,
@@ -37,5 +38,6 @@ export const useAuth = () => {
     isAdmin,
     isInstructor,
     isStudent,
+    isConsultant,
   };
 };

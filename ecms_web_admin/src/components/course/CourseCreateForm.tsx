@@ -309,21 +309,21 @@ const CourseCreateForm = ({ mode }: Props) => {
                     label="Giá bán (VND)"
                     rules={[{ required: true, message: 'Vui lòng nhập giá' }]}
                   >
-                    <InputNumber
+                    <InputNumber<number>
                       min={0}
                       style={{ width: '100%' }}
                       formatter={(v) => `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-                      parser={(v) => v!.replace(/,/g, '') as unknown as number}
+                      parser={(v) => Number(v?.replace(/,/g, '') || 0)}
                     />
                   </Form.Item>
                 </Col>
                 <Col span={12}>
                   <Form.Item name="oldPrice" label="Giá gốc (VND)">
-                    <InputNumber
+                    <InputNumber<number>
                       min={0}
                       style={{ width: '100%' }}
                       formatter={(v) => `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-                      parser={(v) => v!.replace(/,/g, '') as unknown as number}
+                      parser={(v) => Number(v?.replace(/,/g, '') || 0)}
                     />
                   </Form.Item>
                 </Col>
