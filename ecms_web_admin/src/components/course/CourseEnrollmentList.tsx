@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   Alert, Button, DatePicker, Descriptions, Divider, Form, Input, InputNumber, Modal, Popconfirm,
-  Select, Space, Table, Tabs, Tag, Tooltip, Typography,
+  Select, Space, Table, Tag, Tooltip, Typography,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { EditOutlined, EyeOutlined, HistoryOutlined } from '@ant-design/icons';
@@ -267,14 +267,6 @@ export default function CourseEnrollmentList({ courseId, courseType, courseStatu
 
   return (
     <Space orientation="vertical" size="middle" className="w-full">
-      <Alert
-        type="info"
-        showIcon
-        message={isOnline ? `Tổng cộng: ${total} người đã mua khóa` : `${activeStatus ? statusLabels[activeStatus] : 'Tất cả học viên'}: ${total}`}
-        description={isOnline
-          ? 'Ghi danh ONLINE được tạo tự động ngay khi thanh toán thành công. Đây là màn hình chỉ đọc.'
-          : 'Dùng biểu tượng chỉnh sửa để cập nhật trạng thái hoặc điểm cuối khóa. PENDING tự chuyển sang Đang học vào ngày khai giảng.'}
-      />
       {isFilteredToStudent && (
         <Alert
           type="info"
@@ -287,7 +279,7 @@ export default function CourseEnrollmentList({ courseId, courseType, courseStatu
               {activeStatus && <EnrollmentStatusTag status={activeStatus} />}
             </Space>
           }
-          description="Bảng bên dưới chỉ hiển thị học viên này. Bấm “Xem tất cả học viên” hoặc chọn một tab trạng thái khác để bỏ bộ lọc."
+          description="Bảng bên dưới chỉ hiển thị học viên này. Bấm “Xem tất cả học viên” hoặc chọn bộ lọc trạng thái khác để bỏ bộ lọc."
           action={
             <Space orientation="vertical" size={4}>
               <Button type="primary" size="small" onClick={clearStudentFilter}>
@@ -310,54 +302,55 @@ export default function CourseEnrollmentList({ courseId, courseType, courseStatu
           description="Chọn các học viên đủ điều kiện trong bảng bên dưới để cập nhật hoàn thành hàng loạt."
         />
       )}
-      <Tabs
-        activeKey={activeStatus ?? 'ALL'}
-        onChange={(key) => {
-          const nextStatus = key === 'ALL' ? undefined : key as EnrollmentStatus;
-          setActiveStatus(nextStatus);
-          setPageNumber(0);
-          setSelectedCompleteIds([]);
-          const nextParams = new URLSearchParams(searchParams);
-          if (nextStatus) nextParams.set('status', nextStatus);
-          else nextParams.delete('status');
-          // Đổi tab trạng thái = mở rộng phạm vi xem, nên bỏ luôn filter học viên.
-          nextParams.delete('studentId');
-          nextParams.delete('accountId');
-          setSearchParams(nextParams, { replace: true });
-        }}
-        items={[
-          { key: 'ALL', label: 'Tất cả', children: null },
-          ...enrollmentStatuses.map((status) => ({ key: status, label: statusLabels[status], children: null })),
-        ]}
-      />
-      <div className="flex justify-end">
-        <Space>
-          <Input.Search
-            allowClear
-            placeholder="Tìm học viên, mã học viên hoặc hóa đơn"
-            style={{ width: 330 }}
-            value={searchInput}
-            onChange={(event) => {
-              setSearchInput(event.target.value);
-              if (!event.target.value) submitSearch('');
+      <div className="flex flex-wrap items-center justify-end gap-3">
+        <Input.Search
+          allowClear
+          placeholder="Tìm học viên, mã học viên hoặc hóa đơn"
+          style={{ width: 330 }}
+          value={searchInput}
+          onChange={(event) => {
+            setSearchInput(event.target.value);
+            if (!event.target.value) submitSearch('');
+          }}
+          onSearch={submitSearch}
+        />
+        {!isOnline && (
+          <Select
+            style={{ width: 200 }}
+            value={activeStatus ?? ''}
+            onChange={(key) => {
+              const nextStatus = key ? key as EnrollmentStatus : undefined;
+              setActiveStatus(nextStatus);
+              setPageNumber(0);
+              setSelectedCompleteIds([]);
+              const nextParams = new URLSearchParams(searchParams);
+              if (nextStatus) nextParams.set('status', nextStatus);
+              else nextParams.delete('status');
+              // Đổi bộ lọc trạng thái = mở rộng phạm vi xem, nên bỏ luôn filter học viên.
+              nextParams.delete('studentId');
+              nextParams.delete('accountId');
+              setSearchParams(nextParams, { replace: true });
             }}
-            onSearch={submitSearch}
+            options={[
+              { value: '', label: 'Tất cả trạng thái' },
+              ...enrollmentStatuses.map((status) => ({ value: status, label: statusLabels[status] })),
+            ]}
           />
-          {courseStatus === 'FINISHED' && !isOnline && (
-            <Popconfirm
-              title={`Hoàn thành ${selectedCompleteIds.length} học viên?`}
-              okText="Hoàn thành"
-              cancelText="Hủy"
-              disabled={selectedCompleteIds.length === 0}
-              onConfirm={() => void completeSelected()}
-            >
-              <Button type="primary" disabled={selectedCompleteIds.length === 0} loading={completing}>
-                Hoàn thành đã chọn ({selectedCompleteIds.length})
-              </Button>
-            </Popconfirm>
-          )}
-          <Button onClick={() => void loadEnrollments()}>Tải lại</Button>
-        </Space>
+        )}
+        {courseStatus === 'FINISHED' && !isOnline && (
+          <Popconfirm
+            title={`Hoàn thành ${selectedCompleteIds.length} học viên?`}
+            okText="Hoàn thành"
+            cancelText="Hủy"
+            disabled={selectedCompleteIds.length === 0}
+            onConfirm={() => void completeSelected()}
+          >
+            <Button type="primary" disabled={selectedCompleteIds.length === 0} loading={completing}>
+              Hoàn thành đã chọn ({selectedCompleteIds.length})
+            </Button>
+          </Popconfirm>
+        )}
+        <Button onClick={() => void loadEnrollments()}>Tải lại</Button>
       </div>
       <Table
         rowKey="enrollmentId"

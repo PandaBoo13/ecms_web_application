@@ -45,6 +45,16 @@ public class Invoice {
     @Column(name = "lead_id")
     private Long leadId;
 
+    /** Checkout contact snapshot; separate from the owning account's login/profile details. */
+    @Column(name = "payer_name", length = 150)
+    private String payerName;
+
+    @Column(name = "payer_email", length = 255)
+    private String payerEmail;
+
+    @Column(name = "payer_phone", length = 20)
+    private String payerPhone;
+
     @Column(name = "course_id", nullable = false)
     private Long courseId;
 
@@ -78,6 +88,10 @@ public class Invoice {
 
     @Column(columnDefinition = "text")
     private String reason;
+
+    /** Ảnh chứng từ thu tiền mặt (đường dẫn tương đối do FileStorageService trả về). */
+    @Column(name = "payment_proof_url", columnDefinition = "text")
+    private String paymentProofUrl;
 
     @Column(name = "created_by", nullable = false)
     private Long createdBy;

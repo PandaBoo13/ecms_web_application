@@ -27,6 +27,7 @@ public record InvoiceResponse(
         LocalDateTime paidAt,
         Long confirmedBy,
         String reason,
+        String paymentProofUrl,
         Long createdBy,
         String ownerName,
         String ownerEmail,
@@ -42,8 +43,8 @@ public record InvoiceResponse(
                 invoice.getAmount(), invoice.getStatus(), invoice.getCreatedAt(),
                 invoice.getDueAt(), invoice.getPaymentMethod(),
                 invoice.getTransactionReference(), invoice.getPaidAt(),
-                invoice.getConfirmedBy(), invoice.getReason(), invoice.getCreatedBy(),
-                null, null, null, null, null);
+                invoice.getConfirmedBy(), invoice.getReason(), invoice.getPaymentProofUrl(),
+                invoice.getCreatedBy(), null, null, null, null, null);
     }
 
     public static InvoiceResponse from(Invoice invoice, String ownerName, String ownerEmail,
@@ -55,7 +56,7 @@ public record InvoiceResponse(
                 invoice.getAmount(), invoice.getStatus(), invoice.getCreatedAt(),
                 invoice.getDueAt(), invoice.getPaymentMethod(),
                 invoice.getTransactionReference(), invoice.getPaidAt(),
-                invoice.getConfirmedBy(), invoice.getReason(), invoice.getCreatedBy(),
-                ownerName, ownerEmail, ownerPhone, courseTitle, courseType);
+                invoice.getConfirmedBy(), invoice.getReason(), invoice.getPaymentProofUrl(),
+                invoice.getCreatedBy(), ownerName, ownerEmail, ownerPhone, courseTitle, courseType);
     }
 }

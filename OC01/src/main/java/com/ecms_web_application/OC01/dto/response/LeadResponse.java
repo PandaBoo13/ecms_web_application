@@ -26,6 +26,8 @@ public class LeadResponse {
     private String assignedConsultantName;
     private String assignedConsultantEmail;
     private String note;
+    /** Lead đang có hóa đơn học phí ở trạng thái PENDING/PAID/OVERDUE. */
+    private Boolean hasOpenInvoice;
     private String placementTestStatus;
     private BigDecimal placementTestScore;
     private String placementRecommendedLevel;

@@ -37,9 +37,7 @@ import {
 import toast from 'react-hot-toast';
 
 // 🆕 Cập nhật lại đường dẫn import API theo cấu trúc mới
-import { courseApi } from '@/services/api/course';
-import { resourceApi } from '@/services/api/course';
-import { sessionApi } from '@/services/api/course';
+import { courseApi, progressApi, resourceApi, sessionApi } from '@/services/api/course';
 // Nếu báo lỗi không tìm thấy, đổi thành import từ thư mục file tương ứng
 
 import type {
@@ -55,6 +53,7 @@ import StatusTag from '@/components/common/StatusTag';
 import LeadRegistrationModal from '@/components/lead/LeadRegistrationModal';
 import LeadRegistrationForm from '@/components/lead/LeadRegistrationForm';
 import FloatingLeadButton from '@/components/lead/FloatingLeadButton';
+import { useAuth } from '@/hooks/useAuth';
 
 const { Title, Paragraph, Text } = Typography;
 
@@ -77,12 +76,14 @@ const RESOURCE_ICON_MAP: Record<ResourceType, React.ReactNode> = {
 export default function CourseDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
 
   const [course, setCourse] = useState<CourseDetailResponse | null>(null);
   const [resourceTree, setResourceTree] = useState<ResourceTreeResponse[]>([]);
   const [sessions, setSessions] = useState<SessionResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [consultModalOpen, setConsultModalOpen] = useState(false);
+  const [purchaseStatus, setPurchaseStatus] = useState<'CHECKING' | 'AVAILABLE' | 'OWNED'>('CHECKING');
 
   useEffect(() => {
     if (!id || isNaN(Number(id))) {
@@ -121,6 +122,27 @@ export default function CourseDetailPage() {
         setLoading(false);
       });
   }, [id]);
+
+  useEffect(() => {
+    let active = true;
+    const courseId = Number(id);
+    if (!isAuthenticated || !Number.isInteger(courseId) || courseId <= 0) {
+      setPurchaseStatus('AVAILABLE');
+      return () => { active = false; };
+    }
+
+    setPurchaseStatus('CHECKING');
+    progressApi.getMyCourseProgress(courseId)
+      .then(() => {
+        if (active) setPurchaseStatus('OWNED');
+      })
+      .catch(() => {
+        // Chưa có tiến độ khóa học nghĩa là tài khoản chưa được ghi danh.
+        if (active) setPurchaseStatus('AVAILABLE');
+      });
+
+    return () => { active = false; };
+  }, [id, isAuthenticated]);
 
   if (loading) {
     return (
@@ -712,6 +734,42 @@ export default function CourseDetailPage() {
 
                 {/* Nút hành động chính */}
                 <Space direction="vertical" size={12} style={{ width: '100%', marginBottom: 24 }}>
+                  {course.courseType === 'ONLINE' && !course.isFree && (
+                    <>
+                      <Button
+                        type="primary"
+                        size="large"
+                        icon={<DollarOutlined />}
+                        block
+                        disabled={purchaseStatus !== 'AVAILABLE'}
+                        loading={purchaseStatus === 'CHECKING'}
+                        style={{
+                          height: 48,
+                          fontSize: 16,
+                          fontWeight: 700,
+                          background: purchaseStatus === 'OWNED' ? undefined : 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                          borderColor: purchaseStatus === 'OWNED' ? undefined : '#059669',
+                        }}
+                        onClick={() => {
+                          const checkoutPath = `/checkout/${course.id}`;
+                          if (!isAuthenticated) {
+                            navigate('/login', { state: { from: { pathname: checkoutPath } } });
+                          } else {
+                            navigate(checkoutPath);
+                          }
+                        }}
+                      >
+                        {purchaseStatus === 'OWNED'
+                          ? 'Đã mua khóa học'
+                          : purchaseStatus === 'CHECKING' ? 'Đang kiểm tra...' : 'Mua khóa học'}
+                      </Button>
+                      {purchaseStatus === 'OWNED' && (
+                        <Text type="success" style={{ display: 'block', textAlign: 'center' }}>
+                          Bạn đã mua khóa học này.
+                        </Text>
+                      )}
+                    </>
+                  )}
                   <Button
                     type="primary"
                     size="large"

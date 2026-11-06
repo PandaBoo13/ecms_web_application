@@ -1,67 +1,56 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
-  Alert, Button, Card, Col, Input, Row, Select, Space, Statistic, Table, Tabs, Tag, Typography,
+  Button, Input, Select, Table, Tag, Typography,
 } from 'antd';
+import {
+  CheckCircleOutlined,
+  ClockCircleOutlined,
+  FileTextOutlined,
+  PauseCircleOutlined,
+  PlayCircleOutlined,
+  ReloadOutlined,
+  StopOutlined,
+} from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { Link } from 'react-router-dom';
-import dayjs from 'dayjs';
 import toast from 'react-hot-toast';
 import PageContainer from '@/components/common/PageContainer';
 import PageHeader from '@/components/common/PageHeader';
+import StatsCard from '@/components/common/StatsCard';
 import EnrollmentStatusTag from '@/components/enrollment/EnrollmentStatusTag';
-import { ENROLLMENT_STATUS_FLOW, ENROLLMENT_STATUS_LABEL } from '@/constants/enrollment';
-import { courseApi } from '@/services/api/course';
+import { ENROLLMENT_STATUS_LABEL } from '@/constants/enrollment';
 import { enrollmentApi } from '@/services/api/enrollment';
 import { showError } from '@/utils/errorHelper';
-import type { CourseResponse } from '@/services/types/course';
 import type {
-  EnrollmentResponse, EnrollmentStatus,
-  EnrollmentSummaryResponse, OfflineEnrollmentCandidate,
+  EnrollmentResponse, EnrollmentStatus, EnrollmentSummaryResponse, EnrollmentType,
 } from '@/services/types/enrollment';
 
 const { Text } = Typography;
+
+const STATUS_LABELS: Record<EnrollmentStatus, string> = {
+  PENDING: ENROLLMENT_STATUS_LABEL.PENDING,
+  ACTIVE: ENROLLMENT_STATUS_LABEL.ACTIVE,
+  RESERVED: ENROLLMENT_STATUS_LABEL.RESERVED,
+  TERMINATED: ENROLLMENT_STATUS_LABEL.TERMINATED,
+  COMPLETED: ENROLLMENT_STATUS_LABEL.COMPLETED,
+};
+
+const TYPE_LABELS: Record<EnrollmentType, string> = {
+  OFFLINE: 'Khóa Offline',
+  ONLINE: 'Khóa Online',
+};
 
 export default function EnrollmentPage() {
   const [enrollmentRows, setEnrollmentRows] = useState<EnrollmentResponse[]>([]);
   const [loadingEnrollments, setLoadingEnrollments] = useState(false);
   const [enrollmentStatus, setEnrollmentStatus] = useState<EnrollmentStatus | undefined>();
+  const [enrollmentType, setEnrollmentType] = useState<EnrollmentType | undefined>();
   const [enrollmentPage, setEnrollmentPage] = useState(0);
   const [enrollmentPageSize, setEnrollmentPageSize] = useState(20);
   const [enrollmentTotal, setEnrollmentTotal] = useState(0);
   const [enrollmentSearchInput, setEnrollmentSearchInput] = useState('');
   const [enrollmentSearch, setEnrollmentSearch] = useState('');
   const [summary, setSummary] = useState<EnrollmentSummaryResponse | null>(null);
-  const [activeTab, setActiveTab] = useState<string>('ALL');
-
-  const [filterCourses, setFilterCourses] = useState<CourseResponse[]>([]);
-  const [filterCoursesLoading, setFilterCoursesLoading] = useState(false);
-  const [filterCourseId, setFilterCourseId] = useState<number | undefined>();
-  const [candidateRows, setCandidateRows] = useState<OfflineEnrollmentCandidate[]>([]);
-  const [candidateLoading, setCandidateLoading] = useState(false);
-  const [candidatePage, setCandidatePage] = useState(0);
-  const [candidateTotal, setCandidateTotal] = useState(0);
-  const [candidateCourseId, setCandidateCourseId] = useState<number | undefined>();
-  const [candidateSearchInput, setCandidateSearchInput] = useState('');
-  const [candidateSearch, setCandidateSearch] = useState('');
-  const [selectedCandidateIds, setSelectedCandidateIds] = useState<number[]>([]);
-  const [processingCandidates, setProcessingCandidates] = useState(false);
-
-
-  const loadFilterCourses = useCallback(async () => {
-    setFilterCoursesLoading(true);
-    try {
-      const page = await courseApi.search({ page: 0, size: 200 });
-      setFilterCourses(page.content ?? []);
-    } catch {
-      toast.error('Không tải được danh sách khóa học');
-    } finally {
-      setFilterCoursesLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void loadFilterCourses();
-  }, [loadFilterCourses]);
 
   const loadEnrollments = useCallback(async () => {
     setLoadingEnrollments(true);
@@ -69,8 +58,8 @@ export default function EnrollmentPage() {
       const page = await enrollmentApi.search({
         page: enrollmentPage,
         size: enrollmentPageSize,
+        type: enrollmentType,
         status: enrollmentStatus,
-        courseId: filterCourseId,
         search: enrollmentSearch || undefined,
         includeCompletionEligibility: true,
       });
@@ -81,33 +70,11 @@ export default function EnrollmentPage() {
     } finally {
       setLoadingEnrollments(false);
     }
-  }, [enrollmentPage, enrollmentPageSize, enrollmentStatus, enrollmentSearch, filterCourseId]);
+  }, [enrollmentPage, enrollmentPageSize, enrollmentStatus, enrollmentType, enrollmentSearch]);
 
   useEffect(() => {
     void loadEnrollments();
   }, [loadEnrollments]);
-
-  const loadCandidates = useCallback(async () => {
-    setCandidateLoading(true);
-    try {
-      const page = await enrollmentApi.offlineCandidates({
-        courseId: candidateCourseId,
-        search: candidateSearch || undefined,
-        page: candidatePage,
-        size: 20,
-      });
-      setCandidateRows(page.content ?? []);
-      setCandidateTotal(page.totalElements ?? 0);
-    } catch {
-      toast.error('Không tải được danh sách chờ ghi danh OFFLINE');
-    } finally {
-      setCandidateLoading(false);
-    }
-  }, [candidateCourseId, candidatePage, candidateSearch]);
-
-  useEffect(() => {
-    void loadCandidates();
-  }, [loadCandidates]);
 
   const loadSummary = useCallback(async () => {
     try {
@@ -120,29 +87,6 @@ export default function EnrollmentPage() {
   useEffect(() => {
     void loadSummary();
   }, [loadSummary]);
-
-  const processCandidates = async (invoiceIds: number[]) => {
-    if (invoiceIds.length === 0) return;
-    if (invoiceIds.length > 100) {
-      toast.error('Mỗi lần chỉ có thể xử lý tối đa 100 học viên');
-      return;
-    }
-    setProcessingCandidates(true);
-    try {
-      const result = await enrollmentApi.createOfflineBatch(invoiceIds);
-      setSelectedCandidateIds([]);
-      if (result.enrolled > 0) toast.success(`Đã ghi danh ${result.enrolled} học viên`);
-      if (result.failed > 0) {
-        const firstError = result.results.find((item) => !item.success)?.message;
-        toast.error(`${result.failed} trường hợp chưa ghi danh được${firstError ? `: ${firstError}` : ''}`);
-      }
-      await Promise.all([loadCandidates(), loadEnrollments(), loadSummary()]);
-    } catch {
-      toast.error('Không xử lý được danh sách đã chọn. Vui lòng tải lại và thử lại.');
-    } finally {
-      setProcessingCandidates(false);
-    }
-  };
 
   const enrollmentColumns: ColumnsType<EnrollmentResponse> = [
     {
@@ -196,89 +140,99 @@ export default function EnrollmentPage() {
     },
   ];
 
-  const candidateColumns: ColumnsType<OfflineEnrollmentCandidate> = [
-    {
-      title: 'Khóa học',
-      render: (_, row) => (
-        <div>
-          <div style={{ fontWeight: 600 }}>{row.courseTitle || `Khóa học #${row.courseId}`}</div>
-          <Text type="secondary" style={{ fontSize: 12 }}>
-            {row.courseStartDate ? `Khai giảng ${dayjs(row.courseStartDate).format('DD/MM/YYYY')}` : 'Chưa có ngày khai giảng'}
-          </Text>
-        </div>
-      ),
-    },
-    {
-      title: 'Học viên',
-      render: (_, row) => (
-        <div>
-          <div style={{ fontWeight: 600 }}>{row.fullName || 'Chưa có tên'}</div>
-          {row.studentCode && <Text type="secondary" style={{ fontSize: 12 }}>Mã: {row.studentCode}</Text>}
-          {(row.email || row.phone) && (
-            <div style={{ fontSize: 12, color: '#64748b' }}>
-              {[row.email, row.phone].filter(Boolean).join(' · ')}
-            </div>
-          )}
-        </div>
-      ),
-    },
-    {
-      title: 'Hồ sơ học viên',
-      dataIndex: 'hasStudentProfile',
-      width: 160,
-      render: (_ready: boolean, row) => row.hasStudentProfile
-        ? <Tag color="green">Đã có</Tag>
-        : row.hasLead
-          ? <Tag color="gold">Tạo từ Lead khi ghi danh</Tag>
-          : <Tag color="red">Cần tạo hồ sơ Student</Tag>,
-    },
-    {
-      title: 'Hóa đơn',
-      render: (_, row) => (
-        <div>
-          <div>{row.invoiceCode}</div>
-          <Text type="secondary" style={{ fontSize: 12 }}>
-            {Number(row.amount).toLocaleString('vi-VN')}đ
-            {row.paidAt ? ` · ${dayjs(row.paidAt).format('DD/MM/YYYY')}` : ''}
-          </Text>
-        </div>
-      ),
-    },
-    {
-      title: 'Trạng thái sau ghi danh',
-      width: 170,
-      render: (_, row) => {
-        const active = row.courseStartDate != null
-          && !dayjs(row.courseStartDate).isAfter(dayjs(), 'day');
-        return <EnrollmentStatusTag status={active ? 'ACTIVE' : 'PENDING'} />;
-      },
-    },
-  ];
-
-  const selectEnrollmentStatus = (status: EnrollmentStatus) => {
+  const selectEnrollmentStatus = (status?: EnrollmentStatus) => {
     setEnrollmentStatus(status);
     setEnrollmentPage(0);
-    setActiveTab(status);
-  };
-
-  const showOfflineQueue = () => {
-    setActiveTab('pending-offline');
   };
 
   const clearEnrollmentFilters = () => {
-    setFilterCourseId(undefined);
     setEnrollmentSearch('');
     setEnrollmentSearchInput('');
+    setEnrollmentType(undefined);
     setEnrollmentPage(0);
   };
 
-  const cardStyle = (active: boolean) => active
-    ? { borderColor: '#1677ff', boxShadow: '0 0 0 2px rgba(22, 119, 255, 0.15)' }
-    : undefined;
+  const statusCounts: Record<EnrollmentStatus, number> = {
+    PENDING: summary?.pending ?? 0,
+    ACTIVE: summary?.active ?? 0,
+    RESERVED: summary?.reserved ?? 0,
+    TERMINATED: summary?.terminated ?? 0,
+    COMPLETED: summary?.completed ?? 0,
+  };
+  const allEnrollmentCount = Object.values(statusCounts).reduce((sum, count) => sum + count, 0);
+  const hasActiveFilters = Boolean(enrollmentSearch || enrollmentStatus || enrollmentType);
 
-  const renderEnrollmentList = () => (
-    <>
-      <Space className="mb-4" wrap>
+  return (
+    <PageContainer>
+      <PageHeader
+        title="Danh sách ghi danh"
+        subtitle="Theo dõi danh sách ghi danh toàn hệ thống theo trạng thái và khóa học."
+      />
+
+      <div className="mb-5 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-6">
+        <StatsCard
+          title="Tất cả ghi danh"
+          value={allEnrollmentCount}
+          icon={<FileTextOutlined />}
+          color="#2563eb"
+          bgColor="#eff6ff"
+          active={!enrollmentStatus}
+          onClick={() => selectEnrollmentStatus(undefined)}
+          tooltip="Nhấn để xem toàn bộ ghi danh"
+        />
+        <StatsCard
+          title="Chờ khai giảng"
+          value={statusCounts.PENDING}
+          icon={<ClockCircleOutlined />}
+          color="#f59e0b"
+          bgColor="#fffbeb"
+          active={enrollmentStatus === 'PENDING'}
+          onClick={() => selectEnrollmentStatus(enrollmentStatus === 'PENDING' ? undefined : 'PENDING')}
+          tooltip="Nhấn để lọc ghi danh chờ khai giảng"
+        />
+        <StatsCard
+          title="Đang học"
+          value={statusCounts.ACTIVE}
+          icon={<PlayCircleOutlined />}
+          color="#10b981"
+          bgColor="#ecfdf5"
+          active={enrollmentStatus === 'ACTIVE'}
+          onClick={() => selectEnrollmentStatus(enrollmentStatus === 'ACTIVE' ? undefined : 'ACTIVE')}
+          tooltip="Nhấn để lọc ghi danh đang học"
+        />
+        <StatsCard
+          title="Bảo lưu"
+          value={statusCounts.RESERVED}
+          icon={<PauseCircleOutlined />}
+          color="#1677ff"
+          bgColor="#eff6ff"
+          active={enrollmentStatus === 'RESERVED'}
+          onClick={() => selectEnrollmentStatus(enrollmentStatus === 'RESERVED' ? undefined : 'RESERVED')}
+          tooltip="Nhấn để lọc ghi danh đang bảo lưu"
+        />
+        <StatsCard
+          title="Đã chấm dứt"
+          value={statusCounts.TERMINATED}
+          icon={<StopOutlined />}
+          color="#64748b"
+          bgColor="#f1f5f9"
+          active={enrollmentStatus === 'TERMINATED'}
+          onClick={() => selectEnrollmentStatus(enrollmentStatus === 'TERMINATED' ? undefined : 'TERMINATED')}
+          tooltip="Nhấn để lọc ghi danh đã chấm dứt"
+        />
+        <StatsCard
+          title="Hoàn thành"
+          value={statusCounts.COMPLETED}
+          icon={<CheckCircleOutlined />}
+          color="#722ed1"
+          bgColor="#f5f3ff"
+          active={enrollmentStatus === 'COMPLETED'}
+          onClick={() => selectEnrollmentStatus(enrollmentStatus === 'COMPLETED' ? undefined : 'COMPLETED')}
+          tooltip="Nhấn để lọc ghi danh đã hoàn thành"
+        />
+      </div>
+
+      <div className="mb-4 flex flex-wrap items-center justify-end gap-3">
         <Input.Search
           allowClear
           placeholder="Tìm học viên, mã học viên, khóa hoặc hóa đơn"
@@ -297,22 +251,39 @@ export default function EnrollmentPage() {
           }}
         />
         <Select
-          allowClear
-          showSearch
-          loading={filterCoursesLoading}
-          placeholder="Lọc theo khóa học"
-          style={{ width: 280 }}
-          optionFilterProp="label"
-          value={filterCourseId}
-          onChange={(value) => { setFilterCourseId(value); setEnrollmentPage(0); }}
-          options={filterCourses.map((course) => ({
-            value: course.id,
-            label: `${course.code} — ${course.title}`,
-          }))}
+          style={{ width: 200 }}
+          value={enrollmentStatus ?? ''}
+          onChange={(value) => selectEnrollmentStatus(value ? (value as EnrollmentStatus) : undefined)}
+          options={[
+            { value: '', label: 'Tất cả trạng thái' },
+            ...(['PENDING', 'ACTIVE', 'RESERVED', 'TERMINATED', 'COMPLETED'] as EnrollmentStatus[])
+              .map((value) => ({ value, label: STATUS_LABELS[value] })),
+          ]}
         />
-        <Button onClick={clearEnrollmentFilters}>Xoá lọc</Button>
-        <Button onClick={() => void Promise.all([loadEnrollments(), loadSummary()])}>Tải lại</Button>
-      </Space>
+        <Select
+          style={{ width: 180 }}
+          value={enrollmentType ?? ''}
+          onChange={(value) => {
+            setEnrollmentType(value ? (value as EnrollmentType) : undefined);
+            setEnrollmentPage(0);
+          }}
+          options={[
+            { value: '', label: 'Tất cả hình thức' },
+            ...(['OFFLINE', 'ONLINE'] as EnrollmentType[])
+              .map((value) => ({ value, label: TYPE_LABELS[value] })),
+          ]}
+        />
+        {hasActiveFilters && (
+          <Button onClick={clearEnrollmentFilters}>Xoá lọc</Button>
+        )}
+        <Button
+          icon={<ReloadOutlined />}
+          onClick={() => void Promise.all([loadEnrollments(), loadSummary()])}
+        >
+          Tải lại
+        </Button>
+      </div>
+
       <Table
         rowKey="enrollmentId"
         columns={enrollmentColumns}
@@ -330,209 +301,6 @@ export default function EnrollmentPage() {
           },
         }}
       />
-    </>
-  );
-
-  const statusTabCounts: Record<EnrollmentStatus, number> = {
-    PENDING: summary?.pending ?? 0,
-    ACTIVE: summary?.active ?? 0,
-    RESERVED: summary?.reserved ?? 0,
-    TERMINATED: summary?.terminated ?? 0,
-    COMPLETED: summary?.completed ?? 0,
-  };
-  const allEnrollmentCount = Object.values(statusTabCounts).reduce((sum, count) => sum + count, 0);
-  const statusTabLabels: Record<EnrollmentStatus, string> = {
-    PENDING: ENROLLMENT_STATUS_LABEL.PENDING,
-    ACTIVE: ENROLLMENT_STATUS_LABEL.ACTIVE,
-    RESERVED: ENROLLMENT_STATUS_LABEL.RESERVED,
-    TERMINATED: 'Đã chấm dứt',
-    COMPLETED: ENROLLMENT_STATUS_LABEL.COMPLETED,
-  };
-
-  const openStatusTab = (key: string) => {
-    setActiveTab(key);
-    if (key !== 'pending-offline') {
-      setEnrollmentStatus(key === 'ALL' ? undefined : key as EnrollmentStatus);
-      setEnrollmentPage(0);
-    }
-  };
-
-  return (
-    <PageContainer>
-      <PageHeader
-        title="Danh sách ghi danh"
-        subtitle="Theo dõi danh sách ghi danh toàn hệ thống theo trạng thái và khóa học."
-      />
-      <Alert
-        type="info"
-        showIcon
-        className="mb-4"
-        message="Hóa đơn OFFLINE thanh toán thành công sẽ tự động tạo ghi danh."
-        description={`Các trường hợp thanh toán thành công nhưng chưa tạo được ghi danh sẽ xuất hiện trong mục Chờ ghi danh. Trạng thái: ${ENROLLMENT_STATUS_FLOW}.`}
-      />
-
-      <Row gutter={[12, 12]} className="mb-5">
-        <Col xs={12} sm={8} lg={4}>
-          <Card hoverable onClick={showOfflineQueue} style={cardStyle(activeTab === 'pending-offline')}>
-            <Statistic title="Chờ ghi danh" value={summary?.offlineAwaitingEnrollment ?? candidateTotal} />
-          </Card>
-        </Col>
-        <Col xs={12} sm={8} lg={4}>
-          <Card
-            hoverable
-            onClick={() => selectEnrollmentStatus('PENDING')}
-            style={cardStyle(activeTab === 'PENDING')}
-          >
-            <Statistic title="Chờ khai giảng" value={summary?.pending ?? 0} valueStyle={{ color: '#d48806' }} />
-          </Card>
-        </Col>
-        <Col xs={12} sm={8} lg={4}>
-          <Card
-            hoverable
-            onClick={() => selectEnrollmentStatus('ACTIVE')}
-            style={cardStyle(activeTab === 'ACTIVE')}
-          >
-            <Statistic title="Đang học" value={summary?.active ?? 0} valueStyle={{ color: '#389e0d' }} />
-          </Card>
-        </Col>
-        <Col xs={12} sm={8} lg={4}>
-          <Card
-            hoverable
-            onClick={() => selectEnrollmentStatus('RESERVED')}
-            style={cardStyle(activeTab === 'RESERVED')}
-          >
-            <Statistic title="Bảo lưu" value={summary?.reserved ?? 0} valueStyle={{ color: '#1677ff' }} />
-          </Card>
-        </Col>
-        <Col xs={12} sm={8} lg={4}>
-          <Card
-            hoverable
-            onClick={() => selectEnrollmentStatus('TERMINATED')}
-            style={cardStyle(activeTab === 'TERMINATED')}
-          >
-            <Statistic title="Đã chấm dứt" value={summary?.terminated ?? 0} />
-          </Card>
-        </Col>
-        <Col xs={12} sm={8} lg={4}>
-          <Card
-            hoverable
-            onClick={() => selectEnrollmentStatus('COMPLETED')}
-            style={cardStyle(activeTab === 'COMPLETED')}
-          >
-            <Statistic title="Hoàn thành" value={summary?.completed ?? 0} valueStyle={{ color: '#722ed1' }} />
-          </Card>
-        </Col>
-      </Row>
-
-      <Tabs
-        activeKey={activeTab}
-        onChange={openStatusTab}
-        items={[
-          {
-            key: 'pending-offline',
-            label: `Chờ ghi danh (${candidateTotal})`,
-            children: (
-              <>
-                <Alert
-                  className="mb-4"
-                  type="info"
-                  showIcon
-                  message="Danh sách hóa đơn đã thanh toán nhưng chưa có ghi danh."
-                  description="Hệ thống tự ghi danh sau thanh toán. Dùng màn hình này để xử lý các trường hợp lỗi hoặc dữ liệu cũ; có thể chọn tối đa 100 học viên mỗi lần."
-                />
-                <Space className="mb-4" wrap>
-                  <Input.Search
-                    allowClear
-                    placeholder="Tìm học viên, mã học viên hoặc hóa đơn"
-                    style={{ width: 320 }}
-                    value={candidateSearchInput}
-                    onChange={(event) => {
-                      setCandidateSearchInput(event.target.value);
-                      if (!event.target.value) {
-                        setCandidateSearch('');
-                        setCandidatePage(0);
-                        setSelectedCandidateIds([]);
-                      }
-                    }}
-                    onSearch={(value) => {
-                      setCandidateSearch(value.trim());
-                      setCandidatePage(0);
-                      setSelectedCandidateIds([]);
-                    }}
-                    disabled={processingCandidates}
-                  />
-                  <Select
-                    allowClear
-                    showSearch
-                    loading={filterCoursesLoading}
-                    placeholder="Lọc theo khóa OFFLINE"
-                    style={{ width: 300 }}
-                    optionFilterProp="label"
-                    value={candidateCourseId}
-                    disabled={processingCandidates}
-                    onChange={(value) => {
-                      setCandidateCourseId(value);
-                      setCandidatePage(0);
-                      setSelectedCandidateIds([]);
-                    }}
-                    options={filterCourses.filter((course) => course.courseType === 'OFFLINE').map((course) => ({
-                      value: course.id,
-                      label: `${course.code} — ${course.title}`,
-                    }))}
-                  />
-                  <Button
-                    type="primary"
-                    disabled={selectedCandidateIds.length === 0 || selectedCandidateIds.length > 100}
-                    loading={processingCandidates}
-                    onClick={() => void processCandidates(selectedCandidateIds)}
-                  >
-                    {selectedCandidateIds.length > 100
-                      ? `Đã chọn ${selectedCandidateIds.length} — tối đa 100`
-                      : `Ghi danh đã chọn (${selectedCandidateIds.length})`}
-                  </Button>
-                  <Button onClick={() => void Promise.all([loadCandidates(), loadSummary()])}>Tải lại</Button>
-                </Space>
-                <Table
-                  rowKey="invoiceId"
-                  rowSelection={{
-                    selectedRowKeys: selectedCandidateIds,
-                    onChange: (keys) => setSelectedCandidateIds(keys as number[]),
-                    getCheckboxProps: (row) => ({
-                      disabled: processingCandidates || (!row.hasStudentProfile && !row.hasLead),
-                      title: !row.hasStudentProfile && !row.hasLead
-                        ? 'Cần tạo hồ sơ Student trước khi ghi danh'
-                        : undefined,
-                    }),
-                  }}
-                  columns={candidateColumns}
-                  dataSource={candidateRows}
-                  loading={candidateLoading}
-                  pagination={{
-                    current: candidatePage + 1,
-                    pageSize: 20,
-                    total: candidateTotal,
-                    showSizeChanger: false,
-                    onChange: (page) => setCandidatePage(page - 1),
-                  }}
-                  locale={{ emptyText: 'Không có hóa đơn OFFLINE nào đang chờ ghi danh.' }}
-                  scroll={{ x: 1100 }}
-                />
-              </>
-            ),
-          },
-          {
-            key: 'ALL',
-            label: `Tất cả (${allEnrollmentCount})`,
-            children: renderEnrollmentList(),
-          },
-          ...(['PENDING', 'ACTIVE', 'RESERVED', 'TERMINATED', 'COMPLETED'] as EnrollmentStatus[]).map((status) => ({
-            key: status,
-            label: `${statusTabLabels[status]} (${statusTabCounts[status]})`,
-            children: renderEnrollmentList(),
-          })),
-        ]}
-      />
-
     </PageContainer>
   );
 }
