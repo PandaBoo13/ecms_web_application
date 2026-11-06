@@ -444,7 +444,7 @@ const UserCreatePage = () => {
                                   color={ROLE_COLORS[r.code] || 'default'}
                                   className="!text-xs !font-bold !m-0"
                                 >
-                                  {r.code}
+                                  {r.code === 'LEAD' ? 'CONSULTANT' : r.code}
                                 </Tag>
                                 <span className="text-xs text-slate-600">
                                   {ROLE_LABELS[r.code] || r.description}
@@ -568,7 +568,7 @@ const UserCreatePage = () => {
                     color={ROLE_COLORS[watchedRoleCode] || 'default'}
                     className="!font-bold !text-xs !px-2.5 !py-0.5 !rounded-md"
                   >
-                    {watchedRoleCode} · {ROLE_LABELS[watchedRoleCode] || ''}
+                    {watchedRoleCode === 'LEAD' ? 'CONSULTANT' : watchedRoleCode} · {ROLE_LABELS[watchedRoleCode] || ''}
                   </Tag>
                 </div>
               </div>
