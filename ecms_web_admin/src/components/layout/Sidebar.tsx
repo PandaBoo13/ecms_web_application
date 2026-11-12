@@ -1,3 +1,4 @@
+// src/components/layout/Sidebar.tsx
 import { Layout, Menu, Drawer, Grid } from 'antd';
 import type { MenuProps } from 'antd';
 import {
@@ -12,7 +13,11 @@ import {
   FolderOutlined,
   DollarOutlined,
   SolutionOutlined,
+<<<<<<< HEAD
+  HomeOutlined, // 🆕 Import icon Phòng học
+=======
   SafetyCertificateOutlined,
+>>>>>>> d109153b7c1786910b70b4f90bab6a811c7e8ebb
 } from '@ant-design/icons';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
@@ -38,7 +43,11 @@ const ICON_MAP: Record<string, React.ReactNode> = {
   FolderOutlined: <FolderOutlined />,
   DollarOutlined: <DollarOutlined />,
   SolutionOutlined: <SolutionOutlined />,
+<<<<<<< HEAD
+  HomeOutlined: <HomeOutlined />, // 🆕 Thêm vào map
+=======
   SafetyCertificateOutlined: <SafetyCertificateOutlined />,
+>>>>>>> d109153b7c1786910b70b4f90bab6a811c7e8ebb
 };
 
 const MENU_KEY_TRANSLATION_MAP: Record<string, string> = {
@@ -57,6 +66,7 @@ const MENU_KEY_TRANSLATION_MAP: Record<string, string> = {
   'courses': 'menu.courses',
   '/admin/courses': 'menu.courseList',
   '/admin/categories': 'menu.categories',
+  '/admin/rooms': 'Phòng học', // 🆕 Thêm key dịch cho phòng học
   'users': 'menu.users',
   '/admin/users': 'menu.userList',
   'system': 'menu.system',

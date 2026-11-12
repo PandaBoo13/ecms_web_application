@@ -25,7 +25,7 @@ export const API_ENDPOINT = {
   COURSE_COPY: (id: number) => `/api/courses/${id}/copy`,
   COURSE_HARD_DELETE: (id: number) => `/api/courses/${id}/hard`,
   COURSE_CHANGE_TEACHER: (id: number) => `/api/courses/${id}/teacher`,
-
+COURSE_FINALIZE_SCHEDULE: (id: number) => `/api/courses/${id}/finalize-schedule`,
   // ══════════════════════════════════════════════════════════════
   // RESOURCES
   // ══════════════════════════════════════════════════════════════
