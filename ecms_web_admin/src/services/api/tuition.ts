@@ -11,6 +11,7 @@ import type {
   PaymentLinkResponse,
   ReasonRequest,
   RefundRequest,
+  TuitionInvoiceStats,
 } from '../types/tuition';
 
 export const tuitionApi = {
@@ -22,6 +23,8 @@ export const tuitionApi = {
     (await api.post<RequestResponse<{ paymentUrl: string }>>(API_ENDPOINT.TUITION_VNPAY_START(invoiceId))).data.data,
   searchInvoices: async (params: Record<string, unknown>) =>
     (await api.get<RequestResponse<PageResponse<InvoiceResponse>>>(API_ENDPOINT.TUITION_INVOICES, { params })).data.data,
+  getInvoiceStats: async () =>
+    (await api.get<RequestResponse<TuitionInvoiceStats>>(API_ENDPOINT.TUITION_INVOICE_STATS)).data.data,
   getInvoice: async (id: number) =>
     (await api.get<RequestResponse<InvoiceResponse>>(API_ENDPOINT.TUITION_INVOICE_DETAIL(id))).data.data,
   confirmCash: async (id: number, proofUrl?: string) =>

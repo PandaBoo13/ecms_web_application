@@ -224,6 +224,7 @@ export const API_ENDPOINT = {
 
   // TUITION & ENROLLMENT
   TUITION_INVOICES: '/api/tuition/invoices',
+  TUITION_INVOICE_STATS: '/api/tuition/invoices/stats',
   TUITION_ELIGIBLE_LEADS: '/api/tuition/invoices/eligible-leads',
   TUITION_FROM_LEAD: '/api/tuition/invoices/from-lead',
   TUITION_FROM_STUDENT: '/api/tuition/invoices/from-student',
@@ -239,8 +240,8 @@ export const API_ENDPOINT = {
   ENROLLMENTS: '/api/enrollments',
   ENROLLMENT_SUMMARY: '/api/enrollments/summary',
   ENROLLMENT_OFFLINE: '/api/enrollments/offline',
-  ENROLLMENT_OFFLINE_BULK: '/api/enrollments/offline/bulk',
-  ENROLLMENT_OFFLINE_ELIGIBLE: '/api/enrollments/offline/eligible',
+  ENROLLMENT_PENDING_BULK: '/api/enrollments/pending/bulk',
+  ENROLLMENT_PENDING_ELIGIBLE: '/api/enrollments/pending/eligible',
   ENROLLMENT_DETAIL: (id: number) => `/api/enrollments/${id}`,
   ENROLLMENT_ATTENDANCE_HISTORY: (id: number) => `/api/enrollments/${id}/attendance`,
   ENROLLMENT_STATUS_HISTORY: (id: number) => `/api/enrollments/${id}/status-history`,
@@ -252,8 +253,14 @@ export const API_ENDPOINT = {
   ENROLLMENT_COMPLETE_BULK: '/api/enrollments/complete/bulk',
   SESSION_ATTENDANCE: (courseId: number, sessionId: number) =>
     `/api/courses/${courseId}/sessions/${sessionId}/attendance`,
-  SESSION_ABSENCES: (courseId: number, sessionId: number) =>
-    `/api/courses/${courseId}/sessions/${sessionId}/attendance/absences`,
+
+  // ══════════════════════════════════════════════════════════════
+  // CERTIFICATES
+  // ══════════════════════════════════════════════════════════════
+  CERTIFICATES: '/api/certificates',
+  CERTIFICATE_ELIGIBLE: '/api/certificates/eligible',
+  CERTIFICATE_FILE: (id: number) => `/api/certificates/${id}/file`,
+  CERTIFICATE_REVOKE: (id: number) => `/api/certificates/${id}/revoke`,
 
   // ══════════════════════════════════════════════════════════════
   // AI AGENT

@@ -191,6 +191,8 @@ export const API_ENDPOINT = {
   // ══════════════════════════════════════════════════════════════
   // LEADS
   // ══════════════════════════════════════════════════════════════
+  /** Public — form "Đăng ký tư vấn" cho guest (không cần đăng nhập) */
+  LEAD_PUBLIC_REGISTER: '/api/public/leads/register',
   LEADS: '/api/leads',
   LEAD_DETAIL: (id: number) => `/api/leads/${id}`,
   LEAD_FULL_DETAIL: (id: number) => `/api/leads/${id}/detail`,
@@ -219,11 +221,19 @@ export const API_ENDPOINT = {
   TUITION_INVOICE_DETAIL: (id: number) => `/api/tuition/invoices/${id}`,
   PUBLIC_TUITION_PAYMENT_LINK: '/api/public/tuition/payment-links',
   PUBLIC_TUITION_PAYMENT_LINK_VNPAY: '/api/public/tuition/payment-links/vnpay',
+  PUBLIC_TUITION_CHECKOUT: '/api/public/tuition/checkout',
   PUBLIC_TUITION_VNPAY_RETURN: '/api/public/tuition/vnpay-return',
   ENROLLMENTS: '/api/enrollments',
   ENROLLMENT_DETAIL: (id: number) => `/api/enrollments/${id}`,
   ENROLLMENT_ATTENDANCE_HISTORY: (id: number) => `/api/enrollments/${id}/attendance`,
   ENROLLMENT_STATUS_HISTORY: (id: number) => `/api/enrollments/${id}/status-history`,
+
+  // ══════════════════════════════════════════════════════════════
+  // CERTIFICATES
+  // ══════════════════════════════════════════════════════════════
+  CERTIFICATE_MY: '/api/certificates/my',
+  CERTIFICATE_MY_FILE: (id: number) => `/api/certificates/my/${id}/file`,
+  PUBLIC_CERTIFICATE_VERIFY: (code: string) => `/api/public/certificates/${encodeURIComponent(code)}`,
 
   // ══════════════════════════════════════════════════════════════
   // AI AGENT

@@ -1,11 +1,18 @@
 package com.ecms_web_application.OC01.dto.response.enrollment;
 
+import com.ecms_web_application.OC01.entity.enums.CourseType;
+
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
-public record OfflineEnrollmentCandidateResponse(
+/**
+ * Hóa đơn học phí đã thanh toán nhưng chưa có ghi danh (ONLINE hoặc OFFLINE).
+ * Dùng cho danh sách đối soát để admin ghi danh lại thủ công.
+ */
+public record PendingEnrollmentCandidateResponse(
         Long courseId,
+        CourseType courseType,
         String courseTitle,
         LocalDate courseStartDate,
         Long invoiceId,

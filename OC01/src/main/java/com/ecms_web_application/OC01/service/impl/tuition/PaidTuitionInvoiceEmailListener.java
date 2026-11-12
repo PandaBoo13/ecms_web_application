@@ -14,9 +14,10 @@ import com.ecms_web_application.OC01.repository.CourseRepository;
 import com.ecms_web_application.OC01.repository.InvoiceRepository;
 import com.ecms_web_application.OC01.repository.LeadRepository;
 import com.ecms_web_application.OC01.repository.StudentRepository;
-import com.ecms_web_application.OC01.service.EmailService;
+import com.ecms_web_application.OC01.service.impl.TemporaryCredentialStore;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
@@ -24,13 +25,15 @@ import org.springframework.transaction.event.TransactionalEventListener;
 @Component
 @RequiredArgsConstructor
 @Slf4j
+@Order(3)
 public class PaidTuitionInvoiceEmailListener {
     private final InvoiceRepository invoiceRepository;
     private final CourseRepository courseRepository;
     private final AccountRepository accountRepository;
     private final StudentRepository studentRepository;
     private final LeadRepository leadRepository;
-    private final EmailService emailService;
+    private final PaidInvoiceEmailDispatcher emailDispatcher;
+    private final TemporaryCredentialStore temporaryCredentialStore;
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void sendPaidInvoiceEmail(InvoicePaidEvent event) {
@@ -54,10 +57,25 @@ public class PaidTuitionInvoiceEmailListener {
                 : invoice.getPaymentMethod() == PaymentMethod.BANK_TRANSFER ? "Chuyển khoản" : "";
 
         try {
-            emailService.sendTuitionPaidInvoiceEmail(recipient.email(), recipient.name(), recipient.phone(),
+            // Only present when payment-time provisioning created a new student account.
+            String loginEmail = resolveLoginEmail(invoice, recipient.email());
+            String temporaryPassword = temporaryCredentialStore.peek(loginEmail);
+            if (temporaryPassword != null && accountRepository.findByEmail(
+                    loginEmail.trim().toLowerCase(java.util.Locale.ROOT)).isEmpty()) {
+                // A payment listener can fail after account creation was rolled back. Never email
+                // a password that does not belong to a persisted account.
+                temporaryCredentialStore.consume(loginEmail);
+                temporaryPassword = null;
+                log.warn("Bỏ thông tin đăng nhập của hóa đơn {} vì tài khoản {} chưa được lưu",
+                        invoice.getInvoiceCode(), loginEmail);
+            }
+            emailDispatcher.send(new PaidInvoiceEmailDispatcher.Payload(
+                    recipient.email(), recipient.name(), recipient.phone(),
                     invoice.getInvoiceCode(), invoice.getCreatedAt(), courseCode, courseName,
                     invoice.getPaidAt(), invoice.getAmount(), method,
-                    invoice.getTransactionReference());
+                    invoice.getTransactionReference(), loginEmail, temporaryPassword));
+            // Mật khẩu tạm được consume bởi dispatcher sau khi SMTP gửi thành công,
+            // tránh trường hợp gửi mail lỗi làm mất thông tin đăng nhập.
         } catch (Exception ex) {
             // Email failure must not roll back or invalidate an already successful payment.
             log.warn("Gửi hóa đơn thanh toán {} đến {} thất bại: {}",
@@ -68,13 +86,6 @@ public class PaidTuitionInvoiceEmailListener {
     private Recipient resolveRecipient(Invoice invoice) {
         if (invoice.getPayerEmail() != null && !invoice.getPayerEmail().isBlank()) {
             return new Recipient(invoice.getPayerEmail(), invoice.getPayerName(), invoice.getPayerPhone());
-        }
-        if (invoice.getAccountId() != null) {
-            return accountRepository.findById(invoice.getAccountId())
-                    .map(account -> new Recipient(account.getEmail(), account.getUserProfile() != null
-                            ? account.getUserProfile().getFullName() : "Bạn",
-                            account.getUserProfile() != null ? account.getUserProfile().getPhone() : null))
-                    .orElse(null);
         }
         if (invoice.getStudentId() != null) {
             return studentRepository.findById(invoice.getStudentId())
@@ -87,6 +98,30 @@ public class PaidTuitionInvoiceEmailListener {
                     .orElse(null);
         }
         return null;
+    }
+
+    private String resolveLoginEmail(Invoice invoice, String fallbackEmail) {
+        if (invoice.getStudentId() != null) {
+            Student student = studentRepository.findById(invoice.getStudentId()).orElse(null);
+            if (student != null) {
+                if (student.getUserId() != null) {
+                    Account account = accountRepository.findById(student.getUserId()).orElse(null);
+                    if (account != null && account.getEmail() != null && !account.getEmail().isBlank()) {
+                        return account.getEmail();
+                    }
+                }
+                if (student.getEmail() != null && !student.getEmail().isBlank()) {
+                    return student.getEmail();
+                }
+            }
+        }
+        if (invoice.getLeadId() != null) {
+            Lead lead = leadRepository.findById(invoice.getLeadId()).orElse(null);
+            if (lead != null && lead.getEmail() != null && !lead.getEmail().isBlank()) {
+                return lead.getEmail();
+            }
+        }
+        return fallbackEmail;
     }
 
     private record Recipient(String email, String name, String phone) { }

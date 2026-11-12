@@ -7,7 +7,7 @@ export interface InvoiceResponse {
   invoiceCode: string;
   type: InvoiceType;
   originalInvoiceId: number | null;
-  accountId: number | null;
+  originalInvoiceCode: string | null;
   studentId: number | null;
   leadId: number | null;
   courseId: number;
@@ -31,7 +31,6 @@ export interface InvoiceResponse {
 
 export interface CreateInvoiceRequest {
   courseId: number;
-  accountId?: number;
   studentId?: number;
   leadId?: number;
   amount: number;
@@ -47,6 +46,11 @@ export interface RefundRequest {
   reason: string;
   /** Ảnh minh chứng hoàn tiền — bắt buộc với mọi phương thức. */
   proofUrl: string;
+  payerName: string;
+  payerEmail: string;
+  payerPhone?: string;
+  /** Ngày hoàn tiền thực tế; bỏ trống thì backend dùng thời điểm ghi nhận. */
+  refundedAt?: string;
 }
 
 /** Lead đã tư vấn, chưa có hóa đơn học phí đang mở. */
@@ -86,8 +90,18 @@ export interface PaymentLinkResponse {
   paymentLink: string;
   sentTo: string;
   expiresAt: string;
+  /** true = email đã được xếp hàng gửi nền (lỗi SMTP chỉ ghi log phía server). */
   emailSent: boolean;
   emailError: string | null;
+}
+
+/** Thống kê số lượng hóa đơn học phí theo trạng thái. */
+export interface TuitionInvoiceStats {
+  total: number;
+  pending: number;
+  paid: number;
+  overdue: number;
+  cancelled: number;
 }
 
 export interface CreateInvoiceFromLeadResponse {

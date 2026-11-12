@@ -15,7 +15,7 @@ import toast from 'react-hot-toast';
 import { leadApi } from '@/services/api/leads';
 import { courseApi, categoryApi } from '@/services/api/course';
 import type { CourseResponse, CategoryResponse } from '@/services/types/course';
-import type { LeadCreatePayload } from '@/services/types/lead';
+import type { LeadRegisterPayload } from '@/services/types/lead';
 import {
   normalizeEmail,
   normalizePhone,
@@ -480,16 +480,15 @@ export default function LeadRegistrationForm({
       }
       const combinedNote = noteParts.join(' | ');
 
-      const payload: LeadCreatePayload = {
+      const payload: LeadRegisterPayload = {
         fullName: values.fullName.trim(),
         email: cleanedEmail,
         phone: cleanedPhone,
         courseId: Number(values.courseId),
-        sourceId: 1, // Kênh Form Web
         note: combinedNote || undefined,
       };
 
-      await leadApi.create(payload);
+      await leadApi.register(payload);
 
       const selectedCourseObj = courses.find((c) => c.id === values.courseId);
 

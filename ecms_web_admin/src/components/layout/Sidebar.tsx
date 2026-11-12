@@ -12,6 +12,7 @@ import {
   FolderOutlined,
   DollarOutlined,
   SolutionOutlined,
+  SafetyCertificateOutlined,
 } from '@ant-design/icons';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
@@ -37,6 +38,7 @@ const ICON_MAP: Record<string, React.ReactNode> = {
   FolderOutlined: <FolderOutlined />,
   DollarOutlined: <DollarOutlined />,
   SolutionOutlined: <SolutionOutlined />,
+  SafetyCertificateOutlined: <SafetyCertificateOutlined />,
 };
 
 const MENU_KEY_TRANSLATION_MAP: Record<string, string> = {
@@ -51,6 +53,7 @@ const MENU_KEY_TRANSLATION_MAP: Record<string, string> = {
   'enrollment': 'Ghi danh',
   '/admin/enrollments': 'Danh sách ghi danh',
   '/admin/enrollments/pending': 'Chờ ghi danh',
+  '/admin/certificates': 'Quản lý chứng chỉ',
   'courses': 'menu.courses',
   '/admin/courses': 'menu.courseList',
   '/admin/categories': 'menu.categories',

@@ -14,7 +14,7 @@ public record InvoiceResponse(
         String invoiceCode,
         InvoiceType type,
         Long originalInvoiceId,
-        Long accountId,
+        String originalInvoiceCode,
         Long studentId,
         Long leadId,
         Long courseId,
@@ -38,22 +38,39 @@ public record InvoiceResponse(
     public static InvoiceResponse from(Invoice invoice) {
         return new InvoiceResponse(
                 invoice.getId(), invoice.getInvoiceCode(), invoice.getType(),
-                invoice.getOriginalInvoiceId(), invoice.getAccountId(),
-                invoice.getStudentId(), invoice.getLeadId(), invoice.getCourseId(),
-                invoice.getAmount(), invoice.getStatus(), invoice.getCreatedAt(),
+                invoice.getOriginalInvoiceId(), null, invoice.getStudentId(), invoice.getLeadId(), invoice.getCourseId(),
+                invoice.getAmount(), effectiveStatus(invoice), invoice.getCreatedAt(),
                 invoice.getDueAt(), invoice.getPaymentMethod(),
                 invoice.getTransactionReference(), invoice.getPaidAt(),
                 invoice.getConfirmedBy(), invoice.getReason(), invoice.getPaymentProofUrl(),
                 invoice.getCreatedBy(), null, null, null, null, null);
     }
 
+    /**
+     * Trạng thái hiển thị theo hiệu lực thanh toán: hóa đơn PENDING đã qua hạn thanh toán
+     * hiển thị là OVERDUE ngay cả khi job định kỳ chưa kịp cập nhật cột status trong DB
+     * (job chỉ chạy định kỳ, còn hạn thanh toán tính đến thời điểm hiện tại).
+     */
+    public static InvoiceStatus effectiveStatus(Invoice invoice) {
+        if (invoice.getStatus() == InvoiceStatus.PENDING && invoice.getDueAt() != null
+                && !invoice.getDueAt().isAfter(LocalDateTime.now())) {
+            return InvoiceStatus.OVERDUE;
+        }
+        return invoice.getStatus();
+    }
+
     public static InvoiceResponse from(Invoice invoice, String ownerName, String ownerEmail,
                                        String ownerPhone, String courseTitle, CourseType courseType) {
+        return from(invoice, ownerName, ownerEmail, ownerPhone, courseTitle, courseType, null);
+    }
+
+    public static InvoiceResponse from(Invoice invoice, String ownerName, String ownerEmail,
+                                       String ownerPhone, String courseTitle, CourseType courseType,
+                                       String originalInvoiceCode) {
         return new InvoiceResponse(
                 invoice.getId(), invoice.getInvoiceCode(), invoice.getType(),
-                invoice.getOriginalInvoiceId(), invoice.getAccountId(),
-                invoice.getStudentId(), invoice.getLeadId(), invoice.getCourseId(),
-                invoice.getAmount(), invoice.getStatus(), invoice.getCreatedAt(),
+                invoice.getOriginalInvoiceId(), originalInvoiceCode, invoice.getStudentId(), invoice.getLeadId(), invoice.getCourseId(),
+                invoice.getAmount(), effectiveStatus(invoice), invoice.getCreatedAt(),
                 invoice.getDueAt(), invoice.getPaymentMethod(),
                 invoice.getTransactionReference(), invoice.getPaidAt(),
                 invoice.getConfirmedBy(), invoice.getReason(), invoice.getPaymentProofUrl(),

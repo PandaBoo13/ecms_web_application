@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import {
   Alert,
   Button,
@@ -17,8 +17,9 @@ import {
 } from 'antd';
 import { ArrowLeftOutlined, CreditCardOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
 import { courseApi } from '@/services/api/course';
-import { LAST_ONLINE_PAYMENT_INVOICE_KEY, tuitionApi } from '@/services/api/tuition';
+import { LAST_ONLINE_PAYMENT_INVOICE_KEY, LAST_ONLINE_PAYMENT_TOKEN_KEY, publicTuitionApi } from '@/services/api/tuition';
 import { useAuth } from '@/hooks/useAuth';
+import type { AppAxiosError } from '@/services/api/axiosConfig';
 import type { CourseDetailResponse } from '@/services/types/course';
 import MoneyDisplay from '@/components/common/MoneyDisplay';
 
@@ -29,6 +30,7 @@ export default function OnlineCheckoutPage() {
   const parsedCourseId = Number(courseId);
   const invalidCourseId = !Number.isInteger(parsedCourseId) || parsedCourseId <= 0;
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
   const [form] = Form.useForm<{ fullName: string; email: string; phone: string }>();
   const [course, setCourse] = useState<CourseDetailResponse | null>(null);
@@ -36,12 +38,9 @@ export default function OnlineCheckoutPage() {
   const [paying, setPaying] = useState(false);
   const [profileDirty, setProfileDirty] = useState(false);
   const [checkoutInfoUpdated, setCheckoutInfoUpdated] = useState(false);
-  const [checkoutContact, setCheckoutContact] = useState({
-    fullName: '',
-    email: '',
-    phone: '',
-  });
+  const checkoutContactRef = useRef({ fullName: '', email: '', phone: '' });
   const [error, setError] = useState<string | null>(null);
+  const [loginRequired, setLoginRequired] = useState(false);
 
   useEffect(() => {
     const initialContact = {
@@ -50,8 +49,7 @@ export default function OnlineCheckoutPage() {
       phone: user?.phone || '',
     };
     form.setFieldsValue(initialContact);
-    setCheckoutContact(initialContact);
-    setProfileDirty(false);
+    checkoutContactRef.current = initialContact;
   }, [form, user]);
 
   useEffect(() => {
@@ -87,11 +85,11 @@ export default function OnlineCheckoutPage() {
   }, [courseId, invalidCourseId, parsedCourseId]);
 
   const profileHasChanged = (values: { fullName?: string; email?: string; phone?: string }) =>
-    (values.fullName || '').trim() !== checkoutContact.fullName.trim()
-    || (values.email || '').trim().toLowerCase() !== checkoutContact.email.trim().toLowerCase()
-    || (values.phone || '').trim() !== checkoutContact.phone.trim();
+    (values.fullName || '').trim() !== checkoutContactRef.current.fullName.trim()
+    || (values.email || '').trim().toLowerCase() !== checkoutContactRef.current.email.trim().toLowerCase()
+    || (values.phone || '').trim() !== checkoutContactRef.current.phone.trim();
 
-  const updateProfileFromForm = async () => {
+  const confirmInvoiceContact = async () => {
     try {
       const values = await form.validateFields();
       const contact = {
@@ -99,7 +97,7 @@ export default function OnlineCheckoutPage() {
         email: values.email.trim(),
         phone: values.phone.trim(),
       };
-      setCheckoutContact(contact);
+      checkoutContactRef.current = contact;
       setProfileDirty(false);
       setCheckoutInfoUpdated(true);
     } catch {
@@ -107,10 +105,20 @@ export default function OnlineCheckoutPage() {
     }
   };
 
+  const goToLogin = () => {
+    navigate('/login', {
+      state: {
+        from: { pathname: location.pathname },
+        email: form.getFieldValue('email') as string | undefined,
+      },
+    });
+  };
+
   const startPayment = async (values: { fullName: string; email: string; phone: string }) => {
     if (!course) return;
     setPaying(true);
     setError(null);
+    setLoginRequired(false);
     try {
       const contact = {
         payerName: values.fullName.trim(),
@@ -118,24 +126,38 @@ export default function OnlineCheckoutPage() {
         payerPhone: values.phone.trim(),
       };
       if (profileHasChanged(values)) {
-        setCheckoutContact({ fullName: values.fullName.trim(), email: values.email.trim(), phone: values.phone.trim() });
+        checkoutContactRef.current = { fullName: values.fullName.trim(), email: values.email.trim(), phone: values.phone.trim() };
         setProfileDirty(false);
       }
-      // The backend owns the price and account association; never submit a client price.
-      const invoice = await tuitionApi.createOnlineCheckout(course.id, contact);
-      if (invoice.status === 'PAID') {
+      // The backend owns the price and owner resolution; guests can pay without an account.
+      const checkout = await publicTuitionApi.createCheckout(course.id, contact);
+      if (checkout.status === 'PAID') {
         navigate('/student/courses');
         return;
       }
       try {
-        sessionStorage.setItem(LAST_ONLINE_PAYMENT_INVOICE_KEY, String(invoice.invoiceId));
+        sessionStorage.setItem(LAST_ONLINE_PAYMENT_INVOICE_KEY, String(checkout.invoiceId));
       } catch {
         // Storage is optional; the invoice remains available from the tuition page.
       }
-      const paymentUrl = await tuitionApi.createVnpayPayment(invoice.invoiceId);
+      if (!checkout.paymentToken) {
+        throw new Error('Không thể tạo phiên thanh toán. Vui lòng thử lại.');
+      }
+      try {
+        sessionStorage.setItem(LAST_ONLINE_PAYMENT_TOKEN_KEY, checkout.paymentToken);
+      } catch {
+        // Storage is optional; the current payment still proceeds.
+      }
+      const paymentUrl = await publicTuitionApi.createVnpayUrl(checkout.paymentToken);
       window.location.assign(paymentUrl);
     } catch (e) {
-      setError((e as Error).message || 'Chưa thể mở cổng thanh toán. Hóa đơn (nếu đã tạo) vẫn được lưu trong mục Hóa đơn để bạn tiếp tục sau.');
+      const err = e as AppAxiosError;
+      if (err.code === 'CHECKOUT_ACCOUNT_EXISTS') {
+        setLoginRequired(true);
+        setError(null);
+      } else {
+        setError(err.message || 'Chưa thể mở cổng thanh toán. Vui lòng thử lại sau ít phút.');
+      }
       setPaying(false);
     }
   };
@@ -195,6 +217,7 @@ export default function OnlineCheckoutPage() {
               onValuesChange={(_, values) => {
                 setProfileDirty(profileHasChanged(values));
                 setCheckoutInfoUpdated(false);
+                setLoginRequired(false);
               }}
               onFinish={(values) => void startPayment(values)}>
               <Form.Item label="Họ và tên người mua" name="fullName" rules={[{ required: true, whitespace: true, message: 'Vui lòng nhập họ và tên' }, { max: 150, message: 'Họ tên tối đa 150 ký tự' }]}>
@@ -206,12 +229,22 @@ export default function OnlineCheckoutPage() {
               <Form.Item label="Số điện thoại" name="phone" rules={[{ required: true, whitespace: true, message: 'Vui lòng nhập số điện thoại' }, { max: 20, message: 'Số điện thoại tối đa 20 ký tự' }]}>
                 <Input autoComplete="tel" placeholder="Số điện thoại" />
               </Form.Item>
-              {profileDirty && <Alert type="info" showIcon message="Bạn đã thay đổi thông tin. Hãy cập nhật trước khi thanh toán." style={{ marginBottom: 16 }} />}
-              {checkoutInfoUpdated && <Alert type="success" showIcon message="Thông tin đã cập nhật; hóa đơn sẽ lưu các thông tin này khi bạn thanh toán." style={{ marginBottom: 16 }} />}
+              {loginRequired && (
+                <Alert
+                  type="warning"
+                  showIcon
+                  message="Email này đã gắn với một tài khoản ECMS"
+                  description="Vui lòng đăng nhập để xác minh email và gắn hóa đơn đúng hồ sơ học viên. Thông tin bạn vừa nhập sẽ được điền sẵn sau khi đăng nhập."
+                  action={<Button size="small" type="primary" onClick={goToLogin}>Đăng nhập</Button>}
+                  style={{ marginBottom: 16 }}
+                />
+              )}
+              {profileDirty && <Alert type="info" showIcon message="Bạn đã thay đổi thông tin. Hãy xác nhận thông tin hóa đơn trước khi thanh toán." style={{ marginBottom: 16 }} />}
+              {checkoutInfoUpdated && <Alert type="success" showIcon message="Đã xác nhận thông tin hóa đơn. Thông tin này chỉ dùng cho hóa đơn, không thay đổi hồ sơ tài khoản." style={{ marginBottom: 16 }} />}
               <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
                 <Button type="primary" disabled={paying}
-                  onClick={() => void updateProfileFromForm()}>
-                  Cập nhật thông tin
+                  onClick={() => void confirmInvoiceContact()}>
+                  Xác nhận thông tin hóa đơn
                 </Button>
               </div>
             </Form>

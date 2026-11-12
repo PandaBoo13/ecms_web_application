@@ -9,6 +9,7 @@ import com.ecms_web_application.OC01.dto.response.course.QuizQuestionView;
 import com.ecms_web_application.OC01.dto.response.course.QuizResponse;
 import com.ecms_web_application.OC01.entity.Account;
 import com.ecms_web_application.OC01.entity.Enrollment;
+import com.ecms_web_application.OC01.entity.Student;
 import com.ecms_web_application.OC01.entity.course.Course;
 import com.ecms_web_application.OC01.entity.course.CourseResource;
 import com.ecms_web_application.OC01.entity.course.Progress;
@@ -24,7 +25,6 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -49,6 +49,7 @@ public class QuizServiceImpl implements QuizService {
     private final QuizAttemptRepository quizAttemptRepository;
     private final ProgressRepository progressRepository;
     private final EnrollmentRepository enrollmentRepository;
+    private final StudentRepository studentRepository;
     private final ProgressCalculationService progressCalculationService;
     private final AuditLogService auditLogService;
     private final ObjectMapper objectMapper;
@@ -252,7 +253,7 @@ public class QuizServiceImpl implements QuizService {
         QuizAttempt attempt = quizAttemptRepository.findById(req.getAttemptId())
                 .orElseThrow(() -> new ErrorHandler(HttpStatus.NOT_FOUND, "Attempt không tồn tại"));
 
-        if (attempt.getEnrollment() != null && !attempt.getEnrollment().getAccountId().equals(current.getId())) {
+        if (!isAttemptOwnedByAccount(attempt.getEnrollment(), current.getId())) {
             throw new ErrorHandler(HttpStatus.FORBIDDEN, "Attempt không thuộc về bạn");
         }
         if (!attempt.getResource().getId().equals(quizId) || !attempt.getCourse().getId().equals(courseId)) {
@@ -332,7 +333,7 @@ public class QuizServiceImpl implements QuizService {
         QuizAttempt a = quizAttemptRepository.findById(attemptId)
                 .orElseThrow(() -> new ErrorHandler(HttpStatus.NOT_FOUND, "Attempt không tồn tại"));
         
-        if (a.getEnrollment() != null && !a.getEnrollment().getAccountId().equals(current.getId())) {
+        if (!isAttemptOwnedByAccount(a.getEnrollment(), current.getId())) {
             throw new ErrorHandler(HttpStatus.FORBIDDEN, "Attempt không thuộc về bạn");
         }
         List<Question> qs = questionRepository.findAllById(a.getQuestionIds());
@@ -340,13 +341,23 @@ public class QuizServiceImpl implements QuizService {
     }
 
     private Enrollment getActiveEnrollment(Long accountId, Long courseId) {
-        Specification<Enrollment> spec = (root, query, cb) -> cb.and(
-            cb.equal(root.get("accountId"), accountId),
-            cb.equal(root.get("courseId"), courseId),
-            root.get("status").in(EnrollmentStatus.ACTIVE, EnrollmentStatus.COMPLETED)
-        );
-        return enrollmentRepository.findOne(spec)
+        Student student = studentRepository.findByUserId(accountId)
+                .orElseThrow(() -> new ErrorHandler(HttpStatus.FORBIDDEN,
+                        "Tài khoản chưa được liên kết với hồ sơ học viên"));
+        return enrollmentRepository.findByCourseIdAndStudentId(courseId, student.getId()).stream()
+                .filter(enrollment -> enrollment.getStatus() == EnrollmentStatus.ACTIVE
+                        || enrollment.getStatus() == EnrollmentStatus.COMPLETED)
+                .findFirst()
                 .orElseThrow(() -> new ErrorHandler(HttpStatus.FORBIDDEN, "Bạn không thuộc khóa học này hoặc chưa được kích hoạt"));
+    }
+
+    private boolean isAttemptOwnedByAccount(Enrollment enrollment, Long accountId) {
+        if (enrollment == null) return true;
+        return studentRepository.findById(enrollment.getStudentId())
+                .map(Student::getUserId)
+                .filter(Objects::nonNull)
+                .map(accountId::equals)
+                .orElse(false);
     }
 
     private Course loadCourse(Long courseId) {
@@ -498,7 +509,8 @@ public class QuizServiceImpl implements QuizService {
     private QuizAttemptResponse toAttemptResponse(QuizAttempt a, List<Question> questions, boolean showAnswer) {
         QuizAttemptResponse res = new QuizAttemptResponse();
         res.setId(a.getId());
-        res.setAccountId(a.getEnrollment() != null ? a.getEnrollment().getAccountId() : null);
+        res.setAccountId(a.getEnrollment() == null ? null : studentRepository.findById(a.getEnrollment().getStudentId())
+                .map(Student::getUserId).orElse(null));
         res.setCourseId(a.getCourse().getId());
         res.setResourceId(a.getResource().getId());
         res.setAttemptNumber(a.getAttemptNumber());

@@ -5,7 +5,7 @@ import type {
   Lead,
   LeadDetail,
   LeadFilterParams,
-  LeadCreatePayload,
+  LeadRegisterPayload,
   LeadUpdatePayload,
   LeadAssignPayload,
   LeadInteraction,
@@ -37,9 +37,14 @@ export const leadApi = {
     return data.data;
   },
 
-  create: async (payload: LeadCreatePayload): Promise<Lead> => {
-    const { data } = await api.post<RequestResponse<Lead>>(
-      API_ENDPOINT.LEADS,
+  /**
+   * Public — guest gửi form "Đăng ký tư vấn" trên landing page.
+   * Endpoint public (không cần đăng nhập) → không dính flow refresh-token.
+   * Trả về id Lead mới.
+   */
+  register: async (payload: LeadRegisterPayload): Promise<number> => {
+    const { data } = await api.post<RequestResponse<number>>(
+      API_ENDPOINT.LEAD_PUBLIC_REGISTER,
       payload
     );
     return data.data;

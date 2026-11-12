@@ -45,7 +45,6 @@ import {
   LockOutlined,
   UnlockOutlined,
   MoreOutlined,
-  DollarOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import toast from 'react-hot-toast';
@@ -57,8 +56,6 @@ import StatusTag from '@/components/common/StatusTag';
 import DateDisplay from '@/components/common/DateDisplay';
 import UserAvatar from '@/components/common/UserAvatar';
 import StatsCard from '@/components/common/StatsCard';
-import CreateInvoiceFromStudentModal from '@/components/tuition/CreateInvoiceFromStudentModal';
-import type { InvoiceCourseOption } from '@/components/tuition/CreateInvoiceFromStudentModal';
 import { useTranslation } from '@/hooks/useTranslation';
 
 import { studentApi } from '@/services/api/students';
@@ -100,7 +97,7 @@ const StudentListPage = () => {
   const [keyword, setKeyword] = useState('');
   const [statusFilter, setStatusFilter] = useState<StudentStatus | undefined>();
   const [courseFilter, setCourseFilter] = useState<number | undefined>();
-  const [courses, setCourses] = useState<InvoiceCourseOption[]>([]);
+  const [courses, setCourses] = useState<Array<{ id: number; title: string; code?: string }>>([]);
 
   // Load courses for course filter dropdown
   useEffect(() => {
@@ -113,9 +110,6 @@ const StudentListPage = () => {
               id: c.id,
               title: c.title,
               code: c.code,
-              price: c.price,
-              isFree: c.isFree,
-              courseType: c.courseType,
             })),
           );
         }
@@ -139,8 +133,6 @@ const StudentListPage = () => {
   const [isLockingAction, setIsLockingAction] = useState<boolean>(true);
   const [lockLoading, setLockLoading] = useState(false);
   const [detailDrawerVisible, setDetailDrawerVisible] = useState(false);
-  const [invoiceModalVisible, setInvoiceModalVisible] = useState(false);
-  const [invoiceStudent, setInvoiceStudent] = useState<Student | null>(null);
 
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [studentDetail, setStudentDetail] = useState<StudentDetail | null>(null);
@@ -253,11 +245,6 @@ const StudentListPage = () => {
     setDetailDrawerVisible(true);
     loadStudentDetail(student.id);
   };
-
-  const handleOpenInvoice = useCallback((student: Student) => {
-    setInvoiceStudent(student);
-    setInvoiceModalVisible(true);
-  }, []);
 
   // ══════════════════════════════════════════════════════════════
   // HANDLERS
@@ -513,9 +500,8 @@ const StudentListPage = () => {
         title: t('common.actions'),
         key: 'actions',
         fixed: 'right',
-        width: 160,
+        width: 130,
         render: (_, record: Student) => {
-          const invoiceDisabled = record.status === 'INACTIVE';
           return (
           <Space size={4}>
             <Tooltip title={t('student.tooltip.view')}>
@@ -545,24 +531,6 @@ const StudentListPage = () => {
                   });
                   setUpdateModalVisible(true);
                 }}
-              />
-            </Tooltip>
-
-            <Tooltip
-              title={invoiceDisabled ? t('student.invoiceReasonInactive') : t('student.tooltip.createInvoice')}
-            >
-              <Button
-                type="text"
-                shape="circle"
-                className="action-btn-circle"
-                aria-label={t('student.tooltip.createInvoice')}
-                disabled={invoiceDisabled}
-                icon={
-                  <DollarOutlined
-                    style={{ color: invoiceDisabled ? '#bfbfbf' : '#059669', fontSize: 15 }}
-                  />
-                }
-                onClick={() => handleOpenInvoice(record)}
               />
             </Tooltip>
 
@@ -643,7 +611,7 @@ const StudentListPage = () => {
         },
       },
     ],
-    [t, updateForm, statusForm, guardianForm, accountLockForm, handleOpenInvoice]
+    [t, updateForm, statusForm, guardianForm, accountLockForm]
   );
 
   const hasActiveFilters = Boolean(keyword || statusFilter || courseFilter !== undefined);
@@ -1154,6 +1122,7 @@ const StudentListPage = () => {
         </Form>
       </Modal>
 
+
       {/* ── Drawer Chi tiết Học viên ── */}
       <Drawer
         title={
@@ -1523,19 +1492,6 @@ const StudentListPage = () => {
         )}
       </Drawer>
 
-      <CreateInvoiceFromStudentModal
-        open={invoiceModalVisible}
-        student={invoiceStudent}
-        courses={courses}
-        onCancel={() => {
-          setInvoiceModalVisible(false);
-          setInvoiceStudent(null);
-        }}
-        onCreated={() => {
-          fetchData();
-          fetchStats();
-        }}
-      />
     </PageContainer>
   );
 };

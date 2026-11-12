@@ -36,9 +36,6 @@ public class Invoice {
     @Column(name = "original_invoice_id", unique = true)
     private Long originalInvoiceId;
 
-    @Column(name = "account_id")
-    private Long accountId;
-
     @Column(name = "student_id")
     private Long studentId;
 
@@ -93,7 +90,8 @@ public class Invoice {
     @Column(name = "payment_proof_url", columnDefinition = "text")
     private String paymentProofUrl;
 
-    @Column(name = "created_by", nullable = false)
+    /** NULL khi hóa đơn được tạo từ checkout công khai (khách chưa có tài khoản). */
+    @Column(name = "created_by")
     private Long createdBy;
 
     @PrePersist

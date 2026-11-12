@@ -1,9 +1,11 @@
 import api from './axiosConfig';
 import { API_ENDPOINT } from '@/constants/api-endpoint';
 import type { PageResponse, RequestResponse } from '../types/api';
-import type { InvoiceResponse, OnlineCheckoutContact, PublicInvoiceResponse, VnpayReturnResponse } from '../types/tuition';
+import type { InvoiceResponse, OnlineCheckoutContact, PublicCheckoutResponse, PublicInvoiceResponse, VnpayReturnResponse } from '../types/tuition';
 
 export const LAST_ONLINE_PAYMENT_INVOICE_KEY = 'ecms_last_online_payment_invoice';
+/** Token thanh toán của lần checkout công khai gần nhất (dùng để thử lại sau khi VNPAY lỗi). */
+export const LAST_ONLINE_PAYMENT_TOKEN_KEY = 'ecms_last_online_payment_token';
 
 export const tuitionApi = {
   createOnlineCheckout: async (courseId: number, contact: OnlineCheckoutContact): Promise<InvoiceResponse> =>
@@ -18,6 +20,8 @@ export const tuitionApi = {
 
 /** Endpoint công khai cho link thanh toán gửi qua email (không cần đăng nhập). */
 export const publicTuitionApi = {
+  createCheckout: async (courseId: number, contact: OnlineCheckoutContact): Promise<PublicCheckoutResponse> =>
+    (await api.post<RequestResponse<PublicCheckoutResponse>>(API_ENDPOINT.PUBLIC_TUITION_CHECKOUT, contact, { params: { courseId } })).data.data,
   getPaymentLink: async (token: string): Promise<PublicInvoiceResponse> =>
     (await api.get<RequestResponse<PublicInvoiceResponse>>(API_ENDPOINT.PUBLIC_TUITION_PAYMENT_LINK, { params: { token } })).data.data,
   createVnpayUrl: async (token: string): Promise<string> =>

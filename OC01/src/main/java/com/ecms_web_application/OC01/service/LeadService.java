@@ -5,6 +5,7 @@ import com.ecms_web_application.OC01.dto.request.LeadCreateRequest;
 import com.ecms_web_application.OC01.dto.request.LeadInteractionCreateRequest;
 import com.ecms_web_application.OC01.dto.request.LeadPlacementTestCreateRequest;
 import com.ecms_web_application.OC01.dto.request.LeadUpdateRequest;
+import com.ecms_web_application.OC01.dto.request.PublicLeadRegisterRequest;
 import com.ecms_web_application.OC01.dto.response.LeadDetailResponse;
 import com.ecms_web_application.OC01.dto.response.LeadInteractionResponse;
 import com.ecms_web_application.OC01.dto.response.LeadPlacementTestResponse;
@@ -18,7 +19,14 @@ public interface LeadService {
 
     LeadResponse create(LeadCreateRequest request);
 
-    Page<LeadResponse> search(String search, String status, Long courseId, Long sourceId, Long consultantId, Boolean inQueue, Boolean hasOpenInvoice, Pageable pageable);
+    /**
+     * AUTH-PUBLIC: Tạo Lead từ form "Đăng ký tư vấn" công khai trên landing page.
+     * Khách chưa đăng nhập, chỉ cần Email HOẶC Số điện thoại. Trả về id Lead mới.
+     */
+    Long registerPublicLead(PublicLeadRegisterRequest request);
+
+    Page<LeadResponse> search(String search, String status, Long courseId, Long sourceId, Long consultantId,
+            Boolean inQueue, Boolean hasOpenInvoice, Pageable pageable);
 
     LeadResponse getById(Long id);
 

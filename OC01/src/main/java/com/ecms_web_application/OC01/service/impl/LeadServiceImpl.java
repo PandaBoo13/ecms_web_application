@@ -6,6 +6,7 @@ import com.ecms_web_application.OC01.dto.request.LeadCreateRequest;
 import com.ecms_web_application.OC01.dto.request.LeadInteractionCreateRequest;
 import com.ecms_web_application.OC01.dto.request.LeadPlacementTestCreateRequest;
 import com.ecms_web_application.OC01.dto.request.LeadUpdateRequest;
+import com.ecms_web_application.OC01.dto.request.PublicLeadRegisterRequest;
 import com.ecms_web_application.OC01.dto.response.LeadDetailResponse;
 import com.ecms_web_application.OC01.dto.response.LeadInteractionResponse;
 import com.ecms_web_application.OC01.dto.response.LeadPlacementTestResponse;
@@ -13,11 +14,13 @@ import com.ecms_web_application.OC01.dto.response.LeadResponse;
 import com.ecms_web_application.OC01.entity.Lead;
 import com.ecms_web_application.OC01.entity.LeadAssignmentLog;
 import com.ecms_web_application.OC01.entity.LeadInteraction;
+import com.ecms_web_application.OC01.entity.course.Course;
 import com.ecms_web_application.OC01.entity.enums.InvoiceStatus;
 import com.ecms_web_application.OC01.entity.enums.InvoiceType;
 import com.ecms_web_application.OC01.exception.ErrorHandler;
 import com.ecms_web_application.OC01.dto.response.ConsultantResponse;
 import com.ecms_web_application.OC01.repository.AccountRepository;
+import com.ecms_web_application.OC01.repository.CourseRepository;
 import com.ecms_web_application.OC01.repository.InvoiceRepository;
 import com.ecms_web_application.OC01.repository.LeadAssignmentLogRepository;
 import com.ecms_web_application.OC01.repository.LeadRepository;
@@ -54,15 +57,18 @@ public class LeadServiceImpl implements LeadService {
     private final LeadAssignmentLogRepository assignmentLogRepository;
     private final AccountRepository accountRepository;
     private final InvoiceRepository invoiceRepository;
+    private final CourseRepository courseRepository;
 
     @Override
     @Transactional(readOnly = true)
     public Page<LeadResponse> search(String search, String status, Long courseId, Long sourceId, Long consultantId,
-                                     Boolean inQueue, Boolean hasOpenInvoice, Pageable pageable) {
+            Boolean inQueue, Boolean hasOpenInvoice, Pageable pageable) {
         if (pageable.getSort().isUnsorted()) {
-            pageable = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), Sort.by("createdAt").descending());
+            pageable = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(),
+                    Sort.by("createdAt").descending());
         }
-        // Nếu người dùng là role LEAD (Tư vấn viên), tự động chỉ xem khách hàng được giao cho mình
+        // Nếu người dùng là role LEAD (Tư vấn viên), tự động chỉ xem khách hàng được
+        // giao cho mình
         if (SecurityUtils.hasRole("LEAD")) {
             consultantId = SecurityUtils.getCurrentAccountId();
             inQueue = false;
@@ -172,11 +178,52 @@ public class LeadServiceImpl implements LeadService {
 
         // Ghi log phân công nếu đã chọn người phụ trách ban đầu
         if (saved.getAssignedConsultantId() != null) {
-            recordAssignmentLog(saved.getId(), null, saved.getAssignedConsultantId(), "Phân công tư vấn viên ban đầu", currentUserId);
+            recordAssignmentLog(saved.getId(), null, saved.getAssignedConsultantId(), "Phân công tư vấn viên ban đầu",
+                    currentUserId);
         }
 
         log.info("Tạo mới Lead id={}, fullName={}, status={}", saved.getId(), saved.getFullName(), saved.getStatus());
         return toResponse(saved);
+    }
+
+    @Override
+    @Transactional
+    public Long registerPublicLead(PublicLeadRegisterRequest request) {
+        // Email/phone: cột NOT NULL trong DB, nhưng form công khai chỉ bắt buộc MỘT
+        // trong hai
+        // → thiếu field nào thì lưu chuỗi rỗng (khách sẽ được liên hệ qua field còn
+        // lại).
+        String email = (request.getEmail() == null) ? "" : request.getEmail().trim().toLowerCase();
+        String phone = (request.getPhone() == null) ? "" : request.getPhone().trim();
+        if (email.isEmpty() && phone.isEmpty()) {
+            throw new ErrorHandler(HttpStatus.BAD_REQUEST,
+                    "Vui lòng nhập ít nhất Số điện thoại hoặc Email để liên hệ");
+        }
+
+        // Khóa học phải tồn tại và chưa bị xóa mềm (form chỉ hiển thị khóa hợp lệ)
+        Course course = courseRepository.findById(request.getCourseId())
+                .orElseThrow(() -> new ErrorHandler(HttpStatus.NOT_FOUND,
+                        "Khóa học không tồn tại hoặc đã bị gỡ"));
+        if (course.getDeletedAt() != null) {
+            throw new ErrorHandler(HttpStatus.NOT_FOUND,
+                    "Khóa học không tồn tại hoặc đã bị gỡ");
+        }
+
+        Lead lead = new Lead();
+        lead.setFullName(request.getFullName().trim());
+        lead.setEmail(email);
+        lead.setPhone(phone);
+        lead.setCourseId(course.getId());
+        lead.setSourceName("Website");
+        lead.setChannelType("ONLINE");
+        lead.setStatus("NEW");
+        lead.setNote(emptyToNull(request.getNote()));
+        lead.setInteractions(new ArrayList<>());
+
+        Lead saved = leadRepository.save(lead);
+        log.info("Đăng ký tư vấn công khai: leadId={}, courseId={}, cóEmail={}, cóPhone={}",
+                saved.getId(), saved.getCourseId(), !email.isEmpty(), !phone.isEmpty());
+        return saved.getId();
     }
 
     @Override
@@ -211,10 +258,12 @@ public class LeadServiceImpl implements LeadService {
         }
 
         // Xử lý thay đổi phân công
-        if (request.getAssignedConsultantId() != null && !Objects.equals(request.getAssignedConsultantId(), lead.getAssignedConsultantId())) {
+        if (request.getAssignedConsultantId() != null
+                && !Objects.equals(request.getAssignedConsultantId(), lead.getAssignedConsultantId())) {
             Long oldConsultantId = lead.getAssignedConsultantId();
             lead.setAssignedConsultantId(request.getAssignedConsultantId());
-            recordAssignmentLog(lead.getId(), oldConsultantId, request.getAssignedConsultantId(), "Cập nhật người phụ trách", currentUserId);
+            recordAssignmentLog(lead.getId(), oldConsultantId, request.getAssignedConsultantId(),
+                    "Cập nhật người phụ trách", currentUserId);
         }
 
         // Xử lý thay đổi trạng thái (Bất biến: KHÔNG lùi từ CONSULTED về NEW)
@@ -222,7 +271,8 @@ public class LeadServiceImpl implements LeadService {
             String newStatus = request.getStatus().trim().toUpperCase();
             String oldStatus = lead.getStatus();
             if ("CONSULTED".equalsIgnoreCase(oldStatus) && "NEW".equalsIgnoreCase(newStatus)) {
-                throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Quy tắc nghiệp vụ: Không được phép chuyển lùi trạng thái Lead từ CONSULTED về NEW");
+                throw new ErrorHandler(HttpStatus.BAD_REQUEST,
+                        "Quy tắc nghiệp vụ: Không được phép chuyển lùi trạng thái Lead từ CONSULTED về NEW");
             }
             if (!newStatus.equalsIgnoreCase(oldStatus)) {
                 lead.setStatus(newStatus);
@@ -271,7 +321,8 @@ public class LeadServiceImpl implements LeadService {
         String result = request.getResult().trim().toUpperCase();
         if ("REJECTED".equalsIgnoreCase(result) || "TỪ CHỐI".equalsIgnoreCase(result)) {
             if (request.getRejectReason() == null || request.getRejectReason().isBlank()) {
-                throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Quy tắc nghiệp vụ: Bắt buộc cung cấp lý do từ chối (rejectReason) khi kết quả tư vấn là Từ chối");
+                throw new ErrorHandler(HttpStatus.BAD_REQUEST,
+                        "Quy tắc nghiệp vụ: Bắt buộc cung cấp lý do từ chối (rejectReason) khi kết quả tư vấn là Từ chối");
             }
         }
 
@@ -313,7 +364,8 @@ public class LeadServiceImpl implements LeadService {
         }
         return lead.getInteractions().stream()
                 .sorted((a, b) -> {
-                    if (a.getCreatedAt() == null || b.getCreatedAt() == null) return 0;
+                    if (a.getCreatedAt() == null || b.getCreatedAt() == null)
+                        return 0;
                     return b.getCreatedAt().compareTo(a.getCreatedAt());
                 })
                 .map(this::toInteractionResponse)
@@ -328,13 +380,15 @@ public class LeadServiceImpl implements LeadService {
 
         if ("COMPLETED".equals(testStatus)) {
             if (request.getTestScore() == null) {
-                throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Điểm đánh giá (testScore) là bắt buộc khi trạng thái là COMPLETED");
+                throw new ErrorHandler(HttpStatus.BAD_REQUEST,
+                        "Điểm đánh giá (testScore) là bắt buộc khi trạng thái là COMPLETED");
             }
             lead.setPlacementTestStatus("COMPLETED");
             lead.setPlacementTestScore(request.getTestScore());
             lead.setPlacementRecommendedLevel(emptyToNull(request.getRecommendedLevel()));
             lead.setPlacementTestNotes(emptyToNull(request.getNotes()));
-            lead.setPlacementEvaluatedAt(request.getEvaluatedAt() != null ? request.getEvaluatedAt() : LocalDateTime.now());
+            lead.setPlacementEvaluatedAt(
+                    request.getEvaluatedAt() != null ? request.getEvaluatedAt() : LocalDateTime.now());
         } else if ("REFUSED".equals(testStatus) || "NO_SHOW".equals(testStatus)) {
             lead.setPlacementTestStatus(testStatus);
             lead.setPlacementTestScore(null);
@@ -344,9 +398,11 @@ public class LeadServiceImpl implements LeadService {
             }
             lead.setPlacementTestNotes(notes);
             lead.setPlacementRecommendedLevel(null);
-            lead.setPlacementEvaluatedAt(request.getEvaluatedAt() != null ? request.getEvaluatedAt() : LocalDateTime.now());
+            lead.setPlacementEvaluatedAt(
+                    request.getEvaluatedAt() != null ? request.getEvaluatedAt() : LocalDateTime.now());
         } else {
-            throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Trạng thái đánh giá đầu vào chỉ chấp nhận: COMPLETED, REFUSED, NO_SHOW");
+            throw new ErrorHandler(HttpStatus.BAD_REQUEST,
+                    "Trạng thái đánh giá đầu vào chỉ chấp nhận: COMPLETED, REFUSED, NO_SHOW");
         }
 
         lead.setPlacementTestCreatedAt(LocalDateTime.now());
@@ -372,11 +428,11 @@ public class LeadServiceImpl implements LeadService {
                 .filter(a -> Boolean.TRUE.equals(a.getIsActive()) && a.getDeletedAt() == null)
                 .map(a -> new ConsultantResponse(
                         a.getId(),
-                        a.getUserProfile() != null && a.getUserProfile().getFullName() != null && !a.getUserProfile().getFullName().isBlank()
-                                ? a.getUserProfile().getFullName()
-                                : a.getEmail(),
-                        a.getEmail()
-                ))
+                        a.getUserProfile() != null && a.getUserProfile().getFullName() != null
+                                && !a.getUserProfile().getFullName().isBlank()
+                                        ? a.getUserProfile().getFullName()
+                                        : a.getEmail(),
+                        a.getEmail()))
                 .toList();
     }
 
@@ -399,7 +455,8 @@ public class LeadServiceImpl implements LeadService {
                 .orElseThrow(() -> new ErrorHandler(HttpStatus.NOT_FOUND, "Không tìm thấy Lead với ID: " + id));
     }
 
-    private void recordAssignmentLog(Long leadId, Long oldConsultantId, Long newConsultantId, String reason, Long changedBy) {
+    private void recordAssignmentLog(Long leadId, Long oldConsultantId, Long newConsultantId, String reason,
+            Long changedBy) {
         LeadAssignmentLog logEntity = new LeadAssignmentLog();
         logEntity.setLeadId(leadId);
         logEntity.setOldConsultantId(oldConsultantId);
@@ -417,7 +474,8 @@ public class LeadServiceImpl implements LeadService {
         }
         com.ecms_web_application.OC01.entity.Account consultant = accountRepository.findById(consultantId)
                 .orElseThrow(() -> new ErrorHandler(HttpStatus.BAD_REQUEST, "Tư vấn viên không tồn tại"));
-        if (consultant.getRole() == null || !"LEAD".equalsIgnoreCase(consultant.getRole().getCode()) || !Boolean.TRUE.equals(consultant.getIsActive())) {
+        if (consultant.getRole() == null || !"LEAD".equalsIgnoreCase(consultant.getRole().getCode())
+                || !Boolean.TRUE.equals(consultant.getIsActive())) {
             throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Tài khoản không phải là tư vấn viên hợp lệ của trung tâm");
         }
     }
@@ -427,7 +485,8 @@ public class LeadServiceImpl implements LeadService {
                 .collect(Collectors.toMap(ConsultantResponse::getId, c -> c, (a, b) -> a));
     }
 
-    private void copyPropertiesToResponse(Lead lead, LeadResponse response, Map<Long, ConsultantResponse> consultantMap) {
+    private void copyPropertiesToResponse(Lead lead, LeadResponse response,
+            Map<Long, ConsultantResponse> consultantMap) {
         response.setId(lead.getId());
         response.setFullName(lead.getFullName());
         response.setEmail(lead.getEmail());
@@ -448,9 +507,10 @@ public class LeadServiceImpl implements LeadService {
                 response.setAssignedConsultantEmail(c.getEmail());
             } else {
                 accountRepository.findByIdWithRoleAndProfile(lead.getAssignedConsultantId()).ifPresent(acc -> {
-                    String name = acc.getUserProfile() != null && acc.getUserProfile().getFullName() != null && !acc.getUserProfile().getFullName().isBlank()
-                            ? acc.getUserProfile().getFullName()
-                            : acc.getEmail();
+                    String name = acc.getUserProfile() != null && acc.getUserProfile().getFullName() != null
+                            && !acc.getUserProfile().getFullName().isBlank()
+                                    ? acc.getUserProfile().getFullName()
+                                    : acc.getEmail();
                     response.setAssignedConsultantName(name);
                     response.setAssignedConsultantEmail(acc.getEmail());
                 });
@@ -512,7 +572,8 @@ public class LeadServiceImpl implements LeadService {
         response.setRecommendedLevel(lead.getPlacementRecommendedLevel());
         response.setNotes(lead.getPlacementTestNotes());
         response.setEvaluatedAt(lead.getPlacementEvaluatedAt());
-        response.setCreatedAt(lead.getPlacementTestCreatedAt() != null ? lead.getPlacementTestCreatedAt() : lead.getCreatedAt());
+        response.setCreatedAt(
+                lead.getPlacementTestCreatedAt() != null ? lead.getPlacementTestCreatedAt() : lead.getCreatedAt());
         return response;
     }
 

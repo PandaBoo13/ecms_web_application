@@ -2,25 +2,25 @@ package com.ecms_web_application.OC01.service.impl.tuition;
 
 import com.ecms_web_application.OC01.config.JwtService;
 import com.ecms_web_application.OC01.config.SecurityUtils;
+import com.ecms_web_application.OC01.dto.response.tuition.InvoiceResponse;
 import com.ecms_web_application.OC01.dto.response.tuition.PaymentLinkResponse;
 import com.ecms_web_application.OC01.dto.response.tuition.PublicInvoiceResponse;
-import com.ecms_web_application.OC01.entity.Account;
 import com.ecms_web_application.OC01.entity.Invoice;
 import com.ecms_web_application.OC01.entity.course.Course;
 import com.ecms_web_application.OC01.entity.enums.InvoiceStatus;
 import com.ecms_web_application.OC01.entity.enums.InvoiceType;
+import com.ecms_web_application.OC01.event.TuitionPaymentLinkEmailEvent;
 import com.ecms_web_application.OC01.exception.ErrorHandler;
-import com.ecms_web_application.OC01.repository.AccountRepository;
 import com.ecms_web_application.OC01.repository.CourseRepository;
 import com.ecms_web_application.OC01.repository.InvoiceRepository;
 import com.ecms_web_application.OC01.repository.LeadRepository;
 import com.ecms_web_application.OC01.repository.StudentRepository;
 import com.ecms_web_application.OC01.service.AuditLogService;
-import com.ecms_web_application.OC01.service.EmailService;
 import io.jsonwebtoken.Claims;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -47,11 +47,10 @@ public class TuitionPaymentLinkService {
     private final CourseRepository courseRepository;
     private final LeadRepository leadRepository;
     private final StudentRepository studentRepository;
-    private final AccountRepository accountRepository;
     private final JwtService jwtService;
-    private final EmailService emailService;
     private final VnpayGatewayService vnpayGatewayService;
     private final AuditLogService auditLogService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Value("${app.api-url:http://localhost:8080}")
     private String apiUrl;
@@ -64,9 +63,37 @@ public class TuitionPaymentLinkService {
                 + URLEncoder.encode(token, StandardCharsets.UTF_8);
     }
 
-    /** Nhân viên gửi (hoặc gửi lại) link thanh toán qua email. */
+    /**
+     * Tạo link thanh toán và xếp email vào hàng đợi gửi nền (sau khi transaction commit).
+     * Dùng cho cả luồng tạo hóa đơn và gửi lại link: API trả về ngay, không chờ SMTP 3–4 giây.
+     */
     @Transactional
-    public PaymentLinkResponse sendPaymentLink(Long invoiceId, String emailOverride) {
+    public PaymentLinkResponse queuePaymentLink(Long invoiceId, String emailOverride) {
+        PreparedPaymentLink prepared = preparePaymentLink(invoiceId, emailOverride);
+        eventPublisher.publishEvent(new TuitionPaymentLinkEmailEvent(
+                prepared.invoice().getId(),
+                prepared.recipient(),
+                prepared.payerName(),
+                prepared.invoice().getInvoiceCode(),
+                prepared.courseTitle(),
+                prepared.invoice().getAmount(),
+                prepared.invoice().getDueAt(),
+                prepared.link()));
+        logAudit(prepared, "Xếp hàng gửi link thanh toán ");
+        return new PaymentLinkResponse(prepared.link(), prepared.recipient(), prepared.expiresAt(), true, null);
+    }
+
+    private void logAudit(PreparedPaymentLink prepared, String prefix) {
+        try {
+            auditLogService.log("SEND_PAYMENT_LINK", "Invoice", prepared.invoice().getId(),
+                    prefix + prepared.invoice().getInvoiceCode() + " tới " + prepared.recipient());
+        } catch (Exception e) {
+            log.warn("[PaymentLink] Ghi audit log thất bại: {}", e.getMessage());
+        }
+    }
+
+    /** Validate hóa đơn + dựng link (JWT nội bộ, không gọi mạng) dùng chung cho gửi ngay và gửi nền. */
+    private PreparedPaymentLink preparePaymentLink(Long invoiceId, String emailOverride) {
         if (!SecurityUtils.hasRole("ADMIN")) {
             throw new ErrorHandler(HttpStatus.FORBIDDEN, "Thao tác này chỉ dành cho nhân viên quản lý học phí");
         }
@@ -97,34 +124,44 @@ public class TuitionPaymentLinkService {
         LocalDateTime tokenExpiresAt = invoice.getDueAt() != null
                 ? expiresAt.plus(STATUS_PAGE_GRACE)
                 : expiresAt;
-        String token = jwtService.generateLinkToken(
-                Map.of("tokenType", TOKEN_TYPE, "invoiceId", invoice.getId()),
-                "invoice:" + invoice.getId(),
-                Duration.between(now, tokenExpiresAt).toMillis());
+        String token = generatePaymentToken(invoice.getId(), now, tokenExpiresAt);
         String link = trimTrailingSlash(apiUrl)
                 + "/api/public/tuition/payment-links/redirect?token="
                 + URLEncoder.encode(token, StandardCharsets.UTF_8);
 
         Course course = courseRepository.findById(invoice.getCourseId()).orElse(null);
-        String emailError = null;
-        try {
-            emailService.sendTuitionPaymentLinkEmail(recipient, payer.name(), invoice.getInvoiceCode(),
-                    course != null ? course.getTitle() : "Khóa học #" + invoice.getCourseId(),
-                    invoice.getAmount(), invoice.getDueAt(), link);
-        } catch (RuntimeException e) {
-            // Vẫn trả link để nhân viên sao chép gửi qua Zalo/SMS
-            emailError = e.getCause() != null ? e.getCause().getMessage() : e.getMessage();
-            log.warn("[PaymentLink] Gửi email tới {} thất bại: {}", recipient, emailError);
-        }
+        String courseTitle = course != null ? course.getTitle() : "Khóa học #" + invoice.getCourseId();
+        return new PreparedPaymentLink(invoice, recipient, payer.name(), courseTitle, link, expiresAt);
+    }
 
-        try {
-            auditLogService.log("SEND_PAYMENT_LINK", "Invoice", invoice.getId(),
-                    (emailError == null ? "Gửi link thanh toán " : "Tạo link thanh toán (email lỗi) ")
-                            + invoice.getInvoiceCode() + " tới " + recipient);
-        } catch (Exception e) {
-            log.warn("[PaymentLink] Ghi audit log thất bại: {}", e.getMessage());
+    /** Tạo token thanh toán cho hóa đơn vừa được tạo từ checkout công khai. */
+    @Transactional(readOnly = true)
+    public String createPaymentToken(Long invoiceId) {
+        Invoice invoice = invoiceRepository.findById(invoiceId)
+                .orElseThrow(() -> new ErrorHandler(HttpStatus.NOT_FOUND, "Hóa đơn không tồn tại"));
+        if (invoice.getType() != InvoiceType.TUITION_PAYMENT || invoice.getStatus() != InvoiceStatus.PENDING) {
+            throw new ErrorHandler(HttpStatus.CONFLICT, "Hóa đơn không ở trạng thái có thể thanh toán");
         }
-        return new PaymentLinkResponse(link, recipient, expiresAt, emailError == null, emailError);
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime expiresAt = invoice.getDueAt() != null ? invoice.getDueAt() : now.plus(DEFAULT_LINK_TTL);
+        LocalDateTime tokenExpiresAt = invoice.getDueAt() != null ? expiresAt.plus(STATUS_PAGE_GRACE) : expiresAt;
+        return generatePaymentToken(invoice.getId(), now, tokenExpiresAt);
+    }
+
+    /** Tạo URL thanh toán mới cho hóa đơn vừa được gia hạn. */
+    @Transactional(readOnly = true)
+    public String createPaymentRedirectUrl(Long invoiceId) {
+        String token = createPaymentToken(invoiceId);
+        return trimTrailingSlash(apiUrl)
+                + "/api/public/tuition/payment-links/redirect?token="
+                + URLEncoder.encode(token, StandardCharsets.UTF_8);
+    }
+
+    private String generatePaymentToken(Long invoiceId, LocalDateTime now, LocalDateTime expiresAt) {
+        return jwtService.generateLinkToken(
+                Map.of("tokenType", TOKEN_TYPE, "invoiceId", invoiceId),
+                "invoice:" + invoiceId,
+                Duration.between(now, expiresAt).toMillis());
     }
 
     /** Trang /pay (công khai) đọc thông tin hoá đơn từ token. */
@@ -133,18 +170,14 @@ public class TuitionPaymentLinkService {
         Invoice invoice = resolveToken(token);
         Course course = courseRepository.findById(invoice.getCourseId()).orElse(null);
         Payer payer = resolvePayer(invoice);
-        InvoiceStatus displayStatus = invoice.getStatus();
-        if (displayStatus == InvoiceStatus.PENDING && invoice.getDueAt() != null
-                && !invoice.getDueAt().isAfter(LocalDateTime.now())) {
-            displayStatus = InvoiceStatus.OVERDUE;
-        }
         return new PublicInvoiceResponse(
                 invoice.getInvoiceCode(),
                 course != null ? course.getTitle() : null,
                 course != null ? course.getStartDate() : null,
                 invoice.getAmount(),
                 invoice.getDueAt(),
-                displayStatus,
+                // Cùng quy tắc hiển thị với danh sách hóa đơn: PENDING đã qua hạn → OVERDUE.
+                InvoiceResponse.effectiveStatus(invoice),
                 payer.name(),
                 maskEmail(payer.email()));
     }
@@ -172,6 +205,9 @@ public class TuitionPaymentLinkService {
 
     private record Payer(String name, String email) { }
 
+    private record PreparedPaymentLink(Invoice invoice, String recipient, String payerName,
+                                       String courseTitle, String link, LocalDateTime expiresAt) { }
+
     private Payer resolvePayer(Invoice invoice) {
         if (invoice.getStudentId() != null) {
             return studentRepository.findById(invoice.getStudentId())
@@ -183,18 +219,7 @@ public class TuitionPaymentLinkService {
                     .map(l -> new Payer(l.getFullName(), l.getEmail()))
                     .orElse(new Payer(null, null));
         }
-        if (invoice.getAccountId() != null) {
-            return accountRepository.findById(invoice.getAccountId())
-                    .map(a -> new Payer(accountName(a), a.getEmail()))
-                    .orElse(new Payer(null, null));
-        }
-        return new Payer(null, null);
-    }
-
-    private String accountName(Account account) {
-        return account.getUserProfile() != null && account.getUserProfile().getFullName() != null
-                ? account.getUserProfile().getFullName()
-                : account.getEmail();
+        return new Payer(invoice.getPayerName(), invoice.getPayerEmail());
     }
 
     private String maskEmail(String email) {

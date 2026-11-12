@@ -143,7 +143,8 @@ public class VnpayGatewayService {
                 responseCode, message);
     }
 
-    private record CallbackResult(String rspCode, String message, boolean signatureValid, Invoice invoice) { }
+    private record CallbackResult(String rspCode, String message, boolean signatureValid, Invoice invoice) {
+    }
 
     private CallbackResult processCallback(Map<String, String> params, String source) {
         String tag = "[" + source + "] ";
@@ -178,8 +179,8 @@ public class VnpayGatewayService {
 
         String responseCode = params.get("vnp_ResponseCode");
         String transactionStatus = params.get("vnp_TransactionStatus");
-        boolean paid = "00".equals(responseCode) && "00".equals(transactionStatus);
-        if (!paid) {
+        boolean captured = "00".equals(responseCode) && "00".equals(transactionStatus);
+        if (!captured) {
             finishLog(log, WebhookProcessingStatus.PROCESSED, true,
                     tag + "Giao dịch không thành công (mã " + responseCode + "); hóa đơn giữ nguyên trạng thái");
             return new CallbackResult("00", "Confirm Success", true, invoice);
@@ -188,12 +189,10 @@ public class VnpayGatewayService {
             finishLog(log, WebhookProcessingStatus.DUPLICATE, true, tag + "Hóa đơn đã được xác nhận thanh toán trước đó");
             return new CallbackResult("02", "Order already confirmed", true, invoice);
         }
-        if (invoice.getStatus() != InvoiceStatus.PENDING) {
-            finishLog(log, WebhookProcessingStatus.ERROR, true,
-                    tag + "Tiền về khi hóa đơn đang " + invoice.getStatus() + " — cần thu ngân xử lý hoàn tiền");
-            return new CallbackResult("02", "Order already confirmed or not payable", true, invoice);
-        }
 
+        // Tiền VNPAY đã thu: luôn ghi nhận PAID, kể cả khi hóa đơn không còn khả dụng
+        // (đã hủy/quá hạn) hoặc lớp đã đủ sĩ số. Ghi danh chạy sau commit; nếu thất bại,
+        // hóa đơn vẫn PAID và xuất hiện trong danh sách đối soát để admin xử lý.
         invoice.setStatus(InvoiceStatus.PAID);
         // VNPAY is the gateway; the invoice payment method remains BANK_TRANSFER.
         invoice.setPaymentMethod(PaymentMethod.BANK_TRANSFER);
@@ -227,12 +226,11 @@ public class VnpayGatewayService {
     private void requireCanView(Invoice invoice) {
         if (SecurityUtils.hasRole("ADMIN")) return;
         Long accountId = SecurityUtils.requireCurrentAccountId();
-        boolean ownsAsAccount = accountId.equals(invoice.getAccountId());
         boolean ownsAsStudent = studentRepository.findByUserId(accountId)
                 .map(student -> student.getId().equals(invoice.getStudentId())
                         || (invoice.getLeadId() != null && invoice.getLeadId().equals(student.getLeadId())))
                 .orElse(false);
-        if (!ownsAsAccount && !ownsAsStudent) throw new ErrorHandler(HttpStatus.FORBIDDEN, "Bạn không có quyền thanh toán hóa đơn này");
+        if (!ownsAsStudent) throw new ErrorHandler(HttpStatus.FORBIDDEN, "Bạn không có quyền thanh toán hóa đơn này");
     }
 
     private void requireConfiguration() {
