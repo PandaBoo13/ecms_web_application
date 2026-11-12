@@ -224,10 +224,15 @@ export const API_ENDPOINT = {
 
   // TUITION & ENROLLMENT
   TUITION_INVOICES: '/api/tuition/invoices',
+  TUITION_ELIGIBLE_LEADS: '/api/tuition/invoices/eligible-leads',
+  TUITION_FROM_LEAD: '/api/tuition/invoices/from-lead',
+  TUITION_FROM_STUDENT: '/api/tuition/invoices/from-student',
+  TUITION_PAYMENT_LINK: (id: number) => `/api/tuition/invoices/${id}/payment-link`,
   TUITION_CHECKOUT: '/api/tuition/invoices/checkout',
   TUITION_VNPAY_START: (id: number) => `/api/tuition/invoices/${id}/vnpay`,
   TUITION_INVOICE_DETAIL: (id: number) => `/api/tuition/invoices/${id}`,
   TUITION_CASH_CONFIRMATION: (id: number) => `/api/tuition/invoices/${id}/cash-confirmation`,
+  TUITION_BANK_TRANSFER_CONFIRMATION: (id: number) => `/api/tuition/invoices/${id}/bank-transfer-confirmation`,
   TUITION_DUE_DATE: (id: number) => `/api/tuition/invoices/${id}/due-date`,
   TUITION_CANCEL: (id: number) => `/api/tuition/invoices/${id}/cancel`,
   TUITION_REFUND: (id: number) => `/api/tuition/invoices/${id}/refund`,

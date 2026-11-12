@@ -26,6 +26,8 @@ public interface EnrollmentRepository extends IRepository<Enrollment, Long>, Jpa
     List<Enrollment> findByStatus(EnrollmentStatus status);
     List<Enrollment> findByCourseIdAndStudentId(Long courseId, Long studentId);
     boolean existsByCourseIdAndStudentId(Long courseId, Long studentId);
+    boolean existsByAccountIdAndCourseIdAndEnrollmentType(Long accountId, Long courseId,
+                                                          EnrollmentType enrollmentType);
 
     @Query("SELECT e.status, COUNT(e) FROM Enrollment e GROUP BY e.status")
     List<Object[]> countGroupedByStatus();

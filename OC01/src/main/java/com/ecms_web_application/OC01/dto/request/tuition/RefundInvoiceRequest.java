@@ -21,4 +21,8 @@ public class RefundInvoiceRequest {
 
     @NotBlank
     private String reason;
+
+    /** Ảnh minh chứng hoàn tiền (bắt buộc với mọi phương thức). */
+    @NotBlank(message = "Vui lòng tải ảnh minh chứng hoàn tiền")
+    private String proofUrl;
 }

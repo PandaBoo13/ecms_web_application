@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import {
   Card,
   Col,
@@ -16,8 +16,7 @@ import { useNavigate } from 'react-router-dom';
 import { SearchOutlined, BookOutlined, SendOutlined, EyeOutlined, CreditCardOutlined } from '@ant-design/icons';
 import toast from 'react-hot-toast';
 
-import { courseApi } from '@/services/api/course';
-import { tuitionApi } from '@/services/api/tuition';
+import { courseApi, progressApi } from '@/services/api/course';
 import { useAuth } from '@/hooks/useAuth';
 import MoneyDisplay from '@/components/common/MoneyDisplay';
 import type { CourseResponse } from '@/services/types/course';
@@ -27,19 +26,21 @@ const { Title, Paragraph, Text } = Typography;
 
 export default function CourseCatalogPage() {
   const navigate = useNavigate();
-  const { isAuthenticated, isStudent } = useAuth();
+  const { isAuthenticated } = useAuth();
   const [courses, setCourses] = useState<CourseResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchText, setSearchText] = useState('');
   const [filterType, setFilterType] = useState<string>('ALL');
+  const [ownedCourseIds, setOwnedCourseIds] = useState<Set<number>>(new Set());
+  const [ownedLoading, setOwnedLoading] = useState(false);
 
   // Modal state for quick consultation
   const [consultModalOpen, setConsultModalOpen] = useState(false);
   const [consultCourse, setConsultCourse] = useState<CourseResponse | null>(null);
 
-  useEffect(() => {
+  const loadCourses = useCallback((type: string) => {
     courseApi
-      .search({ page: 0, size: 50, status: 'PUBLISHED' })
+      .search({ page: 0, size: 50, status: 'PUBLISHED', ...(type !== 'ALL' ? { type } : {}) })
       .then((res) => {
         if (res?.content) {
           setCourses(res.content);
@@ -52,6 +53,42 @@ export default function CourseCatalogPage() {
       .finally(() => setLoading(false));
   }, []);
 
+  useEffect(() => {
+    loadCourses('ALL');
+  }, [loadCourses]);
+
+  // Lấy danh sách khóa học đã mua/đã ghi danh để ẩn nút "Mua khóa học"
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setOwnedCourseIds(new Set());
+      setOwnedLoading(false);
+      return;
+    }
+    let active = true;
+    setOwnedLoading(true);
+    progressApi
+      .getMyCourses({ page: 0, size: 500 })
+      .then((res) => {
+        if (!active) return;
+        setOwnedCourseIds(new Set((res.content ?? []).map((p) => p.courseId)));
+      })
+      .catch(() => {
+        if (active) setOwnedCourseIds(new Set());
+      })
+      .finally(() => {
+        if (active) setOwnedLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [isAuthenticated]);
+
+  const handleFilterTypeChange = (type: string) => {
+    setFilterType(type);
+    setLoading(true);
+    loadCourses(type);
+  };
+
   const filteredCourses = useMemo(() => {
     return courses.filter((c) => {
       const matchSearch =
@@ -59,11 +96,9 @@ export default function CourseCatalogPage() {
         c.title.toLowerCase().includes(searchText.toLowerCase()) ||
         c.shortDescription?.toLowerCase().includes(searchText.toLowerCase());
 
-      const matchType = filterType === 'ALL' || c.courseType === filterType;
-
-      return matchSearch && matchType;
+      return matchSearch;
     });
-  }, [courses, searchText, filterType]);
+  }, [courses, searchText]);
 
   const handleOpenDetail = (course: CourseResponse) => {
     navigate(`/courses/${course.id}`);
@@ -74,24 +109,17 @@ export default function CourseCatalogPage() {
     setConsultModalOpen(true);
   };
 
-  const handleOnlineCheckout = async (course: CourseResponse, event: React.MouseEvent) => {
+  const handleOnlineCheckout = (course: CourseResponse, event: React.MouseEvent) => {
     event.stopPropagation();
+    if (ownedCourseIds.has(course.id)) {
+      toast.success('Bạn đã mua khóa học này.');
+      return;
+    }
     if (!isAuthenticated) {
-      navigate('/login', { state: { from: '/courses' } });
+      navigate('/login', { state: { from: { pathname: `/checkout/${course.id}` } } });
       return;
     }
-    if (!isStudent()) {
-      toast.error('Chỉ tài khoản học viên mới được thanh toán khóa học.');
-      return;
-    }
-    try {
-      const invoice = await tuitionApi.createOnlineCheckout(course.id);
-      const paymentUrl = await tuitionApi.createVnpayPayment(invoice.invoiceId);
-      window.location.assign(paymentUrl);
-    } catch {
-      toast.error('Không tạo được thanh toán. Hóa đơn có thể đã được tạo; hãy kiểm tra mục Học phí.');
-      navigate('/student/tuition');
-    }
+    navigate(`/checkout/${course.id}`);
   };
 
   return (
@@ -130,7 +158,7 @@ export default function CourseCatalogPage() {
           <Col xs={24} md={12} style={{ textAlign: 'right' }}>
             <Radio.Group
               value={filterType}
-              onChange={(e) => setFilterType(e.target.value)}
+              onChange={(e) => handleFilterTypeChange(e.target.value)}
               buttonStyle="solid"
               size="large"
             >
@@ -248,15 +276,23 @@ export default function CourseCatalogPage() {
                       Chi tiết
                     </Button>
                     {c.courseType === 'ONLINE' && !c.isFree ? (
-                      <Button
-                        type="primary"
-                        size="middle"
-                        icon={<CreditCardOutlined />}
-                        onClick={(e) => handleOnlineCheckout(c, e)}
-                        style={{ background: '#10b981', borderColor: '#10b981', fontWeight: 600 }}
-                      >
-                        Đăng ký
-                      </Button>
+                      ownedCourseIds.has(c.id) ? (
+                        <Tag color="green" style={{ margin: 0, padding: '4px 10px', fontWeight: 600 }}>
+                          Đã mua
+                        </Tag>
+                      ) : (
+                        <Button
+                          type="primary"
+                          size="middle"
+                          icon={<CreditCardOutlined />}
+                          loading={ownedLoading}
+                          disabled={ownedLoading}
+                          onClick={(e) => handleOnlineCheckout(c, e)}
+                          style={{ background: '#10b981', borderColor: '#10b981', fontWeight: 600 }}
+                        >
+                          Mua khóa học
+                        </Button>
+                      )
                     ) : (
                       <Button
                         type="primary"

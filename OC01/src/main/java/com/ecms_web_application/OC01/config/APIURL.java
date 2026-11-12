@@ -59,6 +59,11 @@ public class APIURL {
             // Self profile
             "/api/users/me",
 
+            // Tuition self-service: invoice ownership and administrative actions
+            // are enforced by TuitionService/VnpayGatewayService.
+            "/api/tuition/invoices",
+            "/api/tuition/invoices/**",
+
             // Instructor self-manage chuyên môn
             "/api/instructors/me/specializations",
             "/api/instructors/me/specializations/**",
