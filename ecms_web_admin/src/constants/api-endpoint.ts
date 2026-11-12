@@ -255,14 +255,6 @@ COURSE_FINALIZE_SCHEDULE: (id: number) => `/api/courses/${id}/finalize-schedule`
     `/api/courses/${courseId}/sessions/${sessionId}/attendance`,
 
   // ══════════════════════════════════════════════════════════════
-  // CERTIFICATES
-  // ══════════════════════════════════════════════════════════════
-  CERTIFICATES: '/api/certificates',
-  CERTIFICATE_ELIGIBLE: '/api/certificates/eligible',
-  CERTIFICATE_FILE: (id: number) => `/api/certificates/${id}/file`,
-  CERTIFICATE_REVOKE: (id: number) => `/api/certificates/${id}/revoke`,
-
-  // ══════════════════════════════════════════════════════════════
   // AI AGENT
   // ══════════════════════════════════════════════════════════════
   AI_AGENT_CHAT: '/api/ai-agent/chat',

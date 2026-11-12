@@ -428,11 +428,6 @@ public class FileStorageService {
         return String.format("certificates/%d", lecturerProfileId);
     }
 
-    /** Thư mục riêng tư cho chứng chỉ học viên. */
-    public String getStudentCertificatePath(Long studentId) {
-        return String.format("certificates/%d", studentId);
-    }
-
     public String getCourseResourcePath(Integer courseId) {
         return String.format("resources/%d", courseId);
     }

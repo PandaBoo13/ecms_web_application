@@ -229,13 +229,6 @@ export const API_ENDPOINT = {
   ENROLLMENT_STATUS_HISTORY: (id: number) => `/api/enrollments/${id}/status-history`,
 
   // ══════════════════════════════════════════════════════════════
-  // CERTIFICATES
-  // ══════════════════════════════════════════════════════════════
-  CERTIFICATE_MY: '/api/certificates/my',
-  CERTIFICATE_MY_FILE: (id: number) => `/api/certificates/my/${id}/file`,
-  PUBLIC_CERTIFICATE_VERIFY: (code: string) => `/api/public/certificates/${encodeURIComponent(code)}`,
-
-  // ══════════════════════════════════════════════════════════════
   // AI AGENT
   // ══════════════════════════════════════════════════════════════
   AI_AGENT_CHAT: '/api/ai-agent/chat',

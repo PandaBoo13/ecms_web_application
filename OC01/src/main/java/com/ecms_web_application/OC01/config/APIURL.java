@@ -84,10 +84,6 @@ public class APIURL {
                         "/api/progress",
                         "/api/progress/**",
 
-                        // Certificate self-service (ownership enforced by CertificateService)
-                        "/api/certificates/my",
-                        "/api/certificates/my/**",
-
                         // Request workflow — mọi user đã đăng nhập đều truy cập được;
                         // quyền chi tiết (requester/resolver/approver) do RequestService.assertCan*
                         // check
