@@ -130,7 +130,8 @@ public class EnrollmentServiceImpl implements EnrollmentService {
         Enrollment existing = enrollmentRepository.findByInvoiceId(invoiceId).orElse(null);
         if (existing != null) {
             // Enrollment cũ có thể được tạo trước khi tính năng cấp tài khoản ra đời:
-            // vẫn đảm bảo học viên có tài khoản để email thanh toán gửi được thông tin đăng nhập.
+            // vẫn đảm bảo học viên có tài khoản để email thanh toán gửi được thông tin đăng
+            // nhập.
             ensureAccountForExistingEnrollment(existing, invoice);
             return response(existing);
         }
@@ -153,7 +154,8 @@ public class EnrollmentServiceImpl implements EnrollmentService {
 
     /**
      * Ghi danh OFFLINE bắt buộc phải có hồ sơ học viên.
-     * Nếu hóa đơn đã thanh toán nhưng mới chỉ liên kết Lead, hệ thống tự chuyển Lead sang
+     * Nếu hóa đơn đã thanh toán nhưng mới chỉ liên kết Lead, hệ thống tự chuyển
+     * Lead sang
      * Student (idempotent) rồi gắn studentId vào hóa đơn để hoàn tất ghi danh.
      */
     private Long ensureOfflineStudentProfile(Invoice invoice) {
@@ -182,12 +184,10 @@ public class EnrollmentServiceImpl implements EnrollmentService {
         Enrollment existing = enrollmentRepository.findByInvoiceId(invoiceId).orElse(null);
         if (existing != null) {
             // Enrollment cũ có thể được tạo trước khi tính năng cấp tài khoản ra đời:
-            // vẫn đảm bảo học viên có tài khoản để email thanh toán gửi được thông tin đăng nhập.
+            // vẫn đảm bảo học viên có tài khoản để email thanh toán gửi được thông tin đăng
+            // nhập.
             ensureAccountForExistingEnrollment(existing, invoice);
-            Long accountId = studentAccountId(existing.getStudentId());
-            if (accountId != null) {
-                progressCalculationService.recalculateForStudent(accountId, existing.getCourseId());
-            }
+            progressCalculationService.recalculateForEnrollment(existing.getId(), existing.getCourseId());
             return response(existing);
         }
         Course course = lockAndGetCourse(invoice.getCourseId());
@@ -198,17 +198,16 @@ public class EnrollmentServiceImpl implements EnrollmentService {
         Long studentId = ensureOnlineStudentProfile(invoice, actorId);
         EnrollmentResponse enrollment = createEnrollment(
                 invoice, course, EnrollmentStatus.ACTIVE, actorId, studentId);
-        Long accountId = studentAccountId(studentId);
-        if (accountId != null) {
-            progressCalculationService.recalculateForStudent(accountId, course.getId());
-        }
+        progressCalculationService.recalculateForEnrollment(enrollment.enrollmentId(), course.getId());
         return enrollment;
     }
 
     /**
      * Ghi danh ONLINE bắt buộc phải có hồ sơ học viên và tài khoản người học.
-     * Khách mua khóa học chưa có tài khoản: Lead được chuyển thành Student và cấp tài khoản
-     * ngay tại thời điểm thanh toán (idempotent). Mật khẩu tạm được gửi kèm email hóa đơn.
+     * Khách mua khóa học chưa có tài khoản: Lead được chuyển thành Student và cấp
+     * tài khoản
+     * ngay tại thời điểm thanh toán (idempotent). Mật khẩu tạm được gửi kèm email
+     * hóa đơn.
      */
     private Long ensureOnlineStudentProfile(Invoice invoice, Long actorId) {
         if (invoice.getStudentId() != null) {
@@ -240,8 +239,10 @@ public class EnrollmentServiceImpl implements EnrollmentService {
     }
 
     /**
-     * Hóa đơn của tài khoản đã đăng nhập nhưng chưa có hồ sơ học viên: tạo lead tương ứng.
-     * Với hóa đơn đã gắn tài khoản, hồ sơ học viên phải đi theo tài khoản đăng nhập; email/người mua
+     * Hóa đơn của tài khoản đã đăng nhập nhưng chưa có hồ sơ học viên: tạo lead
+     * tương ứng.
+     * Với hóa đơn đã gắn tài khoản, hồ sơ học viên phải đi theo tài khoản đăng
+     * nhập; email/người mua
      * trên hóa đơn chỉ là thông tin liên hệ và có thể khác email đăng nhập.
      */
     private Long ensureLeadForInvoice(Invoice invoice) {
@@ -272,13 +273,15 @@ public class EnrollmentServiceImpl implements EnrollmentService {
     }
 
     private Long studentAccountId(Long studentId) {
-        if (studentId == null) return null;
+        if (studentId == null)
+            return null;
         return studentRepository.findById(studentId).map(Student::getUserId).orElse(null);
     }
 
     /**
      * Đảm bảo enrollment đã tồn tại cũng có tài khoản học viên.
-     * Chỉ cấp tài khoản mới khi student chưa được liên kết; nếu đã có thì giữ nguyên.
+     * Chỉ cấp tài khoản mới khi student chưa được liên kết; nếu đã có thì giữ
+     * nguyên.
      */
     private void ensureAccountForExistingEnrollment(Enrollment enrollment, Invoice invoice) {
         if (enrollment.getStudentId() == null) {
@@ -304,8 +307,10 @@ public class EnrollmentServiceImpl implements EnrollmentService {
             }
         }
 
-        // Truyền chuỗi rỗng thay vì null: tránh PostgreSQL không suy luận được kiểu tham số
-        // trong "LOWER(CONCAT('%', :search, '%'))" và báo lỗi "function lower(bytea) does not exist".
+        // Truyền chuỗi rỗng thay vì null: tránh PostgreSQL không suy luận được kiểu
+        // tham số
+        // trong "LOWER(CONCAT('%', :search, '%'))" và báo lỗi "function lower(bytea)
+        // does not exist".
         String searchTerm = search == null || search.isBlank() ? "" : search.trim();
         Page<Invoice> invoices = invoiceRepository.findPaidEnrollmentCandidates(
                 courseId, InvoiceType.TUITION_PAYMENT, InvoiceStatus.PAID,
@@ -337,7 +342,8 @@ public class EnrollmentServiceImpl implements EnrollmentService {
                 student = students.get(lead.getStudentId());
             }
             Account account = student != null && student.getUserId() != null
-                    ? accounts.get(student.getUserId()) : null;
+                    ? accounts.get(student.getUserId())
+                    : null;
             UserProfile profile = account != null ? account.getUserProfile() : null;
             return new PendingEnrollmentCandidateResponse(
                     invoice.getCourseId(), course != null ? course.getCourseType() : null,
@@ -348,13 +354,13 @@ public class EnrollmentServiceImpl implements EnrollmentService {
                     student != null ? student.getStudentCode() : null,
                     student != null ? student.getFullName()
                             : lead != null ? lead.getFullName()
-                            : profile != null ? profile.getFullName() : invoice.getPayerName(),
+                                    : profile != null ? profile.getFullName() : invoice.getPayerName(),
                     student != null ? student.getEmail()
                             : lead != null ? lead.getEmail()
-                            : account != null ? account.getEmail() : invoice.getPayerEmail(),
+                                    : account != null ? account.getEmail() : invoice.getPayerEmail(),
                     student != null ? student.getPhone()
                             : lead != null ? lead.getPhone()
-                            : profile != null ? profile.getPhone() : invoice.getPayerPhone(),
+                                    : profile != null ? profile.getPhone() : invoice.getPayerPhone(),
                     student != null, lead != null);
         });
     }
@@ -380,9 +386,12 @@ public class EnrollmentServiceImpl implements EnrollmentService {
             return page.map(e -> null);
         }
 
-        Set<Long> studentIds = page.stream().map(Enrollment::getStudentId).filter(Objects::nonNull).collect(Collectors.toSet());
-        Set<Long> courseIds = page.stream().map(Enrollment::getCourseId).filter(Objects::nonNull).collect(Collectors.toSet());
-        Set<Long> invoiceIds = page.stream().map(Enrollment::getInvoiceId).filter(Objects::nonNull).collect(Collectors.toSet());
+        Set<Long> studentIds = page.stream().map(Enrollment::getStudentId).filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        Set<Long> courseIds = page.stream().map(Enrollment::getCourseId).filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        Set<Long> invoiceIds = page.stream().map(Enrollment::getInvoiceId).filter(Objects::nonNull)
+                .collect(Collectors.toSet());
 
         Map<Long, Student> studentMap = studentRepository.findAllById(studentIds).stream()
                 .collect(Collectors.toMap(Student::getId, s -> s));
@@ -429,9 +438,10 @@ public class EnrollmentServiceImpl implements EnrollmentService {
     public EnrollmentSummaryResponse getSummary() {
         requireAdmin();
         Map<EnrollmentStatus, Long> counts = new EnumMap<>(EnrollmentStatus.class);
-        for (EnrollmentStatus status : EnrollmentStatus.values()) counts.put(status, 0L);
-        enrollmentRepository.countGroupedByStatus().forEach(row ->
-                counts.put((EnrollmentStatus) row[0], ((Number) row[1]).longValue()));
+        for (EnrollmentStatus status : EnrollmentStatus.values())
+            counts.put(status, 0L);
+        enrollmentRepository.countGroupedByStatus()
+                .forEach(row -> counts.put((EnrollmentStatus) row[0], ((Number) row[1]).longValue()));
         long awaitingEnrollment = invoiceRepository.findPaidEnrollmentCandidates(
                 null, InvoiceType.TUITION_PAYMENT, InvoiceStatus.PAID, null, null,
                 PageRequest.of(0, 1)).getTotalElements();
@@ -515,7 +525,8 @@ public class EnrollmentServiceImpl implements EnrollmentService {
         if (enrollment == null) {
             return;
         }
-        // Ghi danh đã kết thúc vòng đời thì giữ nguyên lịch sử, không ghi đè trạng thái.
+        // Ghi danh đã kết thúc vòng đời thì giữ nguyên lịch sử, không ghi đè trạng
+        // thái.
         if (enrollment.getStatus() == EnrollmentStatus.TERMINATED
                 || enrollment.getStatus() == EnrollmentStatus.COMPLETED) {
             return;
@@ -625,7 +636,8 @@ public class EnrollmentServiceImpl implements EnrollmentService {
                 .filter(enrollment -> !existingEnrollmentIds.contains(enrollment.getId()))
                 .map(enrollment -> newAttendanceRecord(enrollment.getId(), sessionId, actorId))
                 .toList();
-        if (!missing.isEmpty()) attendanceRepository.saveAll(missing);
+        if (!missing.isEmpty())
+            attendanceRepository.saveAll(missing);
         return sessionAttendanceResponse(courseId, sessionId);
     }
 
@@ -669,12 +681,14 @@ public class EnrollmentServiceImpl implements EnrollmentService {
                 }
                 status = submitted.getCheckInAt().isAfter(
                         session.getStartTime().plusMinutes(ATTENDANCE_LATE_GRACE_MINUTES))
-                        ? AttendanceStatus.LATE : AttendanceStatus.PRESENT;
+                                ? AttendanceStatus.LATE
+                                : AttendanceStatus.PRESENT;
             }
             record.setStatus(status);
             record.setCheckInAt(submitted.getCheckInAt());
             record.setNote(submitted.getNote() == null || submitted.getNote().isBlank()
-                    ? null : submitted.getNote().trim());
+                    ? null
+                    : submitted.getNote().trim());
             record.setUpdatedAt(now);
             record.setUpdatedBy(actorId);
             if (status == AttendanceStatus.NOT_MARKED) {
@@ -730,7 +744,8 @@ public class EnrollmentServiceImpl implements EnrollmentService {
     }
 
     private List<AttendanceRecordResponse> attendanceResponses(List<AttendanceRecord> records) {
-        if (records.isEmpty()) return List.of();
+        if (records.isEmpty())
+            return List.of();
         Set<Long> enrollmentIds = records.stream().map(AttendanceRecord::getEnrollmentId)
                 .collect(Collectors.toSet());
         Map<Long, Enrollment> enrollmentMap = enrollmentRepository.findAllById(enrollmentIds).stream()
@@ -764,7 +779,8 @@ public class EnrollmentServiceImpl implements EnrollmentService {
         enrollment.setStudentId(studentId);
         enrollment.setCourseId(course.getId());
         enrollment.setInvoiceId(invoice.getId());
-        // Guest checkouts have no staff actor; fall back to the provisioned student account
+        // Guest checkouts have no staff actor; fall back to the provisioned student
+        // account
         // because enrolled_by is a required FK.
         if (actorId == null) {
             actorId = studentAccountId(studentId);
@@ -831,7 +847,8 @@ public class EnrollmentServiceImpl implements EnrollmentService {
         return new CompletionEligibility(true, null);
     }
 
-    private record CompletionEligibility(boolean eligible, String reason) {}
+    private record CompletionEligibility(boolean eligible, String reason) {
+    }
 
     private EnrollmentResponse changeStatus(Enrollment enrollment, EnrollmentStatus newStatus, String reason) {
         EnrollmentStatus oldStatus = enrollment.getStatus();
