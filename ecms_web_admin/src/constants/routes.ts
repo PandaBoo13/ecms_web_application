@@ -43,6 +43,7 @@ export const ADMIN_MENU: MenuItem[] = [
     roles: [ROLE.ADMIN],
     children: [
       { key: '/admin/tuition', label: 'Quản lý học phí', path: '/admin/tuition', roles: [ROLE.ADMIN] },
+      { key: '/admin/refunds', label: 'Hoàn tiền', path: '/admin/refunds', roles: [ROLE.ADMIN] },
     ],
   },
   {
@@ -52,6 +53,7 @@ export const ADMIN_MENU: MenuItem[] = [
     roles: [ROLE.ADMIN],
     children: [
       { key: '/admin/enrollments', label: 'Quản lý ghi danh', path: '/admin/enrollments', roles: [ROLE.ADMIN] },
+      { key: '/admin/enrollments/pending', label: 'Chờ ghi danh', path: '/admin/enrollments/pending', roles: [ROLE.ADMIN] },
     ],
   },
   {
@@ -151,7 +153,9 @@ export const ROUTE_TITLE: Record<string, string> = {
   '/admin/leads': 'Quản lý Lead (Tuyển sinh)',
   '/admin/students': 'Quản lý học viên',
   '/admin/tuition': 'Quản lý học phí',
-  '/admin/enrollments': 'Quản lý ghi danh',
+  '/admin/refunds': 'Quản lý hoàn tiền',
+  '/admin/enrollments': 'Danh sách ghi danh',
+  '/admin/enrollments/pending': 'Chờ ghi danh',
   '/admin/users': 'Quản lý tài khoản',
   '/admin/courses': 'Quản lý khóa học',
   '/admin/categories': 'Quản lý danh mục',

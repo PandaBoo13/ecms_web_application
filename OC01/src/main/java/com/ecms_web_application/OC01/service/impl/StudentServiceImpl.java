@@ -198,6 +198,16 @@ public class StudentServiceImpl implements StudentService {
     @Override
     @Transactional
     public StudentResponse convertFromLead(StudentConvertFromLeadRequest request) {
+        return convertFromLead(request, SecurityUtils.getCurrentAccountId());
+    }
+
+    @Override
+    @Transactional
+    public StudentResponse convertFromLeadForPayment(StudentConvertFromLeadRequest request, Long actorId) {
+        return convertFromLead(request, actorId);
+    }
+
+    private StudentResponse convertFromLead(StudentConvertFromLeadRequest request, Long actorId) {
         Long leadId = request.getLeadId();
 
         // 1. Kiểm tra tính Idempotent: Nếu leadId đã được chuyển đổi sang Student thì trả về Student hiện tại
@@ -219,7 +229,6 @@ public class StudentServiceImpl implements StudentService {
             }
         }
 
-        Long currentUserId = SecurityUtils.getCurrentAccountId();
         LocalDateTime now = LocalDateTime.now();
         Long effectiveCourseId = request.getCourseId() != null ? request.getCourseId() : lead.getCourseId();
 
@@ -284,7 +293,7 @@ public class StudentServiceImpl implements StudentService {
         }
 
         // 6. Ghi log StudentStatusLogs
-        recordStatusLog(savedStudent.getId(), null, "ACTIVE", "Chuyển đổi thành công từ Lead #" + lead.getId(), currentUserId);
+        recordStatusLog(savedStudent.getId(), null, "ACTIVE", "Chuyển đổi thành công từ Lead #" + lead.getId(), actorId);
 
         log.info("Chuyển đổi thành công Lead id={} sang Student id={}, studentCode={}", lead.getId(), savedStudent.getId(), savedStudent.getStudentCode());
         return toResponse(savedStudent);

@@ -18,7 +18,7 @@ public interface LeadService {
 
     LeadResponse create(LeadCreateRequest request);
 
-    Page<LeadResponse> search(String search, String status, Long courseId, Long sourceId, Long consultantId, Boolean inQueue, Pageable pageable);
+    Page<LeadResponse> search(String search, String status, Long courseId, Long sourceId, Long consultantId, Boolean inQueue, Boolean hasOpenInvoice, Pageable pageable);
 
     LeadResponse getById(Long id);
 
