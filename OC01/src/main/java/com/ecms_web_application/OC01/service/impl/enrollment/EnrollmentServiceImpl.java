@@ -781,12 +781,8 @@ public class EnrollmentServiceImpl implements EnrollmentService {
     }
 
     private void validateOnlineCompletion(Enrollment enrollment, Course course) {
-        Long accountId = studentAccountId(enrollment.getStudentId());
-        if (accountId == null) {
-            throw new ErrorHandler(HttpStatus.CONFLICT, "Ghi danh ONLINE chưa liên kết tài khoản");
-        }
-        Progress progress = progressRepository.findByAccount_IdAndCourse_IdAndProgressTypeAndReferenceId(
-                accountId, course.getId(), ProgressScope.COURSE, null)
+        Progress progress = progressRepository.findByEnrollment_IdAndCourse_IdAndProgressTypeAndReferenceId(
+                enrollment.getId(), course.getId(), ProgressScope.COURSE, null)
                 .orElseThrow(() -> new ErrorHandler(HttpStatus.CONFLICT, "Chưa có tiến độ khóa học"));
         if (progress.getProgressPercentage() == null
                 || progress.getProgressPercentage().compareTo(BigDecimal.valueOf(100)) < 0
@@ -799,11 +795,11 @@ public class EnrollmentServiceImpl implements EnrollmentService {
             Number passed = (Number) entityManager.createNativeQuery("""
                     SELECT COUNT(*) FROM quiz_attempt
                     WHERE course_id = :courseId AND resource_id = :resourceId
-                      AND account_id = :accountId AND is_passed = TRUE
+                      AND enrollment_id = :enrollmentId AND is_passed = TRUE
                     """)
                     .setParameter("courseId", course.getId())
                     .setParameter("resourceId", quiz.getId())
-                    .setParameter("accountId", accountId)
+                    .setParameter("enrollmentId", enrollment.getId())
                     .getSingleResult();
             if (passed.longValue() == 0) {
                 throw new ErrorHandler(HttpStatus.CONFLICT,

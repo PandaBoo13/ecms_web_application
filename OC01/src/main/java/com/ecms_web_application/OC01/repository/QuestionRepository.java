@@ -13,7 +13,6 @@ import java.util.List;
 
 @Repository
 public interface QuestionRepository extends IRepository<Question, Long> {
-
     List<Question> findByLesson_Id(Long lessonId);
     List<Question> findByCourse_Id(Long courseId);
     long countByLesson_Id(Long lessonId);
@@ -30,17 +29,10 @@ public interface QuestionRepository extends IRepository<Question, Long> {
         ORDER BY q.orderIndex ASC, q.createdAt DESC
     """)
     Page<Question> searchQuestions(
-            @Param("courseId") Long courseId,
-            @Param("lessonId") Long lessonId,
-            @Param("questionType") QuestionType questionType,
-            @Param("status") QuestionStatus status,
-            @Param("hashtag") String hashtag,
-            @Param("search") String search,
-            Pageable pageable);
+            @Param("courseId") Long courseId, @Param("lessonId") Long lessonId,
+            @Param("questionType") QuestionType questionType, @Param("status") QuestionStatus status,
+            @Param("hashtag") String hashtag, @Param("search") String search, Pageable pageable);
 
-    @Query("SELECT q FROM Question q WHERE q.course.id = :courseId " +
-            "AND q.hashtag IN :hashtags AND q.status = 'ACTIVE'")
-    List<Question> findActiveByCourseAndHashtags(
-            @Param("courseId") Long courseId,
-            @Param("hashtags") List<String> hashtags);
+    @Query("SELECT q FROM Question q WHERE q.course.id = :courseId AND q.hashtag IN :hashtags AND q.status = 'ACTIVE'")
+    List<Question> findActiveByCourseAndHashtags(@Param("courseId") Long courseId, @Param("hashtags") List<String> hashtags);
 }

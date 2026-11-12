@@ -16,8 +16,8 @@ public interface ProgressCalculationService {
     /** Batch toàn bộ học viên có Progress COURSE trong khóa. */
     void recalculateForCourse(Long courseId);
 
-    /** 1 học viên cụ thể; tạo Progress COURSE nếu chưa có. */
-    void recalculateForStudent(Long accountId, Long courseId);
+    /** 1 học viên cụ thể (dựa vào Enrollment); tạo Progress COURSE nếu chưa có. */
+    void recalculateForEnrollment(Long enrollmentId, Long courseId);
 
     /** Hook khi resource thay đổi (create/update/delete). */
     void onResourceChanged(Long courseId);
@@ -26,5 +26,5 @@ public interface ProgressCalculationService {
     void onSessionChanged(Long courseId);
 
     /** Hook khi quiz được chấm (pass). */
-    void onQuizGraded(Long accountId, Long courseId);
+    void onQuizGraded(Long enrollmentId, Long courseId);
 }

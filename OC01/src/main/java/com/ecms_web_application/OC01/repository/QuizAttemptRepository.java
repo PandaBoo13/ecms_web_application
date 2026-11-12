@@ -11,18 +11,28 @@ import java.util.Optional;
 @Repository
 public interface QuizAttemptRepository extends IRepository<QuizAttempt, Long> {
 
+    // ==========================================
+    // DÀNH CHO ENROLLMENT SERVICE CŨ (Dùng Account)
+    // ==========================================
     List<QuizAttempt> findByResource_IdAndAccount_IdOrderByAttemptNumberDesc(Long resourceId, Long accountId);
     long countByResource_IdAndAccount_Id(Long resourceId, Long accountId);
+    Optional<QuizAttempt> findFirstByResource_IdAndAccount_IdOrderByAttemptNumberDesc(Long resourceId, Long accountId);
+
+    // ==========================================
+    // DÀNH CHO QUIZ SERVICE MỚI (Dùng Enrollment)
+    // ==========================================
+    List<QuizAttempt> findByResource_IdAndEnrollment_IdOrderByAttemptNumberDesc(Long resourceId, Long enrollmentId);
+    long countByResource_IdAndEnrollment_Id(Long resourceId, Long enrollmentId);
 
     @Query("SELECT COALESCE(MAX(a.attemptNumber), 0) FROM QuizAttempt a " +
-            "WHERE a.resource.id = :resourceId AND a.account.id = :accountId")
-    Integer maxAttemptNumber(@Param("resourceId") Long resourceId, @Param("accountId") Long accountId);
+           "WHERE a.resource.id = :resourceId AND a.enrollment.id = :enrollmentId")
+    Integer maxAttemptNumber(@Param("resourceId") Long resourceId, @Param("enrollmentId") Long enrollmentId);
 
     @Query("SELECT a FROM QuizAttempt a WHERE a.resource.id = :resourceId " +
-            "AND a.account.id = :accountId AND a.isPassed = true ORDER BY a.attemptNumber DESC")
-    List<QuizAttempt> findPassedAttempts(
-            @Param("resourceId") Long resourceId, @Param("accountId") Long accountId);
+           "AND a.enrollment.id = :enrollmentId AND a.isPassed = true ORDER BY a.attemptNumber DESC")
+    List<QuizAttempt> findPassedAttempts(@Param("resourceId") Long resourceId, @Param("enrollmentId") Long enrollmentId);
 
-    Optional<QuizAttempt> findFirstByResource_IdAndAccount_IdOrderByAttemptNumberDesc(
-            Long resourceId, Long accountId);
+    Optional<QuizAttempt> findFirstByResource_IdAndEnrollment_IdOrderByAttemptNumberDesc(Long resourceId, Long enrollmentId);
+    
+    List<QuizAttempt> findByEnrollment_Id(Long enrollmentId);
 }

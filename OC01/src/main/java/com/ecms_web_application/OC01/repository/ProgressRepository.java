@@ -15,22 +15,31 @@ import org.springframework.data.jpa.repository.Modifying;
 @Repository
 public interface ProgressRepository extends IRepository<Progress, Long> {
 
-    Optional<Progress> findByAccount_IdAndCourse_IdAndProgressTypeAndReferenceId(
-            Long accountId, Long courseId, ProgressScope type, Long referenceId);
+    @Query("""
+        SELECT p FROM Progress p LEFT JOIN FETCH p.course c
+        WHERE p.enrollment.studentId = :studentId AND p.progressType = 'COURSE'
+        ORDER BY p.lastAccessedAt DESC NULLS LAST
+    """)
+    Page<Progress> findCourseProgressByStudent(@Param("studentId") Long studentId, Pageable pageable);
 
-    List<Progress> findByAccount_IdAndCourse_Id(Long accountId, Long courseId);
-    List<Progress> findByAccount_IdAndCourse_IdAndProgressType(
-            Long accountId, Long courseId, ProgressScope type);
+    // ==========================================
+    // DÀNH CHO QUIZ & PROGRESS SERVICE MỚI (Dùng Enrollment)
+    // ==========================================
+    Optional<Progress> findByEnrollment_IdAndCourse_IdAndProgressTypeAndReferenceId(
+            Long enrollmentId, Long courseId, ProgressScope type, Long referenceId);
+
+    List<Progress> findByEnrollment_IdAndCourse_Id(Long enrollmentId, Long courseId);
+    List<Progress> findByEnrollment_IdAndCourse_IdAndProgressType(Long enrollmentId, Long courseId, ProgressScope type);
 
     long countByCourse_IdAndProgressType(Long courseId, ProgressScope type);
     List<Progress> findByCourse_IdAndProgressType(Long courseId, ProgressScope type);
 
     @Query("""
         SELECT p FROM Progress p LEFT JOIN FETCH p.course c
-        WHERE p.account.id = :accountId AND p.progressType = 'COURSE'
+        WHERE p.enrollment.id = :enrollmentId AND p.progressType = 'COURSE'
         ORDER BY p.lastAccessedAt DESC NULLS LAST
     """)
-    Page<Progress> findCourseProgressByAccount(@Param("accountId") Long accountId, Pageable pageable);
+    Page<Progress> findCourseProgressByEnrollment(@Param("enrollmentId") Long enrollmentId, Pageable pageable);
 
     @Query("""
         SELECT p FROM Progress p

@@ -3,13 +3,18 @@ package com.ecms_web_application.OC01.service.impl.course;
 import com.ecms_web_application.OC01.config.SecurityUtils;
 import com.ecms_web_application.OC01.dto.response.course.ProgressResponse;
 import com.ecms_web_application.OC01.entity.Account;
+import com.ecms_web_application.OC01.entity.Enrollment;
+import com.ecms_web_application.OC01.entity.Student;
 import com.ecms_web_application.OC01.entity.course.CourseResource;
 import com.ecms_web_application.OC01.entity.course.Progress;
+import com.ecms_web_application.OC01.entity.enums.EnrollmentStatus;
 import com.ecms_web_application.OC01.entity.enums.ProgressScope;
 import com.ecms_web_application.OC01.entity.enums.ProgressStatus;
 import com.ecms_web_application.OC01.exception.ErrorHandler;
 import com.ecms_web_application.OC01.repository.CourseResourceRepository;
+import com.ecms_web_application.OC01.repository.EnrollmentRepository;
 import com.ecms_web_application.OC01.repository.ProgressRepository;
+import com.ecms_web_application.OC01.repository.StudentRepository;
 import com.ecms_web_application.OC01.service.ProgressService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -30,23 +35,26 @@ public class ProgressServiceImpl implements ProgressService {
 
     private final ProgressRepository progressRepository;
     private final CourseResourceRepository resourceRepository;
+    private final EnrollmentRepository enrollmentRepository;
+    private final StudentRepository studentRepository;
     private final com.ecms_web_application.OC01.service.ProgressCalculationService progressCalculationService;
 
     @Override
     @Transactional(readOnly = true)
     public Page<ProgressResponse> getMyCourses(Pageable pageable) {
         Account current = SecurityUtils.requireCurrentAccount();
-        return progressRepository.findCourseProgressByAccount(current.getId(), pageable)
-                .map(this::toResponse);
+        Student student = findStudentForAccount(current.getId());
+        return progressRepository.findCourseProgressByStudent(student.getId(), pageable).map(this::toResponse);
     }
 
     @Override
     @Transactional(readOnly = true)
     public ProgressResponse getMyProgressInCourse(Long courseId) {
         Account current = SecurityUtils.requireCurrentAccount();
-        Progress p = progressRepository
-                .findByAccount_IdAndCourse_IdAndProgressTypeAndReferenceId(
-                        current.getId(), courseId, ProgressScope.COURSE, null)
+        Enrollment enrollment = getActiveEnrollment(current.getId(), courseId);
+
+        Progress p = progressRepository.findByEnrollment_IdAndCourse_IdAndProgressTypeAndReferenceId(
+                        enrollment.getId(), courseId, ProgressScope.COURSE, null)
                 .orElseThrow(() -> new ErrorHandler(HttpStatus.NOT_FOUND, "Chưa có progress"));
         return toResponse(p);
     }
@@ -55,8 +63,10 @@ public class ProgressServiceImpl implements ProgressService {
     @Transactional(readOnly = true)
     public List<ProgressResponse> getResourceProgresses(Long courseId) {
         Account current = SecurityUtils.requireCurrentAccount();
-        return progressRepository.findByAccount_IdAndCourse_IdAndProgressType(
-                        current.getId(), courseId, ProgressScope.RESOURCE)
+        Enrollment enrollment = getActiveEnrollment(current.getId(), courseId);
+        
+        return progressRepository.findByEnrollment_IdAndCourse_IdAndProgressType(
+                        enrollment.getId(), courseId, ProgressScope.RESOURCE)
                 .stream().map(this::toResponse).toList();
     }
 
@@ -66,13 +76,13 @@ public class ProgressServiceImpl implements ProgressService {
         Account current = SecurityUtils.requireCurrentAccount();
         CourseResource r = resourceRepository.findById(resourceId)
                 .orElseThrow(() -> new ErrorHandler(HttpStatus.NOT_FOUND, "Resource không tồn tại"));
+        Enrollment enrollment = getActiveEnrollment(current.getId(), r.getCourse().getId());
 
-        Progress p = progressRepository
-                .findByAccount_IdAndCourse_IdAndProgressTypeAndReferenceId(
-                        current.getId(), r.getCourse().getId(), ProgressScope.RESOURCE, resourceId)
+        Progress p = progressRepository.findByEnrollment_IdAndCourse_IdAndProgressTypeAndReferenceId(
+                        enrollment.getId(), r.getCourse().getId(), ProgressScope.RESOURCE, resourceId)
                 .orElseGet(() -> {
                     Progress np = new Progress();
-                    np.setAccount(current);
+                    np.setEnrollment(enrollment);
                     np.setCourse(r.getCourse());
                     np.setProgressType(ProgressScope.RESOURCE);
                     np.setReferenceId(resourceId);
@@ -80,9 +90,7 @@ public class ProgressServiceImpl implements ProgressService {
                     return np;
                 });
 
-        BigDecimal newPct = percentage != null
-                ? BigDecimal.valueOf(Math.min(100, Math.max(0, percentage)))
-                : BigDecimal.ZERO;
+        BigDecimal newPct = percentage != null ? BigDecimal.valueOf(Math.min(100, Math.max(0, percentage))) : BigDecimal.ZERO;
         BigDecimal cur = p.getProgressPercentage() != null ? p.getProgressPercentage() : BigDecimal.ZERO;
         if (newPct.compareTo(cur) > 0) p.setProgressPercentage(newPct);
 
@@ -102,11 +110,8 @@ public class ProgressServiceImpl implements ProgressService {
         }
 
         Progress saved = progressRepository.save(p);
-        // FR_CRS_015: recalc chỉ cho HV hiện tại — efficient hơn recalc cả course
-        if (saved.getStatus() == ProgressStatus.COMPLETED
-                || saved.getStatus() == ProgressStatus.PASSED) {
-            progressCalculationService.recalculateForStudent(
-                    saved.getAccount().getId(), saved.getCourse().getId());
+        if (saved.getStatus() == ProgressStatus.COMPLETED || saved.getStatus() == ProgressStatus.PASSED) {
+            progressCalculationService.recalculateForEnrollment(saved.getEnrollment().getId(), saved.getCourse().getId());
         }
         return toResponse(saved);
     }
@@ -120,7 +125,6 @@ public class ProgressServiceImpl implements ProgressService {
     @Override
     @Transactional
     public void markHasUncompletedNewContent(Long courseId) {
-        // Delegate sang calc service: đồng bộ cờ + % + total/completed items
         progressCalculationService.onResourceChanged(courseId);
     }
 
@@ -130,10 +134,26 @@ public class ProgressServiceImpl implements ProgressService {
         progressCalculationService.recalculateForCourse(courseId);
     }
 
+    private Enrollment getActiveEnrollment(Long accountId, Long courseId) {
+        Student student = findStudentForAccount(accountId);
+        return enrollmentRepository.findByCourseIdAndStudentId(courseId, student.getId()).stream()
+                .filter(enrollment -> enrollment.getStatus() == EnrollmentStatus.ACTIVE
+                        || enrollment.getStatus() == EnrollmentStatus.COMPLETED)
+                .findFirst()
+                .orElseThrow(() -> new ErrorHandler(HttpStatus.FORBIDDEN, "Bạn không thuộc khóa học này hoặc chưa được kích hoạt"));
+    }
+
+    private Student findStudentForAccount(Long accountId) {
+        return studentRepository.findByUserId(accountId)
+                .orElseThrow(() -> new ErrorHandler(HttpStatus.FORBIDDEN,
+                        "Tài khoản chưa được liên kết với hồ sơ học viên"));
+    }
+
     private ProgressResponse toResponse(Progress p) {
         ProgressResponse r = new ProgressResponse();
         r.setId(p.getId());
-        r.setAccountId(p.getAccount().getId());
+        r.setAccountId(p.getEnrollment() == null ? null : studentRepository.findById(p.getEnrollment().getStudentId())
+                .map(Student::getUserId).orElse(null));
         r.setCourseId(p.getCourse().getId());
         r.setCourseTitle(p.getCourse().getTitle());
         r.setProgressType(p.getProgressType().name());
