@@ -751,12 +751,8 @@ export default function CourseDetailPage() {
                           borderColor: purchaseStatus === 'OWNED' ? undefined : '#059669',
                         }}
                         onClick={() => {
-                          const checkoutPath = `/checkout/${course.id}`;
-                          if (!isAuthenticated) {
-                            navigate('/login', { state: { from: { pathname: checkoutPath } } });
-                          } else {
-                            navigate(checkoutPath);
-                          }
+                          // Guest checkout is allowed; the account is provisioned after successful payment.
+                          navigate(`/checkout/${course.id}`);
                         }}
                       >
                         {purchaseStatus === 'OWNED'

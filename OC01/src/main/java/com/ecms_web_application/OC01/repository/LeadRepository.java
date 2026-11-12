@@ -21,6 +21,8 @@ public interface LeadRepository extends IRepository<Lead, Long> {
 
     Optional<Lead> findByEmail(String email);
 
+    Optional<Lead> findFirstByEmailOrderByCreatedAtDesc(String email);
+
     Optional<Lead> findByPhone(String phone);
 
     boolean existsByEmail(String email);

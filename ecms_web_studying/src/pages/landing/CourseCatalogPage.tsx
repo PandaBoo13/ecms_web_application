@@ -115,10 +115,7 @@ export default function CourseCatalogPage() {
       toast.success('Bạn đã mua khóa học này.');
       return;
     }
-    if (!isAuthenticated) {
-      navigate('/login', { state: { from: { pathname: `/checkout/${course.id}` } } });
-      return;
-    }
+    // Guest checkout is allowed; the account is provisioned after successful payment.
     navigate(`/checkout/${course.id}`);
   };
 

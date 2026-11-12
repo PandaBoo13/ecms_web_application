@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Button, Result, Spin } from 'antd';
-import { LAST_ONLINE_PAYMENT_INVOICE_KEY, publicTuitionApi, tuitionApi } from '@/services/api/tuition';
+import { LAST_ONLINE_PAYMENT_INVOICE_KEY, LAST_ONLINE_PAYMENT_TOKEN_KEY, publicTuitionApi, tuitionApi } from '@/services/api/tuition';
 import type { VnpayReturnResponse } from '@/services/types/tuition';
 import { formatMoney } from '@/utils/format';
 import { LAST_PAYMENT_LINK_KEY } from './PaymentLinkPage';
@@ -55,11 +55,21 @@ export default function VnpayReturnPage() {
       return null;
     }
   })();
+  const lastCheckoutToken = (() => {
+    try {
+      return sessionStorage.getItem(LAST_ONLINE_PAYMENT_TOKEN_KEY);
+    } catch {
+      return null;
+    }
+  })();
   const retryOnlinePayment = async () => {
-    if (!lastOnlineInvoiceId) return;
+    if (!lastCheckoutToken && !lastOnlineInvoiceId) return;
     setRetrying(true);
     try {
-      const paymentUrl = await tuitionApi.createVnpayPayment(lastOnlineInvoiceId);
+      // Guest checkouts retry with the signed token; logged-in students may fall back to the invoice endpoint.
+      const paymentUrl = lastCheckoutToken
+        ? await publicTuitionApi.createVnpayUrl(lastCheckoutToken)
+        : await tuitionApi.createVnpayPayment(lastOnlineInvoiceId!);
       window.location.assign(paymentUrl);
     } catch (e) {
       setRequestError((e as Error).message || 'Không thể tạo lại giao dịch. Bạn có thể thử từ mục Hóa đơn.');
@@ -82,7 +92,7 @@ export default function VnpayReturnPage() {
       <Result
         status="success"
         title="Thanh toán học phí thành công"
-        subTitle={`Hoá đơn ${result.invoiceCode ?? ''} · ${formatMoney(result.amount, false)}. Trung tâm sẽ gửi email xác nhận cho bạn.`}
+        subTitle={`Hoá đơn ${result.invoiceCode ?? ''} · ${formatMoney(result.amount, false)}. Hoá đơn và thông tin tài khoản (nếu vừa được cấp) đã được gửi tới email của bạn.`}
         extra={[myCourses, home]}
       />
     );
@@ -94,13 +104,13 @@ export default function VnpayReturnPage() {
       title="Thanh toán chưa thành công"
       subTitle={error ?? result?.message}
       extra={[
-          lastOnlineInvoiceId && (
+          (lastCheckoutToken || lastOnlineInvoiceId) && (
             <Button key="retry-online" type="primary" loading={retrying} onClick={() => void retryOnlinePayment()}>
               Thử thanh toán lại
             </Button>
           ),
         lastPaymentLink && (
-          <Button key="retry" type={lastOnlineInvoiceId ? 'default' : 'primary'} onClick={() => navigate(lastPaymentLink)}>
+          <Button key="retry" type={lastCheckoutToken || lastOnlineInvoiceId ? 'default' : 'primary'} onClick={() => navigate(lastPaymentLink)}>
             Thử thanh toán lại
           </Button>
         ),

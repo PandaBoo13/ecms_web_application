@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
-  Button, Input, Table, Typography,
+  Button, Input, Select, Table, Typography,
 } from 'antd';
 import { ReloadOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
@@ -10,15 +10,16 @@ import PageContainer from '@/components/common/PageContainer';
 import PageHeader from '@/components/common/PageHeader';
 import EnrollmentStatusTag from '@/components/enrollment/EnrollmentStatusTag';
 import { enrollmentApi } from '@/services/api/enrollment';
-import type { OfflineEnrollmentCandidate } from '@/services/types/enrollment';
+import type { PendingEnrollmentCandidate } from '@/services/types/enrollment';
 
 const { Text } = Typography;
 
 export default function PendingEnrollmentPage() {
-  const [rows, setRows] = useState<OfflineEnrollmentCandidate[]>([]);
+  const [rows, setRows] = useState<PendingEnrollmentCandidate[]>([]);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(0);
   const [total, setTotal] = useState(0);
+  const [courseType, setCourseType] = useState<'ONLINE' | 'OFFLINE' | undefined>();
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
@@ -27,7 +28,8 @@ export default function PendingEnrollmentPage() {
   const loadCandidates = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await enrollmentApi.offlineCandidates({
+      const data = await enrollmentApi.pendingCandidates({
+        courseType,
         search: search || undefined,
         page,
         size: 20,
@@ -35,11 +37,11 @@ export default function PendingEnrollmentPage() {
       setRows(data.content ?? []);
       setTotal(data.totalElements ?? 0);
     } catch {
-      toast.error('Không tải được danh sách chờ ghi danh OFFLINE');
+      toast.error('Không tải được danh sách hóa đơn chờ ghi danh');
     } finally {
       setLoading(false);
     }
-  }, [page, search]);
+  }, [courseType, page, search]);
 
   useEffect(() => {
     void loadCandidates();
@@ -53,7 +55,7 @@ export default function PendingEnrollmentPage() {
     }
     setProcessing(true);
     try {
-      const result = await enrollmentApi.createOfflineBatch(invoiceIds);
+      const result = await enrollmentApi.createPendingBatch(invoiceIds);
       setSelectedIds([]);
       if (result.enrolled > 0) toast.success(`Đã ghi danh ${result.enrolled} học viên`);
       if (result.failed > 0) {
@@ -68,14 +70,15 @@ export default function PendingEnrollmentPage() {
     }
   };
 
-  const columns: ColumnsType<OfflineEnrollmentCandidate> = [
+  const columns: ColumnsType<PendingEnrollmentCandidate> = [
     {
       title: 'Khóa học',
       render: (_, row) => (
         <div>
           <div style={{ fontWeight: 600 }}>{row.courseTitle || `Khóa học #${row.courseId}`}</div>
           <Text type="secondary" style={{ fontSize: 12 }}>
-            {row.courseStartDate ? `Khai giảng ${dayjs(row.courseStartDate).format('DD/MM/YYYY')}` : 'Chưa có ngày khai giảng'}
+            {row.courseType === 'ONLINE' ? 'Online' : 'Offline'}
+            {row.courseStartDate ? ` · Khai giảng ${dayjs(row.courseStartDate).format('DD/MM/YYYY')}` : ''}
           </Text>
         </div>
       ),
@@ -110,23 +113,39 @@ export default function PendingEnrollmentPage() {
       title: 'Trạng thái sau ghi danh',
       width: 170,
       render: (_, row) => {
-        const active = row.courseStartDate != null
-          && !dayjs(row.courseStartDate).isAfter(dayjs(), 'day');
+        const active = row.courseType === 'ONLINE'
+          || (row.courseStartDate != null && !dayjs(row.courseStartDate).isAfter(dayjs(), 'day'));
         return <EnrollmentStatusTag status={active ? 'ACTIVE' : 'PENDING'} />;
       },
     },
   ];
 
-  const hasActiveFilters = Boolean(search);
+  const hasActiveFilters = Boolean(search) || Boolean(courseType);
 
   return (
     <PageContainer>
       <PageHeader
         title="Chờ ghi danh"
-        subtitle="Danh sách học viên đã có hồ sơ và hóa đơn OFFLINE đã thanh toán nhưng chưa ghi danh vào khóa học. Chọn học viên để ghi danh thủ công (tối đa 100 mỗi lần)."
+        subtitle="Hóa đơn học phí đã thanh toán nhưng chưa có ghi danh (cả khóa ONLINE và OFFLINE). Chọn hóa đơn để ghi danh lại thủ công (tối đa 100 mỗi lần)."
       />
 
       <div className="mb-4 flex flex-wrap items-center justify-end gap-3">
+        <Select
+          placeholder="Tất cả hình thức"
+          style={{ width: 190 }}
+          value={courseType ?? ''}
+          onChange={(value) => {
+            setPage(0);
+            setSelectedIds([]);
+            setCourseType(value ? (value as 'ONLINE' | 'OFFLINE') : undefined);
+          }}
+          disabled={processing}
+          options={[
+            { value: '', label: 'Tất cả hình thức' },
+            { value: 'OFFLINE', label: 'Khóa Offline' },
+            { value: 'ONLINE', label: 'Khóa Online' },
+          ]}
+        />
         <Input.Search
           allowClear
           placeholder="Tìm học viên, mã học viên hoặc hóa đơn"
@@ -153,6 +172,7 @@ export default function PendingEnrollmentPage() {
             onClick={() => {
               setSearch('');
               setSearchInput('');
+              setCourseType(undefined);
               setPage(0);
               setSelectedIds([]);
             }}
@@ -194,7 +214,7 @@ export default function PendingEnrollmentPage() {
           showSizeChanger: false,
           onChange: (nextPage) => setPage(nextPage - 1),
         }}
-        locale={{ emptyText: 'Không có hóa đơn OFFLINE nào đang chờ ghi danh.' }}
+        locale={{ emptyText: 'Không có hóa đơn nào đang chờ ghi danh.' }}
         scroll={{ x: 1100 }}
       />
     </PageContainer>

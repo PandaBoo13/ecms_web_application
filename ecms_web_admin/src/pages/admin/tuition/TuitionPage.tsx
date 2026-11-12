@@ -5,7 +5,7 @@ import {
 } from 'antd';
 import {
   CheckCircleOutlined, ClockCircleOutlined, CopyOutlined, EditOutlined, ExclamationCircleOutlined,
-  EyeOutlined, FileTextOutlined, LinkOutlined, ReloadOutlined, StopOutlined,
+  EyeOutlined, FilePdfOutlined, FileTextOutlined, LinkOutlined, ReloadOutlined, StopOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType, TablePaginationConfig } from 'antd/es/table';
 import dayjs from 'dayjs';
@@ -18,6 +18,7 @@ import { tuitionApi } from '@/services/api/tuition';
 import type {
   InvoiceResponse, InvoiceStatus, PaymentLinkResponse,
 } from '@/services/types/tuition';
+import { printTuitionInvoice } from '@/utils/printTuitionInvoice';
 
 type InvoiceAction = 'update' | 'cash' | 'transfer' | 'extend' | 'cancel' | 'link' | null;
 const { Text } = Typography;
@@ -55,7 +56,8 @@ export default function TuitionPage() {
     try {
       const result = await tuitionApi.searchInvoices({
         type: 'TUITION_PAYMENT',
-        page: page - 1, size: pageSize, status: invoiceStatus, courseType, search: search || undefined,
+        page: page - 1, size: pageSize, status: invoiceStatus, courseType,
+        search: search || undefined,
       });
       setInvoiceRows(result.content ?? []);
       setPagination((current) => ({ ...current, current: page, pageSize, total: result.totalElements ?? 0 }));
@@ -68,19 +70,13 @@ export default function TuitionPage() {
 
   const loadStats = useCallback(async () => {
     try {
-      const [all, pending, paid, overdue, cancelled] = await Promise.all([
-        tuitionApi.searchInvoices({ type: 'TUITION_PAYMENT', page: 0, size: 1 }),
-        tuitionApi.searchInvoices({ type: 'TUITION_PAYMENT', page: 0, size: 1, status: 'PENDING' }),
-        tuitionApi.searchInvoices({ type: 'TUITION_PAYMENT', page: 0, size: 1, status: 'PAID' }),
-        tuitionApi.searchInvoices({ type: 'TUITION_PAYMENT', page: 0, size: 1, status: 'OVERDUE' }),
-        tuitionApi.searchInvoices({ type: 'TUITION_PAYMENT', page: 0, size: 1, status: 'CANCELLED' }),
-      ]);
+      const result = await tuitionApi.getInvoiceStats();
       setStats({
-        total: all.totalElements ?? 0,
-        pending: pending.totalElements ?? 0,
-        paid: paid.totalElements ?? 0,
-        overdue: overdue.totalElements ?? 0,
-        cancelled: cancelled.totalElements ?? 0,
+        total: result.total ?? 0,
+        pending: result.pending ?? 0,
+        paid: result.paid ?? 0,
+        overdue: result.overdue ?? 0,
+        cancelled: result.cancelled ?? 0,
       });
     } catch {
       // Giữ nguyên số liệu cũ nếu không tải được thống kê
@@ -109,7 +105,6 @@ export default function TuitionPage() {
     try {
       const effectiveAction = invoiceAction === 'update' ? values.updateAction as InvoiceAction : invoiceAction;
       let successMessage = 'Đã cập nhật hóa đơn thành công';
-      let actionFailed = false;
       if (selectedInvoice && effectiveAction === 'cash') {
         await tuitionApi.confirmCash(selectedInvoice.invoiceId, values.proofUrl as string | undefined);
         successMessage = 'Đã xác nhận thu tiền mặt thành công';
@@ -118,18 +113,14 @@ export default function TuitionPage() {
         successMessage = 'Đã xác nhận chuyển khoản thành công';
       } else if (selectedInvoice && effectiveAction === 'link') {
         const result = await tuitionApi.sendPaymentLink(selectedInvoice.invoiceId, values.email as string | undefined);
-        successMessage = result.emailSent
-          ? `Đã gửi lại link thanh toán tới ${result.sentTo}`
-          : 'Gửi email thất bại; link thanh toán đã được tạo để sao chép thủ công';
-        actionFailed = !result.emailSent;
-        if (!result.emailSent) setLinkResult(result);
+        successMessage = `Đã tạo link thanh toán và đang gửi email tới ${result.sentTo}`;
+        setLinkResult(result);
       } else if (selectedInvoice && effectiveAction === 'extend') {
         await tuitionApi.extendDueDate(selectedInvoice.invoiceId, dayjs(values.dueAt as dayjs.ConfigType).format('YYYY-MM-DDTHH:mm:ss'));
       } else if (selectedInvoice && effectiveAction === 'cancel') {
         await tuitionApi.cancelInvoice(selectedInvoice.invoiceId, { reason: String(values.reason) });
       }
-      if (actionFailed) toast.error(successMessage);
-      else toast.success(successMessage);
+      toast.success(successMessage);
       setInvoiceAction(null); setSelectedInvoice(null); invoiceForm.resetFields();
       await loadInvoices(pagination.current, pagination.pageSize);
       await loadStats();
@@ -151,12 +142,19 @@ export default function TuitionPage() {
     }
   };
 
+  const exportInvoicePdf = () => {
+    if (!detailInvoice || detailInvoice.type !== 'TUITION_PAYMENT') return;
+    if (!printTuitionInvoice(detailInvoice)) {
+      toast.error('Trình duyệt đã chặn cửa sổ in. Hãy cho phép cửa sổ bật lên rồi thử lại.');
+    }
+  };
+
   const invoiceColumns: ColumnsType<InvoiceResponse> = [
     { title: 'Mã hóa đơn', dataIndex: 'invoiceCode', width: 185, render: (value: string) => <Text strong>{value}</Text> },
     {
       title: 'Người thanh toán', dataIndex: 'ownerName', width: 200,
       render: (value: string | null, row) => <div>
-        <Text strong>{value || row.ownerEmail || `ID ${row.studentId ?? row.accountId ?? row.leadId ?? '—'}`}</Text>
+        <Text strong>{value || row.ownerEmail || `ID ${row.studentId ?? row.leadId ?? '—'}`}</Text>
       </div>,
     },
     { title: 'Khóa học', dataIndex: 'courseTitle', width: 220, render: (value: string | null, row) => value || `Khóa học #${row.courseId}` },
@@ -164,13 +162,17 @@ export default function TuitionPage() {
     { title: 'Số tiền', dataIndex: 'amount', width: 145, render: moneyText },
     { title: 'Hạn thanh toán', dataIndex: 'dueAt', width: 165, render: dateText },
     { title: 'Phương thức', dataIndex: 'paymentMethod', width: 175, render: (value?: string) => value ? methodLabels[value] ?? value : '—' },
-    { title: 'Trạng thái', dataIndex: 'status', width: 145, render: (value: InvoiceStatus) => <Tag color={invoiceColor[value]}>{statusLabels[value]}</Tag> },
+    { title: 'Trạng thái', dataIndex: 'status', width: 200, render: (value: InvoiceStatus, row) => (
+      <Space size={4} wrap>
+        <Tag color={invoiceColor[value]}>{row.type === 'REFUND' && value === 'PAID' ? 'Đã hoàn tiền' : statusLabels[value]}</Tag>
+      </Space>
+    ) },
     {
       title: 'Thao tác', fixed: 'right', width: 150, align: 'center', render: (_, row) => (
         <Space size={4}>
           <Tooltip title="Xem chi tiết"><Button aria-label="Xem chi tiết" type="text" icon={<EyeOutlined />} onClick={() => void openDetails(row)} /></Tooltip>
-          <Tooltip title={row.status === 'PAID' ? 'Hóa đơn đã thanh toán, không thể cập nhật' : 'Cập nhật'}>
-            <Button aria-label="Cập nhật" type="text" icon={<EditOutlined />} disabled={row.status === 'PAID'} onClick={() => showInvoiceAction('update', row)} />
+          <Tooltip title={row.status === 'PAID' ? 'Hóa đơn đã thanh toán, không thể cập nhật' : row.status === 'CANCELLED' ? 'Hóa đơn đã hủy, không thể thao tác' : 'Cập nhật'}>
+            <Button aria-label="Cập nhật" type="text" icon={<EditOutlined />} disabled={row.status === 'PAID' || row.status === 'CANCELLED'} onClick={() => showInvoiceAction('update', row)} />
           </Tooltip>
         </Space>
       )
@@ -295,7 +297,9 @@ export default function TuitionPage() {
         ]}>
         {linkResult && <>
           {linkResult.emailSent
-            ? <Alert type="success" showIcon className="mb-4" message={`Đã gửi email tới ${linkResult.sentTo}`} />
+            ? <Alert type="success" showIcon className="mb-4"
+              message={`Email đang được gửi tới ${linkResult.sentTo}`}
+              description="Hệ thống gửi email ở chế độ nền nên thao tác không phải chờ. Bạn cũng có thể sao chép link bên dưới để gửi qua kênh khác (Zalo/SMS)." />
             : <Alert type="warning" showIcon className="mb-4"
               message="Gửi email thất bại"
               description={linkResult.emailError || 'Hãy sao chép link bên dưới và gửi qua kênh khác (Zalo/SMS).'} />}
@@ -341,12 +345,12 @@ export default function TuitionPage() {
       </Modal>
 
       {/* Chi tiết hóa đơn */}
-      <Modal title={`Chi tiết hóa đơn ${detailInvoice?.invoiceCode ?? ''}`} open={!!detailInvoice} footer={<Button onClick={() => setDetailInvoice(null)}>Đóng</Button>} onCancel={() => setDetailInvoice(null)} width={760} confirmLoading={detailLoading}>
+      <Modal title={`Chi tiết hóa đơn ${detailInvoice?.invoiceCode ?? ''}`} open={!!detailInvoice} footer={<Space><Button onClick={() => setDetailInvoice(null)}>Đóng</Button>{detailInvoice?.type === 'TUITION_PAYMENT' && <Button icon={<FilePdfOutlined />} onClick={exportInvoicePdf}>In / Lưu PDF</Button>}</Space>} onCancel={() => setDetailInvoice(null)} width={760} confirmLoading={detailLoading}>
         {detailInvoice && <Space direction="vertical" size="middle" className="w-full">
           <Descriptions title="Thông tin hóa đơn" bordered size="small" column={2}>
             <Descriptions.Item label="Mã hóa đơn">{detailInvoice.invoiceCode}</Descriptions.Item>
             <Descriptions.Item label="Loại hóa đơn">{detailInvoice.type === 'REFUND' ? 'Hoàn tiền' : 'Học phí'}</Descriptions.Item>
-            <Descriptions.Item label="Trạng thái"><Tag color={invoiceColor[detailInvoice.status]}>{statusLabels[detailInvoice.status]}</Tag></Descriptions.Item>
+            <Descriptions.Item label="Trạng thái"><Tag color={invoiceColor[detailInvoice.status]}>{detailInvoice.type === 'REFUND' && detailInvoice.status === 'PAID' ? 'Đã hoàn tiền' : statusLabels[detailInvoice.status]}</Tag></Descriptions.Item>
             <Descriptions.Item label="Số tiền">{moneyText(detailInvoice.amount)}</Descriptions.Item>
           </Descriptions>
           <Descriptions title="Người thanh toán" bordered size="small" column={2}>
@@ -355,7 +359,6 @@ export default function TuitionPage() {
             <Descriptions.Item label="Số điện thoại">{detailInvoice.ownerPhone || '—'}</Descriptions.Item>
             {detailInvoice.studentId != null && <Descriptions.Item label="Mã học viên">{detailInvoice.studentId}</Descriptions.Item>}
             {detailInvoice.leadId != null && <Descriptions.Item label="Mã Lead">{detailInvoice.leadId}</Descriptions.Item>}
-            {detailInvoice.accountId != null && <Descriptions.Item label="Mã tài khoản">{detailInvoice.accountId}</Descriptions.Item>}
           </Descriptions>
           <Descriptions title="Khóa học" bordered size="small" column={2}>
             <Descriptions.Item label="Tên khóa học">{detailInvoice.courseTitle || `Khóa học #${detailInvoice.courseId}`}</Descriptions.Item>
@@ -372,7 +375,7 @@ export default function TuitionPage() {
           </Descriptions>
           {(detailInvoice.originalInvoiceId != null || detailInvoice.reason) && (
             <Descriptions title="Thông tin bổ sung" bordered size="small" column={2}>
-              {detailInvoice.originalInvoiceId != null && <Descriptions.Item label="Hóa đơn gốc">{detailInvoice.originalInvoiceId}</Descriptions.Item>}
+              {detailInvoice.originalInvoiceId != null && <Descriptions.Item label="Hóa đơn gốc">{detailInvoice.originalInvoiceCode || detailInvoice.originalInvoiceId}</Descriptions.Item>}
               <Descriptions.Item label="Lý do / ghi chú" span={2}>{detailInvoice.reason || '—'}</Descriptions.Item>
             </Descriptions>
           )}

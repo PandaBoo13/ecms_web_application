@@ -196,8 +196,6 @@ export const vi = {
   'student.filter.searchPlaceholder': 'Tìm theo mã STD, họ tên, email, số điện thoại...',
   'student.tooltip.view': 'Chi tiết hồ sơ học viên',
   'student.tooltip.edit': 'Chỉnh sửa thông tin',
-  'student.tooltip.createInvoice': 'Tạo hóa đơn học phí cho học viên',
-  'student.invoiceReasonInactive': 'Học viên đã ngừng hoạt động, không thể tạo hóa đơn',
   'student.tooltip.changeStatus': 'Đổi trạng thái học viên',
   'student.tooltip.addGuardian': 'Thêm Người giám hộ',
   'student.tooltip.inactivate': 'Vô hiệu hóa',

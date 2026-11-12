@@ -198,8 +198,6 @@ export const en: Record<keyof typeof vi, string> = {
   'student.filter.searchPlaceholder': 'Search by STD code, name, email, phone...',
   'student.tooltip.view': 'Student Profile Details',
   'student.tooltip.edit': 'Edit Information',
-  'student.tooltip.createInvoice': 'Create a tuition invoice for this student',
-  'student.invoiceReasonInactive': 'This student is inactive, so an invoice cannot be created',
   'student.tooltip.changeStatus': 'Change Student Status',
   'student.tooltip.addGuardian': 'Add Guardian',
   'student.tooltip.inactivate': 'Inactivate',

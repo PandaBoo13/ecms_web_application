@@ -18,6 +18,7 @@ import com.ecms_web_application.OC01.repository.CourseRepository;
 import com.ecms_web_application.OC01.repository.InvoiceRepository;
 import com.ecms_web_application.OC01.repository.LeadRepository;
 import com.ecms_web_application.OC01.repository.StudentRepository;
+import com.ecms_web_application.OC01.service.AuditLogService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -48,6 +49,7 @@ class TuitionServiceImplCreateInvoiceFromLeadTest {
     @Mock AccountRepository accountRepository;
     @Mock ApplicationEventPublisher eventPublisher;
     @Mock TuitionPaymentLinkService paymentLinkService;
+    @Mock AuditLogService auditLogService;
     @InjectMocks TuitionServiceImpl service;
 
     private final Account admin = new Account();
@@ -76,12 +78,7 @@ class TuitionServiceImplCreateInvoiceFromLeadTest {
         course.setTitle("Offline course");
 
         when(leadRepository.findById(12L)).thenReturn(Optional.of(lead));
-        when(courseRepository.findById(34L)).thenReturn(Optional.of(course));
-        when(invoiceRepository.save(any(Invoice.class))).thenAnswer(invocation -> {
-            Invoice invoice = invocation.getArgument(0);
-            invoice.setId(56L);
-            return invoice;
-        });
+        when(courseRepository.findByIdForUpdate(34L)).thenReturn(Optional.of(course));
     }
 
     @AfterEach
@@ -121,7 +118,7 @@ class TuitionServiceImplCreateInvoiceFromLeadTest {
         PaymentLinkResponse link = new PaymentLinkResponse("https://pay.example/link", "other@example.com",
                 LocalDateTime.now().plusHours(24), true, null);
         allowInvoiceCreation();
-        when(paymentLinkService.sendPaymentLink(56L, "  other@example.com ")).thenReturn(link);
+        when(paymentLinkService.queuePaymentLink(56L, "  other@example.com ")).thenReturn(link);
         CreateInvoiceFromLeadRequest request = request(PaymentMethod.BANK_TRANSFER);
         request.setEmail("  other@example.com ");
         LocalDateTime before = LocalDateTime.now().truncatedTo(ChronoUnit.SECONDS);
@@ -142,7 +139,7 @@ class TuitionServiceImplCreateInvoiceFromLeadTest {
         assertTrue(invoice.getDueAt().isBefore(LocalDateTime.now().plusHours(24).plusSeconds(2)));
         assertEquals(link, response.paymentLink());
         assertEquals(InvoiceStatus.PENDING, response.invoice().status());
-        verify(paymentLinkService).sendPaymentLink(56L, "  other@example.com ");
+        verify(paymentLinkService).queuePaymentLink(56L, "  other@example.com ");
         verify(eventPublisher, never()).publishEvent(any());
     }
 
@@ -166,5 +163,10 @@ class TuitionServiceImplCreateInvoiceFromLeadTest {
     private void allowInvoiceCreation() {
         when(invoiceRepository.existsByLeadIdAndCourseIdAndTypeAndStatusIn(
                 eq(12L), eq(34L), eq(InvoiceType.TUITION_PAYMENT), anyList())).thenReturn(false);
+        when(invoiceRepository.save(any(Invoice.class))).thenAnswer(invocation -> {
+            Invoice invoice = invocation.getArgument(0);
+            invoice.setId(56L);
+            return invoice;
+        });
     }
 }

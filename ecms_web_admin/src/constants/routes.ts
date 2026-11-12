@@ -56,6 +56,13 @@ export const ADMIN_MENU: MenuItem[] = [
     ],
   },
   {
+    key: '/admin/certificates',
+    label: 'Chứng chỉ',
+    icon: 'SafetyCertificateOutlined',
+    path: '/admin/certificates',
+    roles: [ROLE.ADMIN],
+  },
+  {
     key: 'courses',
     label: 'Khóa học',
     icon: 'BookOutlined',
@@ -153,6 +160,7 @@ export const ROUTE_TITLE: Record<string, string> = {
   '/admin/refunds': 'Quản lý hoàn tiền',
   '/admin/enrollments': 'Danh sách ghi danh',
   '/admin/enrollments/pending': 'Chờ ghi danh',
+  '/admin/certificates': 'Quản lý chứng chỉ',
   '/admin/users': 'Quản lý tài khoản',
   '/admin/courses': 'Quản lý khóa học',
   '/admin/categories': 'Quản lý danh mục',

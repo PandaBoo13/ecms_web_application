@@ -18,6 +18,22 @@ export interface InvoiceResponse {
   dueAt: string | null;
   paidAt: string | null;
   paymentMethod: 'CASH' | 'BANK_TRANSFER' | null;
+  reason?: string | null;
+  transactionReference?: string | null;
+  ownerName?: string | null;
+  ownerEmail?: string | null;
+  ownerPhone?: string | null;
+}
+
+/** Kết quả checkout công khai: kèm token có chữ ký để mở cổng VNPAY. */
+export interface PublicCheckoutResponse {
+  invoiceId: number;
+  invoiceCode: string;
+  courseId: number;
+  courseTitle: string | null;
+  amount: number;
+  status: InvoiceStatus;
+  paymentToken: string | null;
 }
 
 /** Thông tin hoá đơn hiển thị trên trang thanh toán công khai (không cần đăng nhập). */

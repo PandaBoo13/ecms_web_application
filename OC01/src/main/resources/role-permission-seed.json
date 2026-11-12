@@ -49,7 +49,7 @@
     "DELETE:/api/students/{id}/guardians/{guardianId}",
     "GET:/api/students/{id}/academic-histories",
     "GET:/api/courses/{courseId}/sessions/{sessionId}/attendance",
-    "POST:/api/courses/{courseId}/sessions/{sessionId}/attendance/absences",
+    "PUT:/api/courses/{courseId}/sessions/{sessionId}/attendance",
     "GET:/api/categories",
     "GET:/api/categories/{id}",
     "GET:/api/categories/tree",

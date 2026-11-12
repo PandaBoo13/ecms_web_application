@@ -5,6 +5,5 @@ import java.util.List;
 public record SessionAttendanceResponse(
         Long courseId,
         Long sessionId,
-        List<Long> activeEnrollmentIds,
-        List<Long> absentEnrollmentIds
+        List<AttendanceRecordResponse> records
 ) { }

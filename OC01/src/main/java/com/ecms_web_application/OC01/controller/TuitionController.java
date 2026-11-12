@@ -75,14 +75,14 @@ public class TuitionController {
                 tuitionService.createInvoiceFromStudent(request), "Tạo hóa đơn học phí thành công"));
     }
 
-    /** Gửi (hoặc gửi lại) link thanh toán qua email cho hóa đơn PENDING. */
+    /** Gửi (hoặc gửi lại) link thanh toán qua email cho hóa đơn PENDING. Email được gửi nền sau commit. */
     @PostMapping("/{invoiceId}/payment-link")
     public ResponseEntity<RequestResponse> sendPaymentLink(
             @PathVariable Long invoiceId,
             @Valid @RequestBody(required = false) SendPaymentLinkRequest request) {
         String email = request != null ? request.getEmail() : null;
-        return ResponseEntity.ok(new RequestResponse(paymentLinkService.sendPaymentLink(invoiceId, email),
-                "Gửi link thanh toán thành công"));
+        return ResponseEntity.ok(new RequestResponse(paymentLinkService.queuePaymentLink(invoiceId, email),
+                "Đã tạo link thanh toán và xếp hàng gửi email"));
     }
 
     @PostMapping("/{invoiceId}/vnpay")
@@ -100,16 +100,24 @@ public class TuitionController {
             @RequestParam(required = false) CourseType courseType,
             @RequestParam(required = false) Long courseId,
             @RequestParam(required = false) Long studentId,
-            @RequestParam(required = false) Long accountId,
             @RequestParam(required = false) Long leadId,
             @RequestParam(required = false) String search,
+            @RequestParam(defaultValue = "false") boolean refundable,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         Pageable pageable = PageRequest.of(Math.max(page, 0), Math.max(1, Math.min(size, 100)),
                 Sort.by(Sort.Direction.DESC, "createdAt").and(Sort.by(Sort.Direction.DESC, "id")));
         return ResponseEntity.ok(new RequestResponse(
-                tuitionService.search(type, status, courseType, courseId, studentId, accountId, leadId, search, pageable),
+                tuitionService.search(type, status, courseType, courseId, studentId, leadId, search,
+                        refundable, pageable),
                 "Lấy danh sách hóa đơn thành công"));
+    }
+
+    /** Thống kê số lượng hóa đơn học phí theo trạng thái — 1 query thay cho 5 lần gọi danh sách. */
+    @GetMapping("/stats")
+    public ResponseEntity<RequestResponse> stats() {
+        return ResponseEntity.ok(new RequestResponse(tuitionService.getStats(),
+                "Lấy thống kê hóa đơn thành công"));
     }
 
     @GetMapping("/{invoiceId}")

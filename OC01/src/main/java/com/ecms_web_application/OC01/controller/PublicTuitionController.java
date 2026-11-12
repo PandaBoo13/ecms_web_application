@@ -1,18 +1,24 @@
 package com.ecms_web_application.OC01.controller;
 
+import com.ecms_web_application.OC01.dto.request.tuition.OnlineCheckoutRequest;
 import com.ecms_web_application.OC01.dto.response.RequestResponse;
+import com.ecms_web_application.OC01.dto.response.tuition.PublicCheckoutResponse;
 import com.ecms_web_application.OC01.dto.response.tuition.PublicInvoiceResponse;
 import com.ecms_web_application.OC01.dto.response.tuition.VnpayReturnResponse;
 import com.ecms_web_application.OC01.exception.ErrorHandler;
+import com.ecms_web_application.OC01.service.TuitionService;
 import com.ecms_web_application.OC01.service.impl.tuition.TuitionPaymentLinkService;
 import com.ecms_web_application.OC01.service.impl.tuition.VnpayGatewayService;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -34,9 +40,20 @@ import java.util.Map;
 public class PublicTuitionController {
     private final TuitionPaymentLinkService paymentLinkService;
     private final VnpayGatewayService vnpayGatewayService;
+    private final TuitionService tuitionService;
 
     @Value("${APP_STUDYING_URL:http://localhost:5174}")
     private String studyingUrl;
+
+    /** Checkout công khai: khách chưa có tài khoản vẫn tạo được hóa đơn và token thanh toán. */
+    @PostMapping("/checkout")
+    public ResponseEntity<RequestResponse> createCheckout(
+            @RequestParam Long courseId,
+            @Valid @RequestBody OnlineCheckoutRequest request) {
+        PublicCheckoutResponse data = tuitionService.createPublicOnlineCheckout(courseId, request);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(new RequestResponse(data, "Tạo hóa đơn thanh toán thành công"));
+    }
 
     @GetMapping("/payment-links")
     public ResponseEntity<RequestResponse> getPaymentLink(@RequestParam String token) {

@@ -7,7 +7,7 @@ export interface EnrollmentSummaryResponse {
   reserved: number;
   terminated: number;
   completed: number;
-  offlineAwaitingEnrollment: number;
+  awaitingEnrollment: number;
 }
 
 export interface EnrollmentResponse {
@@ -52,8 +52,9 @@ export interface EnrollmentBatchActionResponse {
   results: Array<{ enrollmentId: number; success: boolean; message: string }>;
 }
 
-export interface OfflineEnrollmentCandidate {
+export interface PendingEnrollmentCandidate {
   courseId: number;
+  courseType: 'ONLINE' | 'OFFLINE' | null;
   courseTitle: string | null;
   courseStartDate: string | null;
   invoiceId: number;
@@ -69,7 +70,7 @@ export interface OfflineEnrollmentCandidate {
   hasLead: boolean;
 }
 
-export interface OfflineEnrollmentBatchResponse {
+export interface PendingEnrollmentBatchResponse {
   enrolled: number;
   failed: number;
   results: Array<{
@@ -89,19 +90,31 @@ export interface EnrollmentStatusLogResponse {
   changedAt: string;
 }
 
-export interface AttendanceAbsenceResponse {
+export type AttendanceStatus = 'NOT_MARKED' | 'PRESENT' | 'LATE' | 'ABSENT' | 'EXCUSED';
+
+export interface AttendanceRecordResponse {
   attendanceId: number;
   enrollmentId: number;
   sessionId: number;
-  createdAt: string;
-  createdBy: number;
+  sessionNumber: number | null;
+  sessionTitle: string | null;
+  sessionDate: string | null;
+  sessionStartTime: string | null;
+  status: AttendanceStatus;
+  checkInAt: string | null;
+  note: string | null;
+  studentName: string | null;
+  studentCode: string | null;
+  markedAt: string | null;
+  markedBy: number | null;
+  updatedAt: string | null;
+  updatedBy: number | null;
 }
 
 export interface SessionAttendanceResponse {
   courseId: number;
   sessionId: number;
-  activeEnrollmentIds: number[];
-  absentEnrollmentIds: number[];
+  records: AttendanceRecordResponse[];
 }
 
 export interface HoldRequest { reason: string; startDate: string; endDate: string }

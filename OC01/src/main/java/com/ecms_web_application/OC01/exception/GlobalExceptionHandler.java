@@ -38,7 +38,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ExceptionResponse> handleErrorHandler(ErrorHandler ex) {
         log.warn("Business error: {} - {}", ex.getStatus(), ex.getMessage());
 
-        ExceptionResponse response = new ExceptionResponse(ex.getMessage());
+        ExceptionResponse response = new ExceptionResponse(ex.getMessage(), ex.getCode());
         return ResponseEntity
                 .status(ex.getStatus())
                 .contentType(MediaType.APPLICATION_JSON)
