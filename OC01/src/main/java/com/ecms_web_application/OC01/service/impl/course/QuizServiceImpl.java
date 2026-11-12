@@ -422,6 +422,73 @@ public class QuizServiceImpl implements QuizService {
         }
     }
 
+    // ============================================================
+    // [M9] Auto-submit QUIZ_ATTEMPT khi TIMEOUT
+    // ============================================================
+    @Override
+    @org.springframework.transaction.annotation.Transactional
+    public void autoSubmitTimedOutAttempt(Long attemptId) {
+        QuizAttempt attempt = quizAttemptRepository.findById(attemptId).orElse(null);
+        if (attempt == null || attempt.getStatus() != QuizAttemptStatus.IN_PROGRESS) {
+            return;
+        }
+
+        // Lấy answers đã lưu (nếu student chưa trả lời câu nào → map rỗng)
+        Map<String, Object> answers = attempt.getAnswers() != null
+                ? attempt.getAnswers()
+                : new HashMap<>();
+
+        List<Question> questions = questionRepository.findAllById(attempt.getQuestionIds());
+        Map<Long, Question> qMap = questions.stream()
+                .collect(Collectors.toMap(Question::getId, q -> q));
+
+        BigDecimal earned = BigDecimal.ZERO;
+        BigDecimal total = BigDecimal.ZERO;
+        for (Long qid : attempt.getQuestionIds()) {
+            Question q = qMap.get(qid);
+            if (q == null) continue;
+            BigDecimal qPoints = q.getPoints() != null ? q.getPoints() : BigDecimal.ZERO;
+            total = total.add(qPoints);
+
+            List<String> studentAns = normalizeAnswers(answers.get(qid.toString()));
+            List<String> correct = q.getCorrectAnswer() != null ? q.getCorrectAnswer() : List.of();
+            if (isCorrect(studentAns, correct, q.getQuestionType())) {
+                earned = earned.add(qPoints);
+            }
+        }
+
+        BigDecimal scorePercent = total.signum() > 0
+                ? earned.multiply(BigDecimal.valueOf(100)).divide(total, 2, RoundingMode.HALF_UP)
+                : BigDecimal.ZERO;
+        BigDecimal passing = attempt.getPassingScore() != null
+                ? attempt.getPassingScore()
+                : DEFAULT_PASSING_SCORE;
+
+        LocalDateTime now = LocalDateTime.now();
+        attempt.setAnswers(answers);
+        attempt.setScore(earned);
+        attempt.setMaxScore(total);
+        attempt.setIsPassed(scorePercent.compareTo(passing) >= 0);
+        attempt.setStatus(QuizAttemptStatus.TIMEOUT);
+        attempt.setSubmittedAt(now);
+        attempt.setTimeSpent((int) Math.max(0,
+                Duration.between(attempt.getStartedAt(), now).getSeconds()));
+
+        QuizAttempt saved = quizAttemptRepository.save(attempt);
+
+        if (saved.getEnrollment() != null) {
+            updateProgressAfterAttempt(saved, saved.getResource());
+        }
+
+        auditLogService.log("AUTO_SUBMIT_TIMEOUT", "QUIZ", saved.getResource().getId(),
+                "attemptId=" + saved.getId() + ", score=" + scorePercent + "%");
+
+        log.info("[QuizTimeout] Auto-submitted attemptId={}, enrollmentId={}, score={}%",
+                saved.getId(),
+                saved.getEnrollment() != null ? saved.getEnrollment().getId() : null,
+                scorePercent);
+    }
+
     private void updateProgressAfterAttempt(QuizAttempt attempt, CourseResource quiz) {
         Long enrollmentId = attempt.getEnrollment().getId();
         Long courseId = attempt.getCourse().getId();
