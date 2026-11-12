@@ -8,15 +8,20 @@ import { SaveOutlined, ArrowLeftOutlined } from '@ant-design/icons';
 import toast from 'react-hot-toast';
 
 import ThumbnailUpload from '@/components/common/ThumbnailUpload';
-import { courseApi, categoryApi, roomApi } from '@/services/api/course';
+import { courseApi, categoryApi } from '@/services/api/course'; // 🆕 Đã xóa roomApi
 import { adminUserApi } from '@/services/api/admin';
 import { useAuth } from '@/hooks/useAuth';
 import type {
   CourseCreateRequest,
   CategoryResponse,
-  RoomResponse,
 } from '@/services/types/course';
 import type { AccountResponse } from '@/services/types/user';
+
+// 🆕 Tạo Interface mở rộng để fix dứt điểm lỗi TS
+interface FormValues extends CourseCreateRequest {
+  minStudents?: number;
+  maxStudents?: number;
+}
 
 interface Props {
   mode: 'admin' | 'instructor';
@@ -25,10 +30,10 @@ interface Props {
 const CourseCreateForm = ({ mode }: Props) => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [form] = Form.useForm<CourseCreateRequest>();
+  // 🆕 Dùng FormValues thay vì CourseCreateRequest
+  const [form] = Form.useForm<FormValues>();
   const [submitting, setSubmitting] = useState(false);
   const [categories, setCategories] = useState<CategoryResponse[]>([]);
-  const [rooms, setRooms] = useState<RoomResponse[]>([]);
   const [instructors, setInstructors] = useState<AccountResponse[]>([]);
 
   const courseType = Form.useWatch('courseType', form);
@@ -39,10 +44,7 @@ const CourseCreateForm = ({ mode }: Props) => {
       .list({ page: 0, size: 9999, sortBy: 'name', sortDir: 'asc' })
       .then((res) => setCategories(res.content || []))
       .catch(() => {});
-    roomApi
-      .listActive()
-      .then(setRooms)
-      .catch(() => {});
+      
     if (mode === 'admin') {
       adminUserApi
         .search({ roleCode: 'INSTRUCTOR', isActive: true, page: 0, size: 200 })
@@ -62,10 +64,10 @@ const CourseCreateForm = ({ mode }: Props) => {
         .map((x) => ({ title: x.name, value: x.id, key: x.id })),
     }));
 
-  const handleSubmit = async (values: CourseCreateRequest) => {
+  const handleSubmit = async (values: FormValues) => {
     setSubmitting(true);
     try {
-      // 1. Chuẩn bị payload cơ bản (tuân thủ đúng DTO Backend CourseCreateRequest)
+      // 1. Chuẩn bị payload cơ bản (Không gửi min/max lên API create)
       const payload: CourseCreateRequest = {
         ...values,
         price: values.isFree ? 0 : Number(values.price) || 0,
@@ -73,7 +75,7 @@ const CourseCreateForm = ({ mode }: Props) => {
         totalSessionsExpected:
           values.courseType === 'OFFLINE' ? values.totalSessionsExpected : undefined,
         learningMode: values.courseType === 'ONLINE' ? values.learningMode : undefined,
-        allowedRoomIds: values.courseType === 'OFFLINE' ? values.allowedRoomIds : undefined,
+        // Đã xóa roomId và allowedRoomIds
       };
       
       if (mode === 'instructor' && user?.accountId) {
@@ -83,8 +85,7 @@ const CourseCreateForm = ({ mode }: Props) => {
       // 2. Gọi API tạo COURSE
       const created = await courseApi.create(payload);
       
-      // 3. 🆕 Xử lý bổ sung: Nếu là OFFLINE và có nhập Min/Max Students -> Gọi API cập nhật
-      // (Vì Backend CourseCreateRequest chưa hỗ trợ min/max)
+      // 3. Cập nhật bổ sung Min/Max Students cho khóa OFFLINE
       if (
         values.courseType === 'OFFLINE' && 
         (values.minStudents !== undefined || values.maxStudents !== undefined)
@@ -92,7 +93,6 @@ const CourseCreateForm = ({ mode }: Props) => {
         await courseApi.updateOfflineInfo(created.id, {
           minStudents: values.minStudents,
           maxStudents: values.maxStudents,
-          // roomId đã được gửi lúc tạo, nên ở đây không cần gửi lại trừ khi bạn muốn
         });
       }
 
@@ -199,7 +199,7 @@ const CourseCreateForm = ({ mode }: Props) => {
               </Form.Item>
             )}
 
-            {/* 🆕 CẤU HÌNH DÀNH RIÊNG CHO OFFLINE */}
+            {/* CẤU HÌNH DÀNH RIÊNG CHO OFFLINE - KHÔNG CÓ PHÒNG */}
             {courseType === 'OFFLINE' && (
               <>
                 <Row gutter={16}>
@@ -242,21 +242,10 @@ const CourseCreateForm = ({ mode }: Props) => {
                 >
                   <InputNumber min={0} style={{ width: '100%' }} placeholder="VD: 24" />
                 </Form.Item>
-
-                <Form.Item
-                  name="allowedRoomIds"
-                  label="Danh sách phòng được phép xếp lịch"
-                  tooltip="Hệ thống sẽ tự động xếp lịch vào một trong các phòng này"
-                >
-                  <Select
-                    mode="multiple"
-                    placeholder="Chọn các phòng..."
-                    options={rooms.map((r) => ({ value: r.id, label: r.name }))}
-                  />
-                </Form.Item>
               </>
             )}
 
+            {/* CHỈ HIỂN THỊ GIẢNG VIÊN PHỤ TRÁCH (ADMIN) */}
             {mode === 'admin' && (
               <Row gutter={16}>
                 <Col span={12}>
@@ -273,26 +262,7 @@ const CourseCreateForm = ({ mode }: Props) => {
                     />
                   </Form.Item>
                 </Col>
-                <Col span={12}>
-                  <Form.Item name="roomId" label={courseType === 'OFFLINE' ? "Phòng học chính (Tùy chọn)" : "Phòng học"}>
-                    <Select
-                      placeholder="Chọn phòng"
-                      allowClear
-                      options={rooms.map((r) => ({ value: r.id, label: r.name }))}
-                    />
-                  </Form.Item>
-                </Col>
               </Row>
-            )}
-
-            {mode === 'instructor' && (
-              <Form.Item name="roomId" label="Phòng học (nếu có)">
-                <Select
-                  placeholder="Chọn phòng"
-                  allowClear
-                  options={rooms.map((r) => ({ value: r.id, label: r.name }))}
-                />
-              </Form.Item>
             )}
           </Card>
 

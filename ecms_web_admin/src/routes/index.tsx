@@ -34,6 +34,7 @@ import CategoryListPage from '@/pages/admin/categories/CategoryListPage';
 import TuitionPage from '@/pages/admin/tuition/TuitionPage';
 import EnrollmentPage from '@/pages/admin/enrollment/EnrollmentPage';
 import RequestListPage from '@/pages/admin/requests/RequestListPage';
+import RoomListPage from '@/pages/admin/rooms/RoomListPage';
 
 // ─── Instructor pages ───
 import InstructorDashboardPage from '@/pages/instructor/dashboard/InstructorDashboardPage';
@@ -84,6 +85,7 @@ export default function AppRouter() {
             <Route path="/admin/courses/create" element={<AdminCourseCreatePage />} />
             {/* 🆕 Request Management */}
             <Route path="/admin/requests" element={<RequestListPage />} />
+            <Route path="/admin/rooms" element={<RoomListPage />} />
             <Route path="/admin/roles" element={<RoleManagePage />} />
             <Route path="/admin/permissions" element={<PermissionListPage />} />
             <Route path="/admin/audit-logs" element={<SystemLogPage />} />

@@ -29,6 +29,10 @@ import ResourceManager from '@/components/course/ResourceManager';
 import CourseSessionList from '@/components/course/CourseSessionList';
 import CourseQuestionList from '@/components/course/CourseQuestionList';
 import QuizListCard from '@/components/course/QuizListCard';
+// 🆕 Import 2 component dùng chung từ Admin
+import CourseEnrollmentList from '@/components/course/CourseEnrollmentList';
+import CourseProgressStats from '@/components/course/CourseProgressStats';
+import CourseProgressCharts from '@/components/course/CourseProgressCharts';
 
 import { courseApi } from '@/services/api/course';
 import { requestApi } from '@/services/api/request/requestApi';
@@ -193,6 +197,29 @@ const CourseEditPage = () => {
       label: 'Quiz',
       children: <QuizListCard courseId={courseId} />,
     },
+    // 🆕 THÊM TAB HỌC VIÊN
+    {
+      key: 'enrollments',
+      label: course.courseType === 'ONLINE' ? 'Người đã mua khóa' : 'Danh sách học viên',
+      children: (
+        <CourseEnrollmentList
+          courseId={courseId}
+          courseType={course.courseType}
+          courseStatus={course.status}
+        />
+      ),
+    },
+    // 🆕 THÊM TAB TIẾN ĐỘ (Dùng chung component với Admin)
+    {
+      key: 'progress',
+      label: 'Tiến độ lớp học',
+      children: (
+        <div className="flex flex-col gap-6">
+          <CourseProgressStats courseId={courseId} />
+          <CourseProgressCharts courseId={courseId} />
+        </div>
+      ),
+    },
   ];
 
   // Nếu là khóa OFFLINE, chèn thêm tab Buổi học vào vị trí số 2
@@ -249,6 +276,7 @@ const CourseEditPage = () => {
               </Tooltip>
             )}
 
+            {/* Các thao tác phụ (Copy, Sinh Session...) - Đã tự động ẩn nút Admin */}
             <CourseDetailActions
               course={course}
               onRefresh={handleSilentRefresh}

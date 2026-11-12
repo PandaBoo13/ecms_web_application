@@ -1,25 +1,15 @@
 import { Button, Space, Modal, Input, Typography, Select, Dropdown } from 'antd';
 import type { MenuProps } from 'antd';
 import {
-  SendOutlined,
-  CheckOutlined,
-  CloseOutlined,
-  InboxOutlined,
-  StopOutlined,
-  ReloadOutlined,
-  UserSwitchOutlined,
-  ThunderboltOutlined,
-  CopyOutlined,
-  DownOutlined,
-  PlayCircleOutlined,
+  SendOutlined, CheckOutlined, CloseOutlined, InboxOutlined, StopOutlined,
+  ReloadOutlined, UserSwitchOutlined, ThunderboltOutlined, CopyOutlined,
+  DownOutlined, CalendarOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 
-import { courseApi } from '@/services/api/course';
-import { sessionApi } from '@/services/api/course';
-
+import { courseApi, sessionApi } from '@/services/api/course';
 import { adminUserApi } from '@/services/api/admin';
 import type { CourseDetailResponse } from '@/services/types/course';
 import type { AccountResponse } from '@/services/types/user';
@@ -32,16 +22,11 @@ interface Props {
   onRefresh: () => void;
 }
 
-/**
- * Action buttons cho course detail.
- * Render gọn vào PageHeader.extra — dùng chung cho ADMIN và INSTRUCTOR.
- * Các action nhạy cảm (Approve/Reject/Publish/Archive/Đổi GV) chỉ hiện khi user là ADMIN.
- */
 const CourseDetailActions = ({ course, onRefresh }: Props) => {
   const navigate = useNavigate();
   const { isAdmin } = useAuth();
-  const [, setSubmitting] = useState(false);
-  const [, setGenerating] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [generating, setGenerating] = useState(false);
 
   const [teacherModalOpen, setTeacherModalOpen] = useState(false);
   const [instructors, setInstructors] = useState<AccountResponse[]>([]);
@@ -94,14 +79,15 @@ const CourseDetailActions = ({ course, onRefresh }: Props) => {
     }
   };
 
-  const handlePublish = async () => {
+  // 🆕 Hàm chốt lịch (PLANNED -> PUBLISHED)
+  const handleFinalize = async () => {
     setSubmitting(true);
     try {
-      await courseApi.review(course.id, true);
-      toast.success('Đã phát hành khóa học chính thức');
+      await courseApi.finalizeSchedule(course.id);
+      toast.success('Đã chốt lịch và xuất bản khóa học chính thức');
       onRefresh();
     } catch (err) {
-      toast.error((err as { message?: string })?.message || 'Phát hành thất bại');
+      toast.error((err as { message?: string })?.message || 'Chốt lịch thất bại');
     } finally {
       setSubmitting(false);
     }
@@ -242,7 +228,6 @@ const CourseDetailActions = ({ course, onRefresh }: Props) => {
       });
       toast.success(`Đã copy khóa học #${newCourse.id}`);
       setCopyModalOpen(false);
-      // Admin → trang admin, Instructor → trang instructor
       const basePath = isAdmin() ? '/admin/courses' : '/instructor/courses';
       const detailPath = isAdmin()
         ? `${basePath}/${newCourse.id}`
@@ -258,7 +243,6 @@ const CourseDetailActions = ({ course, onRefresh }: Props) => {
   // ── BUILD MENU ITEMS ──
   const menuItems: MenuProps['items'] = [];
 
-  // Gửi duyệt — cả ADMIN và INSTRUCTOR đều được
   if (course.status === 'DRAFT') {
     menuItems.push({
       key: 'submit',
@@ -268,7 +252,6 @@ const CourseDetailActions = ({ course, onRefresh }: Props) => {
     });
   }
 
-  // Duyệt / Từ chối — CHỈ ADMIN
   if (course.status === 'PENDING_REVIEW' && isAdmin()) {
     menuItems.push(
       {
@@ -287,14 +270,14 @@ const CourseDetailActions = ({ course, onRefresh }: Props) => {
     );
   }
 
-  // Publish / Hủy duyệt — CHỈ ADMIN
+  // 🆕 Fix: Nút Publish cho OFFLINE phải gọi FinalizeSchedule
   if (course.status === 'PLANNED' && isAdmin()) {
     menuItems.push(
       {
-        key: 'publish',
-        icon: <PlayCircleOutlined style={{ color: '#16a34a' }} />,
-        label: 'Phát hành chính thức',
-        onClick: handlePublish,
+        key: 'finalize',
+        icon: <CalendarOutlined style={{ color: '#16a34a' }} />,
+        label: 'Chốt lịch & Xuất bản',
+        onClick: handleFinalize,
       },
       {
         key: 'reject',
@@ -306,7 +289,6 @@ const CourseDetailActions = ({ course, onRefresh }: Props) => {
     );
   }
 
-  // Sinh session — cả 2 role, chỉ OFFLINE
   if (
     course.courseType === 'OFFLINE' &&
     ['DRAFT', 'PENDING_REVIEW', 'PLANNED', 'PUBLISHED', 'ONGOING'].includes(course.status)
@@ -319,7 +301,6 @@ const CourseDetailActions = ({ course, onRefresh }: Props) => {
     });
   }
 
-  // Đổi GV — CHỈ ADMIN
   if (isAdmin() && course.courseType === 'OFFLINE') {
     menuItems.push({
       key: 'changeTeacher',
@@ -329,7 +310,6 @@ const CourseDetailActions = ({ course, onRefresh }: Props) => {
     });
   }
 
-  // Copy — cả 2 role
   if (
     ['DRAFT', 'PLANNED', 'PUBLISHED', 'ONGOING', 'FINISHED', 'ARCHIVED', 'CANCELLED'].includes(
       course.status,
@@ -343,7 +323,6 @@ const CourseDetailActions = ({ course, onRefresh }: Props) => {
     });
   }
 
-  // Hủy khóa — cả 2 role (GV có thể xin hủy khóa của mình)
   if (['DRAFT', 'PENDING_REVIEW', 'PLANNED', 'PUBLISHED', 'ONGOING'].includes(course.status)) {
     menuItems.push({
       key: 'cancel',
@@ -354,7 +333,6 @@ const CourseDetailActions = ({ course, onRefresh }: Props) => {
     });
   }
 
-  // Lưu trữ — CHỈ ADMIN
   if (
     isAdmin() &&
     ['PUBLISHED', 'ONGOING', 'FINISHED', 'CANCELLED'].includes(course.status)
@@ -426,23 +404,14 @@ const CourseDetailActions = ({ course, onRefresh }: Props) => {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div>
             <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 4 }}>Tiêu đề mới</div>
-            <Input
-              value={copyTitle}
-              onChange={(e) => setCopyTitle(e.target.value)}
-              placeholder="VD: Khóa học ABC (Copy)"
-            />
+            <Input value={copyTitle} onChange={(e) => setCopyTitle(e.target.value)} />
           </div>
           <div>
             <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 4 }}>Display code mới</div>
-            <Input
-              value={copyDisplayCode}
-              onChange={(e) => setCopyDisplayCode(e.target.value)}
-              placeholder="VD: CRS-ONL-202610-COPY"
-            />
+            <Input value={copyDisplayCode} onChange={(e) => setCopyDisplayCode(e.target.value)} />
           </div>
           <Text type="secondary" style={{ fontSize: 12 }}>
-            Cây nội dung và ngân hàng câu hỏi sẽ được copy. Enrollment, session, progress không
-            copy.
+            Cây nội dung và ngân hàng câu hỏi sẽ được copy. Enrollment, session, progress không copy.
           </Text>
         </div>
       </Modal>
