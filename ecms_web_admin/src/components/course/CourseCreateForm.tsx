@@ -65,6 +65,7 @@ const CourseCreateForm = ({ mode }: Props) => {
   const handleSubmit = async (values: CourseCreateRequest) => {
     setSubmitting(true);
     try {
+      // 1. Chuẩn bị payload cơ bản (tuân thủ đúng DTO Backend CourseCreateRequest)
       const payload: CourseCreateRequest = {
         ...values,
         price: values.isFree ? 0 : Number(values.price) || 0,
@@ -72,12 +73,29 @@ const CourseCreateForm = ({ mode }: Props) => {
         totalSessionsExpected:
           values.courseType === 'OFFLINE' ? values.totalSessionsExpected : undefined,
         learningMode: values.courseType === 'ONLINE' ? values.learningMode : undefined,
+        allowedRoomIds: values.courseType === 'OFFLINE' ? values.allowedRoomIds : undefined,
       };
+      
       if (mode === 'instructor' && user?.accountId) {
         payload.teacherId = user.accountId;
       }
 
+      // 2. Gọi API tạo COURSE
       const created = await courseApi.create(payload);
+      
+      // 3. 🆕 Xử lý bổ sung: Nếu là OFFLINE và có nhập Min/Max Students -> Gọi API cập nhật
+      // (Vì Backend CourseCreateRequest chưa hỗ trợ min/max)
+      if (
+        values.courseType === 'OFFLINE' && 
+        (values.minStudents !== undefined || values.maxStudents !== undefined)
+      ) {
+        await courseApi.updateOfflineInfo(created.id, {
+          minStudents: values.minStudents,
+          maxStudents: values.maxStudents,
+          // roomId đã được gửi lúc tạo, nên ở đây không cần gửi lại trừ khi bạn muốn
+        });
+      }
+
       toast.success('Tạo khóa học thành công!');
       navigate(
         mode === 'admin'
@@ -181,14 +199,62 @@ const CourseCreateForm = ({ mode }: Props) => {
               </Form.Item>
             )}
 
+            {/* 🆕 CẤU HÌNH DÀNH RIÊNG CHO OFFLINE */}
             {courseType === 'OFFLINE' && (
-              <Form.Item
-                name="totalSessionsExpected"
-                label="Tổng số buổi dự kiến"
-                tooltip="Số buổi học dự kiến của khóa offline"
-              >
-                <InputNumber min={0} style={{ width: '100%' }} placeholder="VD: 24" />
-              </Form.Item>
+              <>
+                <Row gutter={16}>
+                  <Col span={12}>
+                    <Form.Item
+                      name="minStudents"
+                      label="Sĩ số tối thiểu (Min)"
+                      tooltip="Số lượng học viên tối thiểu để mở lớp"
+                    >
+                      <InputNumber min={1} style={{ width: '100%' }} placeholder="VD: 10" />
+                    </Form.Item>
+                  </Col>
+                  <Col span={12}>
+                    <Form.Item
+                      name="maxStudents"
+                      label="Sĩ số tối đa (Max)"
+                      tooltip="Số lượng học viên tối đa của lớp"
+                      dependencies={['minStudents']}
+                      rules={[
+                        ({ getFieldValue }) => ({
+                          validator(_, value) {
+                            const min = getFieldValue('minStudents');
+                            if (!value || !min || value >= min) {
+                              return Promise.resolve();
+                            }
+                            return Promise.reject(new Error('Sĩ số tối đa phải lớn hơn hoặc bằng sĩ số tối thiểu!'));
+                          },
+                        }),
+                      ]}
+                    >
+                      <InputNumber min={1} style={{ width: '100%' }} placeholder="VD: 20" />
+                    </Form.Item>
+                  </Col>
+                </Row>
+
+                <Form.Item
+                  name="totalSessionsExpected"
+                  label="Tổng số buổi dự kiến"
+                  tooltip="Số buổi học dự kiến của khóa offline"
+                >
+                  <InputNumber min={0} style={{ width: '100%' }} placeholder="VD: 24" />
+                </Form.Item>
+
+                <Form.Item
+                  name="allowedRoomIds"
+                  label="Danh sách phòng được phép xếp lịch"
+                  tooltip="Hệ thống sẽ tự động xếp lịch vào một trong các phòng này"
+                >
+                  <Select
+                    mode="multiple"
+                    placeholder="Chọn các phòng..."
+                    options={rooms.map((r) => ({ value: r.id, label: r.name }))}
+                  />
+                </Form.Item>
+              </>
             )}
 
             {mode === 'admin' && (
@@ -208,7 +274,7 @@ const CourseCreateForm = ({ mode }: Props) => {
                   </Form.Item>
                 </Col>
                 <Col span={12}>
-                  <Form.Item name="roomId" label="Phòng học">
+                  <Form.Item name="roomId" label={courseType === 'OFFLINE' ? "Phòng học chính (Tùy chọn)" : "Phòng học"}>
                     <Select
                       placeholder="Chọn phòng"
                       allowClear

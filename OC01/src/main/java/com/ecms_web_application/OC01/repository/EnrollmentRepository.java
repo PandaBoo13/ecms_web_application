@@ -1,8 +1,10 @@
 package com.ecms_web_application.OC01.repository;
 
 import com.ecms_web_application.OC01.entity.Enrollment;
+import com.ecms_web_application.OC01.entity.course.Progress;
 import com.ecms_web_application.OC01.entity.enums.EnrollmentStatus;
 import com.ecms_web_application.OC01.entity.enums.EnrollmentType;
+import com.ecms_web_application.OC01.entity.enums.ProgressScope;
 import com.ecms_web_application.OC01.generic.IRepository;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
@@ -33,4 +35,7 @@ public interface EnrollmentRepository extends IRepository<Enrollment, Long>, Jpa
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT e FROM Enrollment e WHERE e.id = :id")
     Optional<Enrollment> findByIdForUpdate(@Param("id") Long id);
+
+    Optional<Progress> findByAccount_IdAndCourse_IdAndProgressTypeAndReferenceId(
+            Long accountId, Long courseId, ProgressScope type, Long referenceId);
 }

@@ -1,6 +1,6 @@
 package com.ecms_web_application.OC01.entity.course;
-import com.ecms_web_application.OC01.entity.Account;
 
+import com.ecms_web_application.OC01.entity.Account;
 import com.ecms_web_application.OC01.entity.enums.CourseStatus;
 import com.ecms_web_application.OC01.entity.enums.CourseType;
 import com.ecms_web_application.OC01.entity.enums.ProgressType;
@@ -9,13 +9,16 @@ import lombok.Getter;
 import lombok.Setter;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
+
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
+import java.util.Map;
 
-@Setter @Getter
+@Setter 
+@Getter
 @Entity
 @Table(name = "course",
         uniqueConstraints = {
@@ -93,7 +96,17 @@ public class Course {
     @Column(name = "total_sessions_expected")
     private Integer totalSessionsExpected;
 
-    @PrePersist void onCreate() {
+    // ===== THÊM MỚI CHO CHỨNG CHỈ =====
+    @Column(name = "certificate_type_id")
+    private Long certificateTypeId;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "certificate_config", columnDefinition = "jsonb") 
+    private Map<String, Object> certificateConfig;
+    // ===================================
+
+    @PrePersist 
+    void onCreate() {
         LocalDateTime now = LocalDateTime.now();
         if (createdAt == null) createdAt = now;
         if (updatedAt == null) updatedAt = now;
@@ -104,5 +117,9 @@ public class Course {
         if (progressType == null) progressType = ProgressType.COMPLETION_BASED;
         if (status == null) status = CourseStatus.DRAFT;
     }
-    @PreUpdate void onUpdate() { updatedAt = LocalDateTime.now(); }
+
+    @PreUpdate 
+    void onUpdate() { 
+        updatedAt = LocalDateTime.now(); 
+    }
 }
