@@ -136,22 +136,30 @@ spring:
 
   # ══════════════════════════════════════════════════════════════
   # MAIL
+  # Mặc định: Gmail SMTP. Khi demo có thể trỏ sang email sandbox
+  # (Mailtrap / Ethereal) chỉ bằng biến môi trường, không sửa code:
+  #   Mailtrap:  MAIL_HOST=sandbox.smtp.mailtrap.io  MAIL_PORT=2525
+  #              MAIL_USERNAME=<user>  MAIL_PASSWORD=<pass>
+  #   Ethereal:  MAIL_HOST=smtp.ethereal.email      MAIL_PORT=587
+  #              MAIL_USERNAME=<user>  MAIL_PASSWORD=<pass>
+  #   Mailpit:   MAIL_HOST=localhost  MAIL_PORT=1025
+  #              MAIL_SMTP_AUTH=false  MAIL_SMTP_STARTTLS=false
   # ══════════════════════════════════════════════════════════════
   mail:
-    host: smtp.gmail.com
-    port: 587
+    host: ${MAIL_HOST:smtp.gmail.com}
+    port: ${MAIL_PORT:587}
     username: ${MAIL_USERNAME:}
     password: ${MAIL_PASSWORD:}
     properties:
       mail:
         smtp:
-          auth: true
+          auth: ${MAIL_SMTP_AUTH:true}
           starttls:
-            enable: true
-            required: true
+            enable: ${MAIL_SMTP_STARTTLS:true}
+            required: ${MAIL_SMTP_STARTTLS:true}
           connectiontimeout: 5000
           timeout: 5000
-          writetimeout: 500
+          writetimeout: 5000
 
   # ══════════════════════════════════════════════════════════════
   # FILE UPLOAD
@@ -243,6 +251,12 @@ app:
   upload:
     dir: ${UPLOAD_DIR:uploads/}
     max-size: ${UPLOAD_MAX_SIZE:10485760}
+
+  mail:
+    # Địa chỉ hiển thị ở người gửi. Sandbox (Mailtrap/Ethereal) chấp nhận mọi địa chỉ,
+    # nên khi demo vẫn có thể hiển thị "ECMS <noreply@ecms.vn>".
+    from: "${MAIL_FROM:${MAIL_USERNAME:noreply@ecms.vn}}"
+    from-name: ${MAIL_FROM_NAME:ECMS}
 
   password:
     min-length: ${PASSWORD_MIN_LENGTH:6}

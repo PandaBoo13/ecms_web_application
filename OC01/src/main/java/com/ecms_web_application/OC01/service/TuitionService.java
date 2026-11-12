@@ -10,6 +10,8 @@ import com.ecms_web_application.OC01.dto.request.tuition.OnlineCheckoutRequest;
 import com.ecms_web_application.OC01.dto.response.tuition.CreateInvoiceFromLeadResponse;
 import com.ecms_web_application.OC01.dto.response.tuition.EligibleLeadResponse;
 import com.ecms_web_application.OC01.dto.response.tuition.InvoiceResponse;
+import com.ecms_web_application.OC01.dto.response.tuition.PublicCheckoutResponse;
+import com.ecms_web_application.OC01.dto.response.tuition.TuitionInvoiceStatsResponse;
 import com.ecms_web_application.OC01.entity.enums.CourseType;
 import com.ecms_web_application.OC01.entity.enums.InvoiceStatus;
 import com.ecms_web_application.OC01.entity.enums.InvoiceType;
@@ -19,9 +21,15 @@ import org.springframework.data.domain.Pageable;
 public interface TuitionService {
     InvoiceResponse createOfflineInvoice(CreateInvoiceRequest request);
     InvoiceResponse createOnlineCheckoutInvoice(Long courseId, OnlineCheckoutRequest request);
+    /** Checkout công khai cho khách chưa có tài khoản; trả về token thanh toán có chữ ký. */
+    PublicCheckoutResponse createPublicOnlineCheckout(Long courseId, OnlineCheckoutRequest request);
     Page<InvoiceResponse> search(InvoiceType type, InvoiceStatus status, CourseType courseType, Long courseId,
-                                 Long studentId, Long accountId, Long leadId, String search, Pageable pageable);
+                                 Long studentId, Long leadId, String search, boolean refundable,
+                                 Pageable pageable);
     InvoiceResponse getById(Long invoiceId);
+
+    /** Thống kê số lượng hóa đơn học phí theo trạng thái (1 query, dùng cho các thẻ số liệu). */
+    TuitionInvoiceStatsResponse getStats();
     InvoiceResponse confirmCashPayment(Long invoiceId, String proofUrl);
     InvoiceResponse confirmBankTransferPayment(Long invoiceId, String transactionReference, String proofUrl);
     InvoiceResponse extendDueDate(Long invoiceId, ExtendInvoiceDueDateRequest request);

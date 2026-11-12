@@ -4,6 +4,7 @@ import com.ecms_web_application.OC01.config.SecurityUtils;
 import com.ecms_web_application.OC01.dto.response.course.ProgressResponse;
 import com.ecms_web_application.OC01.entity.Account;
 import com.ecms_web_application.OC01.entity.Enrollment;
+import com.ecms_web_application.OC01.entity.Student;
 import com.ecms_web_application.OC01.entity.course.CourseResource;
 import com.ecms_web_application.OC01.entity.course.Progress;
 import com.ecms_web_application.OC01.entity.enums.EnrollmentStatus;
@@ -13,12 +14,12 @@ import com.ecms_web_application.OC01.exception.ErrorHandler;
 import com.ecms_web_application.OC01.repository.CourseResourceRepository;
 import com.ecms_web_application.OC01.repository.EnrollmentRepository;
 import com.ecms_web_application.OC01.repository.ProgressRepository;
+import com.ecms_web_application.OC01.repository.StudentRepository;
 import com.ecms_web_application.OC01.service.ProgressService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -35,13 +36,15 @@ public class ProgressServiceImpl implements ProgressService {
     private final ProgressRepository progressRepository;
     private final CourseResourceRepository resourceRepository;
     private final EnrollmentRepository enrollmentRepository;
+    private final StudentRepository studentRepository;
     private final com.ecms_web_application.OC01.service.ProgressCalculationService progressCalculationService;
 
     @Override
     @Transactional(readOnly = true)
     public Page<ProgressResponse> getMyCourses(Pageable pageable) {
         Account current = SecurityUtils.requireCurrentAccount();
-        return progressRepository.findCourseProgressByAccount(current.getId(), pageable).map(this::toResponse);
+        Student student = findStudentForAccount(current.getId());
+        return progressRepository.findCourseProgressByStudent(student.getId(), pageable).map(this::toResponse);
     }
 
     @Override
@@ -132,19 +135,25 @@ public class ProgressServiceImpl implements ProgressService {
     }
 
     private Enrollment getActiveEnrollment(Long accountId, Long courseId) {
-        Specification<Enrollment> spec = (root, query, cb) -> cb.and(
-            cb.equal(root.get("accountId"), accountId),
-            cb.equal(root.get("courseId"), courseId),
-            root.get("status").in(EnrollmentStatus.ACTIVE, EnrollmentStatus.COMPLETED)
-        );
-        return enrollmentRepository.findOne(spec)
+        Student student = findStudentForAccount(accountId);
+        return enrollmentRepository.findByCourseIdAndStudentId(courseId, student.getId()).stream()
+                .filter(enrollment -> enrollment.getStatus() == EnrollmentStatus.ACTIVE
+                        || enrollment.getStatus() == EnrollmentStatus.COMPLETED)
+                .findFirst()
                 .orElseThrow(() -> new ErrorHandler(HttpStatus.FORBIDDEN, "Bạn không thuộc khóa học này hoặc chưa được kích hoạt"));
+    }
+
+    private Student findStudentForAccount(Long accountId) {
+        return studentRepository.findByUserId(accountId)
+                .orElseThrow(() -> new ErrorHandler(HttpStatus.FORBIDDEN,
+                        "Tài khoản chưa được liên kết với hồ sơ học viên"));
     }
 
     private ProgressResponse toResponse(Progress p) {
         ProgressResponse r = new ProgressResponse();
         r.setId(p.getId());
-        r.setAccountId(p.getEnrollment() != null ? p.getEnrollment().getAccountId() : null);
+        r.setAccountId(p.getEnrollment() == null ? null : studentRepository.findById(p.getEnrollment().getStudentId())
+                .map(Student::getUserId).orElse(null));
         r.setCourseId(p.getCourse().getId());
         r.setCourseTitle(p.getCourse().getTitle());
         r.setProgressType(p.getProgressType().name());

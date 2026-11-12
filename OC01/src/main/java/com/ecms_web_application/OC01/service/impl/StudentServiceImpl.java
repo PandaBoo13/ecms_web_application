@@ -59,6 +59,7 @@ public class StudentServiceImpl implements StudentService {
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
     private final AuthSessionRepository authSessionRepository;
+    private final TemporaryCredentialStore temporaryCredentialStore;
 
     @Override
     @Transactional(readOnly = true)
@@ -150,32 +151,9 @@ public class StudentServiceImpl implements StudentService {
         student.setAddress(emptyToNull(request.getAddress()));
         student.setLeadId(leadId);
 
-        Long studentUserId = request.getUserId();
-        if (studentUserId == null && !studentEmail.isBlank()) {
-            Optional<Account> existingAcc = accountRepository.findByEmail(studentEmail);
-            if (existingAcc.isPresent()) {
-                studentUserId = existingAcc.get().getId();
-            } else {
-                Role studentRole = roleRepository.findByCode("STUDENT").orElse(null);
-                Account newAcc = new Account();
-                newAcc.setEmail(studentEmail);
-                newAcc.setPasswordHash(passwordEncoder.encode("Password123@"));
-                newAcc.setRole(studentRole);
-                newAcc.setIsActive(true);
-                newAcc.setIsLocked(false);
-                newAcc.setFailedLoginCount(0);
-
-                UserProfile profile = new UserProfile();
-                profile.setAccount(newAcc);
-                profile.setFullName(student.getFullName());
-                profile.setPhone(student.getPhone());
-                newAcc.setUserProfile(profile);
-
-                Account savedAcc = accountRepository.save(newAcc);
-                studentUserId = savedAcc.getId();
-            }
-        }
-        student.setUserId(studentUserId);
+        // Dùng chung logic cấp tài khoản: tái sử dụng account theo email hoặc sinh mật khẩu tạm.
+        student.setUserId(request.getUserId());
+        ensureStudentAccount(student);
 
         String status = (request.getStatus() != null && !request.getStatus().isBlank())
                 ? request.getStatus().trim().toUpperCase()
@@ -198,22 +176,35 @@ public class StudentServiceImpl implements StudentService {
     @Override
     @Transactional
     public StudentResponse convertFromLead(StudentConvertFromLeadRequest request) {
-        return convertFromLead(request, SecurityUtils.getCurrentAccountId());
+        return convertFromLead(request, SecurityUtils.getCurrentAccountId(), false);
     }
 
     @Override
     @Transactional
     public StudentResponse convertFromLeadForPayment(StudentConvertFromLeadRequest request, Long actorId) {
-        return convertFromLead(request, actorId);
+        return convertFromLead(request, actorId, true);
     }
 
-    private StudentResponse convertFromLead(StudentConvertFromLeadRequest request, Long actorId) {
+    @Override
+    @Transactional
+    public StudentResponse ensureAccountForPayment(Long studentId) {
+        Student student = findStudentById(studentId);
+        ensureStudentAccount(student);
+        return toResponse(studentRepository.save(student));
+    }
+
+    private StudentResponse convertFromLead(StudentConvertFromLeadRequest request, Long actorId,
+                                            boolean ensureAccountForExistingStudent) {
         Long leadId = request.getLeadId();
 
         // 1. Kiểm tra tính Idempotent: Nếu leadId đã được chuyển đổi sang Student thì trả về Student hiện tại
         Optional<Student> existingByLead = studentRepository.findByLeadId(leadId);
         if (existingByLead.isPresent()) {
             log.info("Idempotent check: Lead id={} đã được chuyển đổi thành Student id={}", leadId, existingByLead.get().getId());
+            if (ensureAccountForExistingStudent) {
+                ensureStudentAccount(existingByLead.get());
+                studentRepository.save(existingByLead.get());
+            }
             return toResponse(existingByLead.get());
         }
 
@@ -225,6 +216,10 @@ public class StudentServiceImpl implements StudentService {
             Optional<Student> existingStudent = studentRepository.findById(lead.getStudentId());
             if (existingStudent.isPresent()) {
                 log.info("Idempotent check: Lead id={} đã gắn với studentId={}", leadId, lead.getStudentId());
+                if (ensureAccountForExistingStudent) {
+                    ensureStudentAccount(existingStudent.get());
+                    studentRepository.save(existingStudent.get());
+                }
                 return toResponse(existingStudent.get());
             }
         }
@@ -243,33 +238,7 @@ public class StudentServiceImpl implements StudentService {
         student.setStatus("ACTIVE");
 
         // Tự động cấp tài khoản cho Học viên theo chuẩn AUTH_MODULE (BR-ST-02)
-        Long studentUserId = null;
-        String normalizedEmail = lead.getEmail() != null ? lead.getEmail().trim().toLowerCase() : "";
-        if (!normalizedEmail.isBlank()) {
-            Optional<Account> existingAcc = accountRepository.findByEmail(normalizedEmail);
-            if (existingAcc.isPresent()) {
-                studentUserId = existingAcc.get().getId();
-            } else {
-                Role studentRole = roleRepository.findByCode("STUDENT").orElse(null);
-                Account newAcc = new Account();
-                newAcc.setEmail(normalizedEmail);
-                newAcc.setPasswordHash(passwordEncoder.encode("Password123@"));
-                newAcc.setRole(studentRole);
-                newAcc.setIsActive(true);
-                newAcc.setIsLocked(false);
-                newAcc.setFailedLoginCount(0);
-
-                UserProfile profile = new UserProfile();
-                profile.setAccount(newAcc);
-                profile.setFullName(lead.getFullName());
-                profile.setPhone(lead.getPhone());
-                newAcc.setUserProfile(profile);
-
-                Account savedAcc = accountRepository.save(newAcc);
-                studentUserId = savedAcc.getId();
-            }
-        }
-        student.setUserId(studentUserId);
+        ensureStudentAccount(student);
 
         Student savedStudent = studentRepository.save(student);
 
@@ -297,6 +266,51 @@ public class StudentServiceImpl implements StudentService {
 
         log.info("Chuyển đổi thành công Lead id={} sang Student id={}, studentCode={}", lead.getId(), savedStudent.getId(), savedStudent.getStudentCode());
         return toResponse(savedStudent);
+    }
+
+    private void ensureStudentAccount(Student student) {
+        if (student.getUserId() != null) {
+            return;
+        }
+        String normalizedEmail = student.getEmail() != null ? student.getEmail().trim().toLowerCase() : "";
+        if (normalizedEmail.isBlank()) {
+            throw new ErrorHandler(HttpStatus.CONFLICT,
+                    "Học viên cần có email để cấp tài khoản đăng nhập");
+        }
+
+        Optional<Account> existingAccount = accountRepository.findByEmail(normalizedEmail);
+        if (existingAccount.isPresent()) {
+            Account account = existingAccount.get();
+            if (!account.isStudent()) {
+                throw new ErrorHandler(HttpStatus.CONFLICT,
+                        "Email " + normalizedEmail + " đã thuộc một tài khoản không phải học viên");
+            }
+            student.setUserId(account.getId());
+            return;
+        }
+
+        Role studentRole = roleRepository.findByCode("STUDENT")
+                .orElseThrow(() -> new ErrorHandler(HttpStatus.INTERNAL_SERVER_ERROR,
+                        "Không tìm thấy vai trò STUDENT"));
+        Account newAccount = new Account();
+        newAccount.setEmail(normalizedEmail);
+        String temporaryPassword = temporaryCredentialStore.issue(normalizedEmail);
+        if (temporaryPassword == null || temporaryPassword.isBlank()) {
+            throw new ErrorHandler(HttpStatus.INTERNAL_SERVER_ERROR,
+                    "Không thể tạo mật khẩu tạm cho tài khoản học viên");
+        }
+        newAccount.setPasswordHash(passwordEncoder.encode(temporaryPassword));
+        newAccount.setRole(studentRole);
+        newAccount.setIsActive(true);
+        newAccount.setIsLocked(false);
+        newAccount.setFailedLoginCount(0);
+
+        UserProfile profile = new UserProfile();
+        profile.setAccount(newAccount);
+        profile.setFullName(student.getFullName());
+        profile.setPhone(student.getPhone());
+        newAccount.setUserProfile(profile);
+        student.setUserId(accountRepository.save(newAccount).getId());
     }
 
     @Override

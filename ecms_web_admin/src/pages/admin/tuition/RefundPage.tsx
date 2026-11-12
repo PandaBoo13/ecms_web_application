@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  Alert,
   Button,
+  DatePicker,
   Descriptions,
   Form,
   Image,
@@ -55,10 +57,11 @@ const RefundPage = () => {
 
   const [createOpen, setCreateOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [paidInvoices, setPaidInvoices] = useState<InvoiceResponse[]>([]);
+  const [invoiceOptions, setInvoiceOptions] = useState<InvoiceResponse[]>([]);
   const [loadingPaid, setLoadingPaid] = useState(false);
   const [detailInvoice, setDetailInvoice] = useState<InvoiceResponse | null>(null);
   const [form] = Form.useForm();
+  const invoiceSearchTimer = useRef<number | undefined>(undefined);
 
   const loadRefunds = useCallback(
     async (page = 1, pageSize = 10) => {
@@ -85,35 +88,51 @@ const RefundPage = () => {
     void loadRefunds(pagination.current, pagination.pageSize);
   }, [loadRefunds, pagination.current, pagination.pageSize]);
 
-  const loadPaidInvoices = useCallback(async () => {
+  useEffect(() => () => window.clearTimeout(invoiceSearchTimer.current), []);
+
+  const loadRefundableInvoices = useCallback(async (search?: string) => {
     setLoadingPaid(true);
     try {
       const result = await tuitionApi.searchInvoices({
         type: 'TUITION_PAYMENT',
         status: 'PAID',
+        refundable: true,
+        search: search?.trim() || undefined,
         page: 0,
-        size: 100,
+        size: 20,
       });
-      setPaidInvoices(result.content ?? []);
+      setInvoiceOptions(result.content ?? []);
     } catch {
-      toast.error('Không tải được danh sách hóa đơn đã thanh toán');
+      toast.error('Không tải được danh sách hóa đơn có thể hoàn tiền');
     } finally {
       setLoadingPaid(false);
     }
   }, []);
 
+  const handleInvoiceSearch = (value: string) => {
+    window.clearTimeout(invoiceSearchTimer.current);
+    invoiceSearchTimer.current = window.setTimeout(() => {
+      void loadRefundableInvoices(value);
+    }, 350);
+  };
+
   const openCreate = () => {
     form.resetFields();
+    setInvoiceOptions([]);
     setCreateOpen(true);
-    void loadPaidInvoices();
+    void loadRefundableInvoices();
   };
 
   const handleSelectPaidInvoice = (invoiceId: number) => {
-    const invoice = paidInvoices.find((item) => item.invoiceId === invoiceId);
+    const invoice = invoiceOptions.find((item) => item.invoiceId === invoiceId);
     if (!invoice) return;
     form.setFieldsValue({
       amount: invoice.amount,
       paymentMethod: invoice.paymentMethod ?? 'BANK_TRANSFER',
+      payerName: invoice.ownerName,
+      payerEmail: invoice.ownerEmail,
+      payerPhone: invoice.ownerPhone,
+      refundedAt: dayjs(),
     });
   };
 
@@ -126,8 +145,12 @@ const RefundPage = () => {
         transactionReference: (values.transactionReference as string | undefined)?.trim() || undefined,
         reason: String(values.reason),
         proofUrl: String(values.proofUrl),
+        payerName: String(values.payerName).trim(),
+        payerEmail: String(values.payerEmail).trim(),
+        payerPhone: (values.payerPhone as string | undefined)?.trim() || undefined,
+        refundedAt: dayjs(values.refundedAt as dayjs.ConfigType).format('YYYY-MM-DDTHH:mm:ss'),
       });
-      toast.success('Tạo chứng từ hoàn tiền thành công');
+      toast.success('Đã tạo chứng từ hoàn tiền và gửi email xác nhận');
       setCreateOpen(false);
       form.resetFields();
       await loadRefunds(1, pagination.pageSize);
@@ -147,9 +170,9 @@ const RefundPage = () => {
     },
     {
       title: 'Hóa đơn gốc',
-      dataIndex: 'originalInvoiceId',
-      width: 120,
-      render: (value: number | null) => (value ? `#${value}` : '—'),
+      dataIndex: 'originalInvoiceCode',
+      width: 170,
+      render: (value: string | null, row) => value || (row.originalInvoiceId ? `#${row.originalInvoiceId}` : '—'),
     },
     {
       title: 'Người nhận hoàn',
@@ -157,7 +180,7 @@ const RefundPage = () => {
       width: 190,
       render: (value: string | null, row) => (
         <div>
-          <Text strong>{value || row.ownerEmail || `ID ${row.studentId ?? row.accountId ?? row.leadId ?? '—'}`}</Text>
+          <Text strong>{value || row.ownerEmail || `ID ${row.studentId ?? row.leadId ?? '—'}`}</Text>
         </div>
       ),
     },
@@ -270,22 +293,62 @@ const RefundPage = () => {
         destroyOnClose
       >
         <Form form={form} layout="vertical" onFinish={handleCreate}>
+          <Alert
+            type="info"
+            showIcon
+            className="mb-4"
+            message="Chứng từ được ghi nhận là đã hoàn tiền và hệ thống sẽ gửi email xác nhận cho người nhận. Hoàn đủ 100% sẽ tự động chấm dứt ghi danh; hoàn một phần giữ nguyên ghi danh."
+          />
           <Form.Item
             name="invoiceId"
             label="Hóa đơn gốc cần hoàn tiền"
             rules={[{ required: true, message: 'Vui lòng chọn hóa đơn cần hoàn tiền' }]}
+            extra="Chỉ hiển thị hóa đơn khóa OFFLINE đã thanh toán và chưa có chứng từ hoàn tiền."
           >
             <Select
               showSearch
               loading={loadingPaid}
-              optionFilterProp="label"
-              placeholder="Chọn hóa đơn đã thanh toán"
+              filterOption={false}
+              onSearch={handleInvoiceSearch}
+              placeholder="Tìm theo mã hóa đơn, tên, email, SĐT..."
               onChange={(value: number) => handleSelectPaidInvoice(value)}
-              options={paidInvoices.map((invoice) => ({
+              notFoundContent={loadingPaid ? 'Đang tìm...' : 'Không có hóa đơn phù hợp'}
+              options={invoiceOptions.map((invoice) => ({
                 value: invoice.invoiceId,
                 label: `${invoice.invoiceCode} · ${invoice.ownerName || invoice.ownerEmail || '—'} · ${moneyText(invoice.amount)}`,
               }))}
             />
+          </Form.Item>
+
+          <Form.Item
+            name="payerName"
+            label="Họ tên người nhận hoàn"
+            rules={[{ required: true, whitespace: true, message: 'Vui lòng nhập họ tên người nhận hoàn' }]}
+          >
+            <Input placeholder="Họ tên người nhận tiền hoàn" />
+          </Form.Item>
+
+          <Form.Item
+            name="payerEmail"
+            label="Email người nhận hoàn"
+            rules={[
+              { required: true, whitespace: true, message: 'Vui lòng nhập email người nhận hoàn' },
+              { type: 'email', message: 'Email không hợp lệ' },
+            ]}
+          >
+            <Input placeholder="email@example.com" />
+          </Form.Item>
+
+          <Form.Item name="payerPhone" label="Số điện thoại người nhận hoàn">
+            <Input placeholder="Số điện thoại liên hệ" />
+          </Form.Item>
+
+          <Form.Item
+            name="refundedAt"
+            label="Ngày hoàn tiền"
+            rules={[{ required: true, message: 'Vui lòng chọn ngày hoàn tiền' }]}
+          >
+            <DatePicker showTime className="w-full" />
           </Form.Item>
 
           <Form.Item
@@ -350,7 +413,8 @@ const RefundPage = () => {
             <Descriptions title="Thông tin hoàn tiền" bordered size="small" column={2}>
               <Descriptions.Item label="Mã hoàn tiền">{detailInvoice.invoiceCode}</Descriptions.Item>
               <Descriptions.Item label="Hóa đơn gốc">
-                {detailInvoice.originalInvoiceId ? `#${detailInvoice.originalInvoiceId}` : '—'}
+                {detailInvoice.originalInvoiceCode
+                  || (detailInvoice.originalInvoiceId ? `#${detailInvoice.originalInvoiceId}` : '—')}
               </Descriptions.Item>
               <Descriptions.Item label="Trạng thái">
                 <Tag color={detailInvoice.status === 'PAID' ? 'green' : 'default'}>

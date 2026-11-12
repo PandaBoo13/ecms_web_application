@@ -2,13 +2,14 @@ import api from './axiosConfig';
 import { API_ENDPOINT } from '@/constants/api-endpoint';
 import type { PageResponse, RequestResponse } from '../types/api';
 import type {
-  AttendanceAbsenceResponse,
+  AttendanceRecordResponse,
+  AttendanceStatus,
   EnrollmentBatchActionResponse,
   EnrollmentResponse,
   EnrollmentSummaryResponse,
   EnrollmentStatusLogResponse,
-  OfflineEnrollmentBatchResponse,
-  OfflineEnrollmentCandidate,
+  PendingEnrollmentBatchResponse,
+  PendingEnrollmentCandidate,
   FinalScoreRequest,
   HoldRequest,
   ReasonRequest,
@@ -20,13 +21,13 @@ export const enrollmentApi = {
     (await api.get<RequestResponse<EnrollmentSummaryResponse>>(API_ENDPOINT.ENROLLMENT_SUMMARY)).data.data,
   createOffline: async (invoiceId: number) =>
     (await api.post<RequestResponse<EnrollmentResponse>>(API_ENDPOINT.ENROLLMENT_OFFLINE, { invoiceId })).data.data,
-  createOfflineBatch: async (invoiceIds: number[]) =>
-    (await api.post<RequestResponse<OfflineEnrollmentBatchResponse>>(
-      API_ENDPOINT.ENROLLMENT_OFFLINE_BULK, { invoiceIds },
+  createPendingBatch: async (invoiceIds: number[]) =>
+    (await api.post<RequestResponse<PendingEnrollmentBatchResponse>>(
+      API_ENDPOINT.ENROLLMENT_PENDING_BULK, { invoiceIds },
     )).data.data,
-  offlineCandidates: async (params: Record<string, unknown> = {}) =>
-    (await api.get<RequestResponse<PageResponse<OfflineEnrollmentCandidate>>>(
-      API_ENDPOINT.ENROLLMENT_OFFLINE_ELIGIBLE, { params },
+  pendingCandidates: async (params: Record<string, unknown> = {}) =>
+    (await api.get<RequestResponse<PageResponse<PendingEnrollmentCandidate>>>(
+      API_ENDPOINT.ENROLLMENT_PENDING_ELIGIBLE, { params },
     )).data.data,
   search: async (params: Record<string, unknown>) =>
     (await api.get<RequestResponse<PageResponse<EnrollmentResponse>>>(API_ENDPOINT.ENROLLMENTS, { params })).data.data,
@@ -47,13 +48,15 @@ export const enrollmentApi = {
       API_ENDPOINT.ENROLLMENT_COMPLETE_BULK, { courseId, enrollmentIds },
     )).data.data,
   attendanceHistory: async (id: number) =>
-    (await api.get<RequestResponse<AttendanceAbsenceResponse[]>>(API_ENDPOINT.ENROLLMENT_ATTENDANCE_HISTORY(id))).data.data,
+    (await api.get<RequestResponse<AttendanceRecordResponse[]>>(API_ENDPOINT.ENROLLMENT_ATTENDANCE_HISTORY(id))).data.data,
   statusHistory: async (id: number) =>
     (await api.get<RequestResponse<EnrollmentStatusLogResponse[]>>(API_ENDPOINT.ENROLLMENT_STATUS_HISTORY(id))).data.data,
   sessionAttendance: async (courseId: number, sessionId: number) =>
     (await api.get<RequestResponse<SessionAttendanceResponse>>(API_ENDPOINT.SESSION_ATTENDANCE(courseId, sessionId))).data.data,
-  recordAbsences: async (courseId: number, sessionId: number, absentEnrollmentIds: number[]) =>
-    (await api.post<RequestResponse<AttendanceAbsenceResponse[]>>(
-      API_ENDPOINT.SESSION_ABSENCES(courseId, sessionId), { absentEnrollmentIds },
+  saveSessionAttendance: async (courseId: number, sessionId: number, records: {
+    enrollmentId: number; status: AttendanceStatus; checkInAt?: string | null; note?: string | null;
+  }[]) =>
+    (await api.put<RequestResponse<SessionAttendanceResponse>>(
+      API_ENDPOINT.SESSION_ATTENDANCE(courseId, sessionId), { records },
     )).data.data,
 };

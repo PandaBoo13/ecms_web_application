@@ -6,5 +6,5 @@ public record EnrollmentSummaryResponse(
         long reserved,
         long terminated,
         long completed,
-        long offlineAwaitingEnrollment
+        long awaitingEnrollment
 ) {}

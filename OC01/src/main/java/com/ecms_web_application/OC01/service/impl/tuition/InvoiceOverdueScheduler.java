@@ -13,13 +13,21 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 
+/**
+ * Job định kỳ: chuyển hóa đơn học phí PENDING của khóa OFFLINE đã qua hạn thanh toán
+ * thành OVERDUE. Chạy mỗi 5 phút và chạy ngay khi khởi động backend để trạng thái lưu
+ * trong DB khớp với hạn thanh toán mà học viên nhìn thấy trên trang thanh toán công khai
+ * (trước đây job chỉ chạy lúc 01:00 mỗi ngày nên hóa đơn hết hạn giữa ngày vẫn hiển thị
+ * "Chờ thanh toán" ở admin cho đến đêm hôm đó, và nếu server không chạy lúc 01:00 thì
+ * trạng thái sai lệch mãi).
+ */
 @Component
 @RequiredArgsConstructor
 @Slf4j
 public class InvoiceOverdueScheduler {
     private final InvoiceRepository invoiceRepository;
 
-    @Scheduled(cron = "0 0 1 * * *", zone = "Asia/Ho_Chi_Minh")
+    @Scheduled(fixedDelay = 300_000)
     @Transactional
     public void markOfflineInvoicesOverdue() {
         int updated = 0;

@@ -7,19 +7,25 @@ import PageContainer from '@/components/common/PageContainer';
 import PageHeader from '@/components/common/PageHeader';
 import { enrollmentApi } from '@/services/api/enrollment';
 import type {
-  AttendanceAbsenceResponse,
+  AttendanceRecordResponse,
   EnrollmentResponse,
   EnrollmentStatusLogResponse,
 } from '@/services/types/enrollment';
 
 const enrollmentColors = { PENDING: 'gold', ACTIVE: 'green', RESERVED: 'blue', TERMINATED: 'default', COMPLETED: 'purple' } as const;
+const attendanceLabels: Record<AttendanceRecordResponse['status'], string> = {
+  NOT_MARKED: 'Chưa điểm danh', PRESENT: 'Có mặt đúng giờ', LATE: 'Đi trễ', ABSENT: 'Vắng', EXCUSED: 'Vắng có phép',
+};
+const attendanceColors: Record<AttendanceRecordResponse['status'], string> = {
+  NOT_MARKED: 'default', PRESENT: 'green', LATE: 'orange', ABSENT: 'red', EXCUSED: 'blue',
+};
 const { Text } = Typography;
 
 export default function EnrollmentPage() {
   const [enrollments, setEnrollments] = useState<EnrollmentResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [historyOpen, setHistoryOpen] = useState(false);
-  const [absences, setAbsences] = useState<AttendanceAbsenceResponse[]>([]);
+  const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecordResponse[]>([]);
   const [statusLogs, setStatusLogs] = useState<EnrollmentStatusLogResponse[]>([]);
 
   const loadEnrollments = useCallback(async () => {
@@ -40,10 +46,10 @@ export default function EnrollmentPage() {
     { title: 'Điểm cuối khóa', dataIndex: 'finalScore', render: (value?: number) => value ?? '—' },
     { title: 'Lịch sử', render: (_, row) => <Button size="small" onClick={async () => {
       try {
-        const [absenceRows, logRows] = await Promise.all([
+        const [attendanceRows, logRows] = await Promise.all([
           enrollmentApi.attendanceHistory(row.enrollmentId), enrollmentApi.statusHistory(row.enrollmentId),
         ]);
-        setAbsences(absenceRows); setStatusLogs(logRows); setHistoryOpen(true);
+        setAttendanceRecords(attendanceRows); setStatusLogs(logRows); setHistoryOpen(true);
       } catch { toast.error('Không tải được lịch sử ghi danh'); }
     }}>Xem</Button> },
   ];
@@ -55,8 +61,14 @@ export default function EnrollmentPage() {
     </div>
     <Table rowKey="enrollmentId" columns={enrollmentColumns} dataSource={enrollments} loading={loading} pagination={{ pageSize: 10 }} scroll={{ x: 850 }} />
     <Modal title="Lịch sử ghi danh" open={historyOpen} footer={null} onCancel={() => setHistoryOpen(false)}>
-      <Typography.Title level={5}>Vắng mặt</Typography.Title>
-      {absences.length ? absences.map((item) => <div key={item.attendanceId} className="border-b py-2">Buổi #{item.sessionId} · {dayjs(item.createdAt).format('DD/MM/YYYY HH:mm')}</div>) : <Text type="secondary">Chưa có lượt vắng được ghi nhận.</Text>}
+      <Typography.Title level={5}>Lịch sử điểm danh</Typography.Title>
+      {attendanceRecords.length ? attendanceRecords.map((item) => <div key={item.attendanceId} className="flex items-center justify-between gap-3 border-b py-2">
+        <div>{item.sessionTitle || `Buổi #${item.sessionNumber ?? item.sessionId}`}
+          <div><Text type="secondary">{item.sessionDate ? dayjs(item.sessionDate).format('DD/MM/YYYY') : 'Chưa có ngày học'}</Text></div>
+          {item.note && <div><Text type="secondary">{item.note}</Text></div>}
+        </div>
+        <Tag color={attendanceColors[item.status]}>{attendanceLabels[item.status]}</Tag>
+      </div>) : <Text type="secondary">Chưa có dữ liệu điểm danh.</Text>}
       <Typography.Title level={5} className="mt-5">Thay đổi trạng thái</Typography.Title>
       {statusLogs.length ? statusLogs.map((item) => <div key={item.id} className="border-b py-2">{item.oldStatus ?? 'Khởi tạo'} → {item.newStatus} · {dayjs(item.changedAt).format('DD/MM/YYYY HH:mm')}<div>{item.reason}</div></div>) : <Text type="secondary">Chưa có lịch sử trạng thái.</Text>}
     </Modal>

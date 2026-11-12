@@ -23,6 +23,8 @@ public interface StudentService {
 
     StudentResponse convertFromLeadForPayment(StudentConvertFromLeadRequest request, Long actorId);
 
+    StudentResponse ensureAccountForPayment(Long studentId);
+
     Page<StudentResponse> search(String search, String status, Long courseId, Pageable pageable);
 
     StudentResponse getById(Long id);

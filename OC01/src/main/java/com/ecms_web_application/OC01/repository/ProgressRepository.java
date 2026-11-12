@@ -15,18 +15,12 @@ import org.springframework.data.jpa.repository.Modifying;
 @Repository
 public interface ProgressRepository extends IRepository<Progress, Long> {
 
-    // ==========================================
-    // DÀNH CHO ENROLLMENT SERVICE CŨ (Dùng Account)
-    // ==========================================
-    Optional<Progress> findByAccount_IdAndCourse_IdAndProgressTypeAndReferenceId(
-            Long accountId, Long courseId, ProgressScope type, Long referenceId);
-
     @Query("""
         SELECT p FROM Progress p LEFT JOIN FETCH p.course c
-        WHERE p.account.id = :accountId AND p.progressType = 'COURSE'
+        WHERE p.enrollment.studentId = :studentId AND p.progressType = 'COURSE'
         ORDER BY p.lastAccessedAt DESC NULLS LAST
     """)
-    Page<Progress> findCourseProgressByAccount(@Param("accountId") Long accountId, Pageable pageable);
+    Page<Progress> findCourseProgressByStudent(@Param("studentId") Long studentId, Pageable pageable);
 
     // ==========================================
     // DÀNH CHO QUIZ & PROGRESS SERVICE MỚI (Dùng Enrollment)
