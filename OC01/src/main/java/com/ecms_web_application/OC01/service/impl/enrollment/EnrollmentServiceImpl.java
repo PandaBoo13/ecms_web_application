@@ -7,14 +7,7 @@ import com.ecms_web_application.OC01.dto.request.enrollment.ReplaceSessionAbsenc
 import com.ecms_web_application.OC01.dto.request.enrollment.ReserveEnrollmentRequest;
 import com.ecms_web_application.OC01.dto.request.enrollment.TerminateEnrollmentRequest;
 import com.ecms_web_application.OC01.dto.response.StudentResponse;
-import com.ecms_web_application.OC01.dto.response.enrollment.AttendanceAbsenceResponse;
-import com.ecms_web_application.OC01.dto.response.enrollment.EnrollmentResponse;
-import com.ecms_web_application.OC01.dto.response.enrollment.EnrollmentStatusLogResponse;
-import com.ecms_web_application.OC01.dto.response.enrollment.OfflineEnrollmentCandidateResponse;
-import com.ecms_web_application.OC01.dto.response.enrollment.OfflineEnrollmentBatchResponse;
-import com.ecms_web_application.OC01.dto.response.enrollment.EnrollmentSummaryResponse;
-import com.ecms_web_application.OC01.dto.response.enrollment.EnrollmentBatchActionResponse;
-import com.ecms_web_application.OC01.dto.response.enrollment.SessionAttendanceResponse;
+import com.ecms_web_application.OC01.dto.response.enrollment.*;
 import com.ecms_web_application.OC01.entity.*;
 import com.ecms_web_application.OC01.entity.enums.*;
 import com.ecms_web_application.OC01.exception.ErrorHandler;
@@ -134,11 +127,6 @@ public class EnrollmentServiceImpl implements EnrollmentService {
                 actorId);
     }
 
-    /**
-     * Ghi danh OFFLINE bắt buộc phải có hồ sơ học viên.
-     * Nếu hóa đơn đã thanh toán nhưng mới chỉ liên kết Lead, hệ thống tự chuyển Lead sang
-     * Student (idempotent) rồi gắn studentId vào hóa đơn để hoàn tất ghi danh.
-     */
     private void ensureOfflineStudentProfile(Invoice invoice) {
         if (invoice.getStudentId() != null) {
             return;
@@ -199,8 +187,6 @@ public class EnrollmentServiceImpl implements EnrollmentService {
             }
         }
 
-        // Truyền chuỗi rỗng thay vì null: tránh PostgreSQL không suy luận được kiểu tham số
-        // trong "LOWER(CONCAT('%', :search, '%'))" và báo lỗi "function lower(bytea) does not exist".
         String searchTerm = search == null || search.isBlank() ? "" : search.trim();
         Page<Invoice> invoices = invoiceRepository.findOfflineEnrollmentCandidates(
                 courseId, InvoiceType.TUITION_PAYMENT, InvoiceStatus.PAID,
@@ -460,7 +446,6 @@ public class EnrollmentServiceImpl implements EnrollmentService {
             throw new ErrorHandler(HttpStatus.CONFLICT, "Chỉ xét hoàn thành sau khi khóa học kết thúc");
         }
         if (course.getCourseType() == CourseType.OFFLINE) {
-            // Eligibility thresholds for absences and scores are intentionally deferred.
             if (enrollment.getFinalScore() == null) {
                 throw new ErrorHandler(HttpStatus.CONFLICT, "Cần ghi nhận điểm cuối khóa trước khi xét hoàn thành");
             }
@@ -544,8 +529,7 @@ public class EnrollmentServiceImpl implements EnrollmentService {
     }
 
     private EnrollmentResponse createEnrollment(Invoice invoice, Course course,
-            EnrollmentType type, EnrollmentStatus status,
-            Long actorId) {
+            EnrollmentType type, EnrollmentStatus status, Long actorId) {
         if (enrollmentRepository.existsByInvoiceId(invoice.getId())) {
             throw new ErrorHandler(HttpStatus.CONFLICT, "Hóa đơn này đã được ghi danh");
         }
@@ -564,60 +548,61 @@ public class EnrollmentServiceImpl implements EnrollmentService {
         return response(saved);
     }
 
-    private void validateOnlineCompletion(Enrollment enrollment, Course course) {
-        Long accountId = enrollment.getAccountId();
-        if (accountId == null) {
-            throw new ErrorHandler(HttpStatus.CONFLICT, "Ghi danh ONLINE chưa liên kết tài khoản");
-        }
-        Progress progress = progressRepository.findByAccount_IdAndCourse_IdAndProgressTypeAndReferenceId(
-                accountId, course.getId(), ProgressScope.COURSE, null)
-                .orElseThrow(() -> new ErrorHandler(HttpStatus.CONFLICT, "Chưa có tiến độ khóa học"));
-        if (progress.getProgressPercentage() == null
-                || progress.getProgressPercentage().compareTo(BigDecimal.valueOf(100)) < 0
-                || Boolean.TRUE.equals(progress.getHasUncompletedNewContent())) {
-            throw new ErrorHandler(HttpStatus.CONFLICT, "Cần hoàn thành 100% nội dung khóa học trước");
-        }
-        List<CourseResource> requiredQuizzes = courseResourceRepository.findByCourse_IdAndIsRequiredTrue(course.getId())
-                .stream().filter(resource -> resource.getResourceType() == ResourceType.QUIZ).toList();
-        for (CourseResource quiz : requiredQuizzes) {
-            Number passed = (Number) entityManager.createNativeQuery("""
-                    SELECT COUNT(*) FROM quiz_attempt
-                    WHERE course_id = :courseId AND resource_id = :resourceId
-                      AND account_id = :accountId AND is_passed = TRUE
-                    """)
-                    .setParameter("courseId", course.getId())
-                    .setParameter("resourceId", quiz.getId())
-                    .setParameter("accountId", accountId)
-                    .getSingleResult();
-            if (passed.longValue() == 0) {
-                throw new ErrorHandler(HttpStatus.CONFLICT,
-                        "Học viên chưa vượt qua bài kiểm tra bắt buộc: " + quiz.getTitle());
-            }
-        }
-    }
+//    private void validateOnlineCompletion(Enrollment enrollment, Course course) {
+//        Long accountId = enrollment.getAccountId();
+//        if (accountId == null) {
+//            throw new ErrorHandler(HttpStatus.CONFLICT, "Ghi danh ONLINE chưa liên kết tài khoản");
+//        }
+//        // GIỮ NGUYÊN LOGIC CŨ: Dùng account_id của Progress
+//        Progress progress = progressRepository.findByAccount_IdAndCourse_IdAndProgressTypeAndReferenceId(
+//                accountId, course.getId(), ProgressScope.COURSE, null)
+//                .orElseThrow(() -> new ErrorHandler(HttpStatus.CONFLICT, "Chưa có tiến độ khóa học"));
+//        if (progress.getProgressPercentage() == null
+//                || progress.getProgressPercentage().compareTo(BigDecimal.valueOf(100)) < 0
+//                || Boolean.TRUE.equals(progress.getHasUncompletedNewContent())) {
+//            throw new ErrorHandler(HttpStatus.CONFLICT, "Cần hoàn thành 100% nội dung khóa học trước");
+//        }
+//        List<CourseResource> requiredQuizzes = courseResourceRepository.findByCourse_IdAndIsRequiredTrue(course.getId())
+//                .stream().filter(resource -> resource.getResourceType() == ResourceType.QUIZ).toList();
+//        for (CourseResource quiz : requiredQuizzes) {
+//            Number passed = (Number) entityManager.createNativeQuery("""
+//                    SELECT COUNT(*) FROM quiz_attempt
+//                    WHERE course_id = :courseId AND resource_id = :resourceId
+//                      AND account_id = :accountId AND is_passed = TRUE
+//                    """)
+//                    .setParameter("courseId", course.getId())
+//                    .setParameter("resourceId", quiz.getId())
+//                    .setParameter("accountId", accountId)
+//                    .getSingleResult();
+//            if (passed.longValue() == 0) {
+//                throw new ErrorHandler(HttpStatus.CONFLICT,
+//                        "Học viên chưa vượt qua bài kiểm tra bắt buộc: " + quiz.getTitle());
+//            }
+//        }
+//    }
 
-    private CompletionEligibility evaluateCompletionEligibility(Enrollment enrollment, Course course) {
-        if (enrollment.getStatus() != EnrollmentStatus.ACTIVE) {
-            return new CompletionEligibility(false, "Chỉ ghi danh ACTIVE mới được xét hoàn thành");
-        }
-        if (course == null) {
-            return new CompletionEligibility(false, "Không tìm thấy khóa học");
-        }
-        if (course.getStatus() != CourseStatus.FINISHED) {
-            return new CompletionEligibility(false, "Chỉ xét hoàn thành sau khi khóa học kết thúc");
-        }
-        if (course.getCourseType() == CourseType.OFFLINE && enrollment.getFinalScore() == null) {
-            return new CompletionEligibility(false, "Cần ghi nhận điểm cuối khóa trước");
-        }
-        if (course.getCourseType() == CourseType.ONLINE) {
-            try {
-                validateOnlineCompletion(enrollment, course);
-            } catch (ErrorHandler ex) {
-                return new CompletionEligibility(false, ex.getMessage());
-            }
-        }
-        return new CompletionEligibility(true, null);
-    }
+//    private CompletionEligibility evaluateCompletionEligibility(Enrollment enrollment, Course course) {
+//        if (enrollment.getStatus() != EnrollmentStatus.ACTIVE) {
+//            return new CompletionEligibility(false, "Chỉ ghi danh ACTIVE mới được xét hoàn thành");
+//        }
+//        if (course == null) {
+//            return new CompletionEligibility(false, "Không tìm thấy khóa học");
+//        }
+//        if (course.getStatus() != CourseStatus.FINISHED) {
+//            return new CompletionEligibility(false, "Chỉ xét hoàn thành sau khi khóa học kết thúc");
+//        }
+//        if (course.getCourseType() == CourseType.OFFLINE && enrollment.getFinalScore() == null) {
+//            return new CompletionEligibility(false, "Cần ghi nhận điểm cuối khóa trước");
+//        }
+//        if (course.getCourseType() == CourseType.ONLINE) {
+//            try {
+//                validateOnlineCompletion(enrollment, course);
+//            } catch (ErrorHandler ex) {
+//                return new CompletionEligibility(false, ex.getMessage());
+//            }
+//        }
+//        return new CompletionEligibility(true, null);
+//    }
 
     private record CompletionEligibility(boolean eligible, String reason) {}
 

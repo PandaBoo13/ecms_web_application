@@ -16,20 +16,15 @@ import java.util.Optional;
 
 @Repository
 public interface CourseRepository extends IRepository<Course, Long> {
-
     Optional<Course> findByCode(String code);
     Optional<Course> findBySlug(String slug);
     Optional<Course> findByDisplayCode(String displayCode);
-
     boolean existsByCode(String code);
     boolean existsBySlug(String slug);
     boolean existsByDisplayCode(String displayCode);
     boolean existsBySlugAndIdNot(String slug, Long id);
     boolean existsByDisplayCodeAndIdNot(String displayCode, Long id);
 
-    // ══════════════════════════════════════════════════════════════
-    // SEARCH — phân trang
-    // ══════════════════════════════════════════════════════════════
     @Query(value = """
         SELECT c FROM Course c
         LEFT JOIN FETCH c.teacher t
@@ -44,9 +39,7 @@ public interface CourseRepository extends IRepository<Course, Long> {
         ORDER BY c.createdAt DESC
     """, countQuery = """
         SELECT COUNT(c) FROM Course c
-        LEFT JOIN c.teacher t
-        LEFT JOIN c.category cat
-        LEFT JOIN c.room r
+        LEFT JOIN c.teacher t LEFT JOIN c.category cat LEFT JOIN c.room r
         WHERE c.deletedAt IS NULL
           AND (:status IS NULL OR c.status = :status)
           AND (:type IS NULL OR c.courseType = :type)
@@ -54,13 +47,7 @@ public interface CourseRepository extends IRepository<Course, Long> {
           AND (:categoryId IS NULL OR cat.id = :categoryId)
           AND (:search = '' OR LOWER(c.title) LIKE LOWER(CONCAT('%', :search, '%')))
     """)
-    Page<Course> searchCourses(
-            @Param("status") CourseStatus status,
-            @Param("type") CourseType type,
-            @Param("teacherId") Long teacherId,
-            @Param("categoryId") Long categoryId,
-            @Param("search") String search,
-            Pageable pageable);
+    Page<Course> searchCourses(@Param("status") CourseStatus status, @Param("type") CourseType type, @Param("teacherId") Long teacherId, @Param("categoryId") Long categoryId, @Param("search") String search, Pageable pageable);
 
     @Query("""
         SELECT c FROM Course c
@@ -72,14 +59,8 @@ public interface CourseRepository extends IRepository<Course, Long> {
     Optional<Course> findByIdWithRelations(@Param("id") Long id);
 
     long countByTeacherId(Long teacherId);
-
     List<Course> findByStatus(CourseStatus status);
 
-    // ══════════════════════════════════════════════════════════════
-    // CONFLICT — tìm course OFFLINE active overlap thời gian
-    // ══════════════════════════════════════════════════════════════
-
-    /** Tìm course OFFLINE active (PLANNED/PUBLISHED/ONGOING) trùng GV + overlap khoảng ngày. */
     @Query("""
         SELECT c FROM Course c
         LEFT JOIN FETCH c.teacher t
@@ -87,20 +68,12 @@ public interface CourseRepository extends IRepository<Course, Long> {
         WHERE c.id <> :excludeId
           AND c.deletedAt IS NULL
           AND c.courseType = com.ecms_web_application.OC01.entity.enums.CourseType.OFFLINE
-          AND c.status IN (com.ecms_web_application.OC01.entity.enums.CourseStatus.PLANNED,
-                           com.ecms_web_application.OC01.entity.enums.CourseStatus.PUBLISHED,
-                           com.ecms_web_application.OC01.entity.enums.CourseStatus.ONGOING)
-          AND c.startDate <= :endDate
-          AND c.endDate >= :startDate
+          AND c.status IN (com.ecms_web_application.OC01.entity.enums.CourseStatus.PLANNED, com.ecms_web_application.OC01.entity.enums.CourseStatus.PUBLISHED, com.ecms_web_application.OC01.entity.enums.CourseStatus.ONGOING)
+          AND c.startDate <= :endDate AND c.endDate >= :startDate
           AND t.id = :teacherId
     """)
-    List<Course> findOverlappingByTeacher(
-            @Param("excludeId") Long excludeId,
-            @Param("startDate") LocalDate startDate,
-            @Param("endDate") LocalDate endDate,
-            @Param("teacherId") Long teacherId);
+    List<Course> findOverlappingByTeacher(@Param("excludeId") Long excludeId, @Param("startDate") LocalDate startDate, @Param("endDate") LocalDate endDate, @Param("teacherId") Long teacherId);
 
-    /** Tìm course OFFLINE active trùng phòng + overlap khoảng ngày. */
     @Query("""
         SELECT c FROM Course c
         LEFT JOIN FETCH c.teacher t
@@ -108,34 +81,21 @@ public interface CourseRepository extends IRepository<Course, Long> {
         WHERE c.id <> :excludeId
           AND c.deletedAt IS NULL
           AND c.courseType = com.ecms_web_application.OC01.entity.enums.CourseType.OFFLINE
-          AND c.status IN (com.ecms_web_application.OC01.entity.enums.CourseStatus.PLANNED,
-                           com.ecms_web_application.OC01.entity.enums.CourseStatus.PUBLISHED,
-                           com.ecms_web_application.OC01.entity.enums.CourseStatus.ONGOING)
-          AND c.startDate <= :endDate
-          AND c.endDate >= :startDate
+          AND c.status IN (com.ecms_web_application.OC01.entity.enums.CourseStatus.PLANNED, com.ecms_web_application.OC01.entity.enums.CourseStatus.PUBLISHED, com.ecms_web_application.OC01.entity.enums.CourseStatus.ONGOING)
+          AND c.startDate <= :endDate AND c.endDate >= :startDate
           AND r.id = :roomId
     """)
-    List<Course> findOverlappingByRoom(
-            @Param("excludeId") Long excludeId,
-            @Param("startDate") LocalDate startDate,
-            @Param("endDate") LocalDate endDate,
-            @Param("roomId") Long roomId);
+    List<Course> findOverlappingByRoom(@Param("excludeId") Long excludeId, @Param("startDate") LocalDate startDate, @Param("endDate") LocalDate endDate, @Param("roomId") Long roomId);
 
     @Query("""
-    SELECT c FROM Course c
-    LEFT JOIN FETCH c.teacher t
-    LEFT JOIN FETCH c.room r
-    WHERE c.id <> :excludeId
-      AND c.deletedAt IS NULL
-      AND c.courseType = com.ecms_web_application.OC01.entity.enums.CourseType.OFFLINE
-      AND c.status IN (com.ecms_web_application.OC01.entity.enums.CourseStatus.PLANNED,
-                       com.ecms_web_application.OC01.entity.enums.CourseStatus.PUBLISHED,
-                       com.ecms_web_application.OC01.entity.enums.CourseStatus.ONGOING)
-      AND c.startDate <= :endDate
-      AND c.endDate >= :startDate
-""")
-    List<Course> findAllOverlappingOfflineCourses(
-            @Param("excludeId") Long excludeId,
-            @Param("startDate") LocalDate startDate,
-            @Param("endDate") LocalDate endDate);
+        SELECT c FROM Course c
+        LEFT JOIN FETCH c.teacher t
+        LEFT JOIN FETCH c.room r
+        WHERE c.id <> :excludeId
+          AND c.deletedAt IS NULL
+          AND c.courseType = com.ecms_web_application.OC01.entity.enums.CourseType.OFFLINE
+          AND c.status IN (com.ecms_web_application.OC01.entity.enums.CourseStatus.PLANNED, com.ecms_web_application.OC01.entity.enums.CourseStatus.PUBLISHED, com.ecms_web_application.OC01.entity.enums.CourseStatus.ONGOING)
+          AND c.startDate <= :endDate AND c.endDate >= :startDate
+    """)
+    List<Course> findAllOverlappingOfflineCourses(@Param("excludeId") Long excludeId, @Param("startDate") LocalDate startDate, @Param("endDate") LocalDate endDate);
 }

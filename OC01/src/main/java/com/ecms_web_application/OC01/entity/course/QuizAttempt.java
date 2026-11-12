@@ -1,6 +1,6 @@
 package com.ecms_web_application.OC01.entity.course;
-import com.ecms_web_application.OC01.entity.Account;
 
+import com.ecms_web_application.OC01.entity.Enrollment;
 import com.ecms_web_application.OC01.entity.enums.QuizAttemptStatus;
 import jakarta.persistence.*;
 import lombok.Getter;
@@ -17,14 +17,15 @@ import java.util.Map;
 @Table(name = "quiz_attempt",
     uniqueConstraints = @UniqueConstraint(
         name = "uk_attempt_number",
-        columnNames = {"account_id", "resource_id", "attempt_number"}))
+        columnNames = {"enrollment_id", "resource_id", "attempt_number"}))
 public class QuizAttempt {
 
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "account_id", nullable = false) private Account account;
+    @JoinColumn(name = "enrollment_id", nullable = false) 
+    private Enrollment enrollment;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "course_id", nullable = false) private Course course;
