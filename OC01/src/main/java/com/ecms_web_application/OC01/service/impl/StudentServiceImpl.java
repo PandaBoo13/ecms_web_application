@@ -394,6 +394,52 @@ public class StudentServiceImpl implements StudentService {
             }
         }
 
+        // Cập nhật mật khẩu nếu có
+        if (request.getPassword() != null && !request.getPassword().isBlank()) {
+            String rawPassword = request.getPassword().trim();
+            if (rawPassword.length() < 6) {
+                throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Mật khẩu phải từ 6 ký tự trở lên");
+            }
+            Account account = null;
+            if (student.getUserId() != null) {
+                account = accountRepository.findById(student.getUserId()).orElse(null);
+            }
+            if (account == null && student.getEmail() != null) {
+                account = accountRepository.findByEmail(student.getEmail()).orElse(null);
+                if (account != null && student.getUserId() == null) {
+                    student.setUserId(account.getId());
+                }
+            }
+            if (account != null) {
+                account.setPasswordHash(passwordEncoder.encode(rawPassword));
+                account.setIsLocked(false);
+                account.setFailedLoginCount(0);
+                accountRepository.save(account);
+                authSessionRepository.revokeAllByAccountId(account.getId(), LocalDateTime.now(), "Admin cập nhật mật khẩu");
+                log.info("Admin đã cập nhật mật khẩu cho học viên id={}, accountId={}", student.getId(), account.getId());
+            } else if (student.getEmail() != null && !student.getEmail().isBlank()) {
+                Account newAcc = new Account();
+                newAcc.setEmail(student.getEmail().trim().toLowerCase());
+                newAcc.setPasswordHash(passwordEncoder.encode(rawPassword));
+                newAcc.setRole(roleRepository.findByCode("STUDENT").orElse(null));
+                newAcc.setIsActive(true);
+                newAcc.setIsLocked(false);
+                newAcc.setFailedLoginCount(0);
+
+                UserProfile profile = new UserProfile();
+                profile.setAccount(newAcc);
+                profile.setFullName(student.getFullName());
+                profile.setPhone(student.getPhone());
+                newAcc.setUserProfile(profile);
+
+                Account savedAcc = accountRepository.save(newAcc);
+                student.setUserId(savedAcc.getId());
+                log.info("Admin đã khởi tạo tài khoản và đặt mật khẩu cho học viên id={}, accountId={}", student.getId(), savedAcc.getId());
+            } else {
+                throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Học viên chưa có email nên không thể tạo/cập nhật tài khoản và mật khẩu");
+            }
+        }
+
         Student saved = studentRepository.save(student);
         log.info("Cập nhật học viên id={}, code={}", saved.getId(), saved.getStudentCode());
         return toResponse(saved);

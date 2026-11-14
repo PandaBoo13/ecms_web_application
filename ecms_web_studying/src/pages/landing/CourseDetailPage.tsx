@@ -39,7 +39,6 @@ import {
 import toast from 'react-hot-toast';
 import { useAuth } from '@/hooks/useAuth';
 
-import { tuitionApi } from '@/services/api/tuition';
 import { courseApi, progressApi, resourceApi, sessionApi } from '@/services/api/course';
 // Nếu báo lỗi không tìm thấy, đổi thành import từ thư mục file tương ứng
 
@@ -78,7 +77,7 @@ const RESOURCE_ICON_MAP: Record<ResourceType, React.ReactNode> = {
 export default function CourseDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { isAuthenticated, isStudent } = useAuth();
+  const { isAuthenticated } = useAuth();
 
   const [course, setCourse] = useState<CourseDetailResponse | null>(null);
   const [resourceTree, setResourceTree] = useState<ResourceTreeResponse[]>([]);
@@ -86,44 +85,14 @@ export default function CourseDetailPage() {
   const [loading, setLoading] = useState(true);
   const [consultModalOpen, setConsultModalOpen] = useState(false);
   const [purchaseStatus, setPurchaseStatus] = useState<'CHECKING' | 'AVAILABLE' | 'OWNED'>('CHECKING');
-  const [buying, setBuying] = useState(false);
 
-  const handleBuyOnlineCourse = async () => {
+  const handleBuyOnlineCourse = () => {
     if (!course) return;
-
-    if (!isAuthenticated) {
-      navigate(`/checkout/${course.id}`);
+    if (purchaseStatus === 'OWNED') {
+      navigate('/student/my-courses');
       return;
     }
-
-    if (!isStudent()) {
-      toast.error('Chỉ tài khoản học viên mới được đăng ký mua khóa học trực tuyến.');
-      return;
-    }
-
-    setBuying(true);
-    try {
-      const invoice = await tuitionApi.createOnlineCheckout(course.id);
-
-      if (invoice.status === 'PAID' || course.isFree || course.price === 0) {
-        toast.success('Đăng ký khóa học thành công! Chúc bạn học tập tốt.');
-        navigate('/student/my-courses');
-        return;
-      }
-
-      try {
-        const paymentUrl = await tuitionApi.createVnpayPayment(invoice.invoiceId);
-        window.location.assign(paymentUrl);
-      } catch (err) {
-        console.warn('VNPAY payment fallback:', err);
-        toast.success('Hóa đơn đã được tạo thành công! Đang chuyển đến trang Học phí để xem chi tiết.');
-        navigate('/student/tuition');
-      }
-    } catch (err: any) {
-      navigate(`/checkout/${course.id}`);
-    } finally {
-      setBuying(false);
-    }
+    navigate(`/checkout/${course.id}`);
   };
 
   useEffect(() => {
@@ -676,10 +645,10 @@ export default function CourseDetailPage() {
 
                           <Card size="small" style={{ borderLeft: '4px solid #f59e0b' }}>
                             <Title level={5} style={{ margin: 0, color: '#d97706' }}>
-                              Bước 3: Xác nhận giữ chỗ (Enrollment) & Đóng cọc (Tuition)
+                              Bước 3: Xác nhận ghi danh (Enrollment) & Đóng cọc (Tuition)
                             </Title>
                             <Paragraph style={{ margin: '6px 0 0', color: '#475569', fontSize: 14 }}>
-                              Hệ thống kiểm tra sĩ số lớp còn chỗ để giữ chỗ cho học viên. Bộ phận học phí phát hành hóa đơn tiền cọc để khách hoàn tất thanh toán.
+                              Hệ thống kiểm tra sĩ số lớp cho học viên. Bộ phận học phí phát hành hóa đơn tiền cọc để khách hoàn tất thanh toán.
                             </Paragraph>
                           </Card>
 
@@ -713,7 +682,7 @@ export default function CourseDetailPage() {
               <Row gutter={[24, 24]} align="middle">
                 <Col xs={24} md={16}>
                   <Tag color="success" style={{ marginBottom: 8, fontSize: 12, padding: '2px 8px' }}>
-                    {course.courseType === 'ONLINE' ? 'KHÓA HỌC TRỰC TUYẾN (ONLINE) — VÀO HỌC NGAY' : 'KHÓA HỌC TRỰC TIẾP (OFFLINE) — THANH TOÁN GIỮ CHỖ'}
+                    {course.courseType === 'ONLINE' ? 'KHÓA HỌC TRỰC TUYẾN (ONLINE) — VÀO HỌC NGAY' : 'KHÓA HỌC TRỰC TIẾP (OFFLINE) — THANH TOÁN MUA NGAY'}
                   </Tag>
                   <Title level={4} style={{ margin: '4px 0 8px', color: '#0f172a' }}>
                     Đăng Ký & Mua Khóa Học Trực Tuyến
@@ -744,7 +713,6 @@ export default function CourseDetailPage() {
                     type="primary"
                     size="large"
                     icon={course.isFree ? <PlayCircleOutlined /> : <CreditCardOutlined />}
-                    loading={buying}
                     onClick={handleBuyOnlineCourse}
                     block
                     style={{
@@ -756,7 +724,11 @@ export default function CourseDetailPage() {
                       boxShadow: '0 4px 14px rgba(16, 185, 129, 0.35)',
                     }}
                   >
-                    {course.isFree ? 'Vào học ngay miễn phí' : 'Thanh toán & Mua ngay'}
+                    {purchaseStatus === 'OWNED'
+                      ? 'Đã sở hữu khóa học (Vào học ngay)'
+                      : course.isFree
+                        ? 'Vào học ngay miễn phí'
+                        : 'Thanh toán & Mua ngay'}
                   </Button>
                 </Col>
               </Row>
@@ -836,45 +808,12 @@ export default function CourseDetailPage() {
                   </div>
                 </div>
 
-                {/* Nút hành động chính */}
+                {/* Nút hành động chính (Áp dụng cho CẢ Online và Offline) */}
                 <Space direction="vertical" size={12} style={{ width: '100%', marginBottom: 24 }}>
-                  {course.courseType === 'ONLINE' && !course.isFree && (
-                    <>
-                      <Button
-                        type="primary"
-                        size="large"
-                        icon={<DollarOutlined />}
-                        block
-                        disabled={purchaseStatus !== 'AVAILABLE'}
-                        loading={purchaseStatus === 'CHECKING'}
-                        style={{
-                          height: 48,
-                          fontSize: 16,
-                          fontWeight: 700,
-                          background: purchaseStatus === 'OWNED' ? undefined : 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                          borderColor: purchaseStatus === 'OWNED' ? undefined : '#059669',
-                        }}
-                        onClick={() => {
-                          // Guest checkout is allowed; the account is provisioned after successful payment.
-                          navigate(`/checkout/${course.id}`);
-                        }}
-                      >
-                        {purchaseStatus === 'OWNED'
-                          ? 'Đã mua khóa học'
-                          : purchaseStatus === 'CHECKING' ? 'Đang kiểm tra...' : 'Mua khóa học'}
-                      </Button>
-                      {purchaseStatus === 'OWNED' && (
-                        <Text type="success" style={{ display: 'block', textAlign: 'center' }}>
-                          Bạn đã mua khóa học này.
-                        </Text>
-                      )}
-                    </>
-                  )}
                   <Button
                     type="primary"
                     size="large"
                     icon={course.isFree ? <PlayCircleOutlined /> : <CreditCardOutlined />}
-                    loading={buying}
                     block
                     style={{
                       height: 50,
@@ -886,7 +825,11 @@ export default function CourseDetailPage() {
                     }}
                     onClick={handleBuyOnlineCourse}
                   >
-                    {course.isFree ? 'Vào học ngay miễn phí' : 'Mua khóa học ngay (Thanh toán)'}
+                    {purchaseStatus === 'OWNED'
+                      ? 'Đã sở hữu khóa học (Vào học ngay)'
+                      : course.isFree
+                        ? 'Vào học ngay miễn phí'
+                        : 'Mua khóa học ngay'}
                   </Button>
 
                   <Button

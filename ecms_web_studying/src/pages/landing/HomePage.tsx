@@ -24,10 +24,6 @@ import {
   UsergroupAddOutlined,
   CreditCardOutlined,
 } from '@ant-design/icons';
-import toast from 'react-hot-toast';
-
-import { useAuth } from '@/hooks/useAuth';
-import { tuitionApi } from '@/services/api/tuition';
 import { courseApi } from '@/services/api/course';
 // Nếu báo lỗi không tìm thấy, đổi thành: import { courseApi } from '@/services/api/course/courseApi';
 
@@ -65,7 +61,6 @@ const features = [
 
 export default function HomePage() {
   const navigate = useNavigate();
-  const { isAuthenticated, isStudent } = useAuth();
   const [courses, setCourses] = useState<CourseResponse[]>([]);
   const [loadingCourses, setLoadingCourses] = useState(true);
 
@@ -79,34 +74,8 @@ export default function HomePage() {
     setSelectedCourseForModal(null);
   };
 
-  const handleOnlineCheckout = async (course: CourseResponse) => {
-    if (!isAuthenticated) {
-      toast('Vui lòng đăng nhập để thanh toán và bắt đầu học');
-      navigate('/login', { state: { from: `/courses/${course.id}` } });
-      return;
-    }
-    if (!isStudent()) {
-      toast.error('Chỉ tài khoản học viên mới được thanh toán khóa học.');
-      return;
-    }
-    try {
-      const invoice = await tuitionApi.createOnlineCheckout(course.id);
-      if (invoice.status === 'PAID' || course.isFree || course.price === 0) {
-        toast.success('Đăng ký khóa học thành công! Chúc bạn học tập tốt.');
-        navigate('/student/my-courses');
-        return;
-      }
-      try {
-        const paymentUrl = await tuitionApi.createVnpayPayment(invoice.invoiceId);
-        window.location.assign(paymentUrl);
-      } catch {
-        toast.success('Hóa đơn đã được tạo thành công! Đang chuyển đến trang Học phí để xem chi tiết.');
-        navigate('/student/tuition');
-      }
-    } catch {
-      toast.error('Không tạo được thanh toán. Hãy kiểm tra mục Học phí.');
-      navigate('/student/tuition');
-    }
+  const handleOnlineCheckout = (course: CourseResponse) => {
+    navigate(`/checkout/${course.id}`);
   };
 
   useEffect(() => {
@@ -692,11 +661,10 @@ export default function HomePage() {
                   </div>
                   <div>
                     <Text strong style={{ fontSize: 15, color: '#1e293b' }}>
-                      Tư vấn lộ trình học tối ưu & Giữ chỗ lớp
+                      Tư vấn lộ trình học tối ưu & Xếp lớp
                     </Text>
                     <Paragraph type="secondary" style={{ margin: 0, fontSize: 13 }}>
-                      Tư vấn viên giới thiệu lớp học, học phí và kiểm tra sĩ số lớp còn chỗ để hoàn tất giữ
-                      chỗ.
+                      Tư vấn viên giới thiệu lớp học, học phí và kiểm tra sĩ số lớp để hoàn tất đăng ký nhập học.
                     </Paragraph>
                   </div>
                 </div>

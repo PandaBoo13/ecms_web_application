@@ -661,69 +661,31 @@ const LeadListPage = () => {
               />
             </Tooltip>
 
-            <Tooltip title={invoiceDisabledReason ?? t('lead.tooltip.createInvoice')}>
-              <span style={{ display: 'inline-block' }}>
-                <Button
-                  type="text"
-                  shape="circle"
-                  className="action-btn-circle"
-                  disabled={!!invoiceDisabledReason}
-                  icon={
-                    <DollarOutlined
-                      style={{
-                        color: invoiceDisabledReason ? '#bfbfbf' : '#059669',
-                        fontSize: 15,
-                      }}
-                    />
-                  }
-                  onClick={() => handleOpenInvoice(record)}
-                />
-              </span>
-            </Tooltip>
-
-            {!record.studentId ? (
-              <Tooltip title="Xác nhận thanh toán & Ghi danh">
-                <Button
-                  type="primary"
-                  size="small"
-                  shape="round"
-                  className="btn-success-gradient"
-                  icon={<CheckCircleOutlined />}
-                  style={{
-                    fontSize: 12,
-                    fontWeight: 600,
-                    padding: '0 8px',
-                    height: 28,
-                  }}
-                  onClick={() => {
-                    setSelectedLead(record);
-                    convertForm.setFieldsValue({ courseId: record.courseId });
-                    setConvertModalVisible(true);
-                  }}
-                >
-                  {t('lead.convertBtn')}
-                </Button>
-              </Tooltip>
-            ) : (
-              <Tag
-                color="cyan"
-                style={{
-                  borderRadius: 12,
-                  fontWeight: 600,
-                  padding: '2px 8px',
-                  margin: 0,
-                  cursor: 'pointer',
-                }}
-                onClick={() => handleOpenDetail(record)}
-              >
-                Học viên #{record.studentId}
-              </Tag>
-            )}
-
             <Dropdown
               trigger={['click']}
               menu={{
                 items: [
+                  ...(!record.studentId
+                    ? [
+                        {
+                          key: 'convert',
+                          icon: <CheckCircleOutlined style={{ color: '#059669' }} />,
+                          label: 'Ghi danh thủ công',
+                          onClick: () => {
+                            setSelectedLead(record);
+                            convertForm.setFieldsValue({ courseId: record.courseId });
+                            setConvertModalVisible(true);
+                          },
+                        },
+                      ]
+                    : []),
+                  {
+                    key: 'invoice',
+                    icon: <DollarOutlined style={{ color: '#059669' }} />,
+                    label: 'Tạo hóa đơn học phí',
+                    disabled: !!invoiceDisabledReason,
+                    onClick: () => handleOpenInvoice(record),
+                  },
                   {
                     key: 'assign',
                     icon: <UserSwitchOutlined style={{ color: '#722ed1' }} />,

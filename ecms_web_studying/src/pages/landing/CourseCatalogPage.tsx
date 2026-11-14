@@ -16,7 +16,6 @@ import { SearchOutlined, BookOutlined, SendOutlined, EyeOutlined, CreditCardOutl
 import toast from 'react-hot-toast';
 
 import { courseApi, progressApi } from '@/services/api/course';
-import { tuitionApi } from '@/services/api/tuition';
 import { useAuth } from '@/hooks/useAuth';
 import MoneyDisplay from '@/components/common/MoneyDisplay';
 import type { CourseResponse } from '@/services/types/course';
@@ -26,7 +25,7 @@ const { Title, Paragraph, Text } = Typography;
 
 export default function CourseCatalogPage() {
   const navigate = useNavigate();
-  const { isAuthenticated, isStudent } = useAuth();
+  const { isAuthenticated } = useAuth();
   const [courses, setCourses] = useState<CourseResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchText, setSearchText] = useState('');
@@ -109,37 +108,13 @@ export default function CourseCatalogPage() {
     setConsultModalOpen(true);
   };
 
-  const handleOnlineCheckout = async (course: CourseResponse, event?: React.MouseEvent) => {
+  const handleOnlineCheckout = (course: CourseResponse, event?: React.MouseEvent) => {
     if (event) event.stopPropagation();
     if (ownedCourseIds.has(course.id)) {
-      toast.success('Bạn đã mua khóa học này.');
+      toast.success('Bạn đã sở hữu khóa học này.');
       return;
     }
-    if (!isAuthenticated) {
-      navigate(`/checkout/${course.id}`);
-      return;
-    }
-    if (!isStudent()) {
-      toast.error('Chỉ tài khoản học viên mới được thanh toán khóa học.');
-      return;
-    }
-    try {
-      const invoice = await tuitionApi.createOnlineCheckout(course.id);
-      if (invoice.status === 'PAID' || course.isFree || course.price === 0) {
-        toast.success('Đăng ký khóa học thành công! Chúc bạn học tập tốt.');
-        navigate('/student/my-courses');
-        return;
-      }
-      try {
-        const paymentUrl = await tuitionApi.createVnpayPayment(invoice.invoiceId);
-        window.location.assign(paymentUrl);
-      } catch {
-        toast.success('Hóa đơn đã được tạo thành công! Đang chuyển đến trang Học phí để xem chi tiết.');
-        navigate('/student/tuition');
-      }
-    } catch {
-      navigate(`/checkout/${course.id}`);
-    }
+    navigate(`/checkout/${course.id}`);
   };
 
   return (

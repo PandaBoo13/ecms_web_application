@@ -88,6 +88,7 @@ export interface StudentUpdatePayload {
   address?: string;
   userId?: number;
   status?: StudentStatus;
+  password?: string;
 }
 
 export interface StudentConvertFromLeadPayload {

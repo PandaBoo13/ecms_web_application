@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Button, Card, Form, Input, Typography, Alert, Checkbox } from 'antd';
-import { LockOutlined, MailOutlined } from '@ant-design/icons';
+import { LockOutlined, MailOutlined, ArrowLeftOutlined } from '@ant-design/icons';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/hooks/useAuth';
@@ -104,8 +104,35 @@ const LoginPage = () => {
         justifyContent: 'center',
         background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
         padding: 24,
+        position: 'relative',
       }}
     >
+      {/* Nút quay lại trang chủ góc trên bên trái */}
+      <Button
+        type="text"
+        icon={<ArrowLeftOutlined />}
+        onClick={() => navigate('/')}
+        style={{
+          position: 'absolute',
+          top: 24,
+          left: 24,
+          color: '#ffffff',
+          fontSize: 14,
+          fontWeight: 600,
+          background: 'rgba(255, 255, 255, 0.18)',
+          backdropFilter: 'blur(8px)',
+          borderRadius: 8,
+          padding: '6px 14px',
+          height: 38,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
+        }}
+      >
+        Quay lại trang chủ
+      </Button>
+
       <Card style={{ width: '100%', maxWidth: 420, boxShadow: '0 20px 60px rgba(0,0,0,0.3)', borderRadius: 12 }}>
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
           <Title level={2} style={{ marginBottom: 4 }}>
@@ -178,7 +205,19 @@ const LoginPage = () => {
           </Form.Item>
         </Form>
 
-        <div style={{ textAlign: 'center', marginTop: 24 }}>
+        {/* Nút quay lại trang chủ dạng liên kết ngay trong Card */}
+        <div style={{ textAlign: 'center', marginTop: 20 }}>
+          <Button
+            type="link"
+            icon={<ArrowLeftOutlined />}
+            onClick={() => navigate('/')}
+            style={{ color: '#64748b', fontSize: 14, padding: 0 }}
+          >
+            Quay lại trang chủ ECMS
+          </Button>
+        </div>
+
+        <div style={{ textAlign: 'center', marginTop: 16 }}>
           <Text type="secondary" style={{ fontSize: 12 }}>
             © 2026 ECMS Cổng học tập
           </Text>

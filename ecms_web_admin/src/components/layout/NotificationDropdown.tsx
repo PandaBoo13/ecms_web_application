@@ -173,6 +173,11 @@ const NotificationDropdown = () => {
       navigate(n.referenceId ? `/admin/courses/${n.referenceId}` : '/admin/courses');
       return;
     }
+
+    if (type === 'ORDER' || type === 'INVOICE' || refType === 'INVOICE') {
+      navigate('/admin/tuition');
+      return;
+    }
   };
 
   const handleMarkAll = async () => {

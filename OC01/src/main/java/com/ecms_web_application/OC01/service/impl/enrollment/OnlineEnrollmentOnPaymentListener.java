@@ -58,6 +58,35 @@ public class OnlineEnrollmentOnPaymentListener {
                 || invoice.getStatus() != InvoiceStatus.PAID) return;
         Course course = courseRepository.findById(invoice.getCourseId()).orElse(null);
         sendPaymentNotification(invoice, course);
+        sendAdminPaymentNotification(invoice, course);
+    }
+
+    private void sendAdminPaymentNotification(Invoice invoice, Course course) {
+        try {
+            String courseName = course != null ? course.getTitle() : "Khóa học #" + invoice.getCourseId();
+            String payer = invoice.getPayerName() != null && !invoice.getPayerName().isBlank()
+                    ? invoice.getPayerName()
+                    : "Học viên";
+            NotificationRequest request = NotificationRequest.builder()
+                    .notificationType("ORDER")
+                    .title("Đơn mua khóa học thanh toán thành công")
+                    .content(payer + " vừa thanh toán thành công khóa học '" + courseName + "' (Hóa đơn "
+                            + invoice.getInvoiceCode() + ", "
+                            + String.format("%,.0f đ", invoice.getAmount()) + ").")
+                    .referenceType("invoice")
+                    .referenceId(invoice.getId())
+                    .receiverRole("ADMIN_AND_CONSULTANT")
+                    .priority("HIGH")
+                    .extraData(java.util.Map.of(
+                            "url", "/admin/tuition",
+                            "invoiceCode", invoice.getInvoiceCode()
+                    ))
+                    .build();
+            notificationService.sendNotification(request);
+            log.info("[PaymentNotification] Đã phát thông báo thanh toán thành công tới Admin/TVV cho hóa đơn {}", invoice.getInvoiceCode());
+        } catch (Exception ex) {
+            log.warn("Không gửi được notification thanh toán cho Admin: {}", ex.getMessage());
+        }
     }
 
     private void sendPaymentNotification(Invoice invoice, Course course) {
