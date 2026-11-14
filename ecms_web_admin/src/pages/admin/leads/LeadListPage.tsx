@@ -661,6 +661,28 @@ const LeadListPage = () => {
               />
             </Tooltip>
 
+            {!record.studentId && (
+              <Tooltip title={invoiceDisabledReason ?? t('lead.tooltip.createInvoice')}>
+                <span style={{ display: 'inline-block' }}>
+                  <Button
+                    type="text"
+                    shape="circle"
+                    className="action-btn-circle"
+                    disabled={!!invoiceDisabledReason}
+                    icon={
+                      <DollarOutlined
+                        style={{
+                          color: invoiceDisabledReason ? '#bfbfbf' : '#059669',
+                          fontSize: 15,
+                        }}
+                      />
+                    }
+                    onClick={() => handleOpenInvoice(record)}
+                  />
+                </span>
+              </Tooltip>
+            )}
+
             <Dropdown
               trigger={['click']}
               menu={{
@@ -677,15 +699,15 @@ const LeadListPage = () => {
                             setConvertModalVisible(true);
                           },
                         },
+                        {
+                          key: 'invoice',
+                          icon: <DollarOutlined style={{ color: '#059669' }} />,
+                          label: 'Tạo hóa đơn học phí',
+                          disabled: !!invoiceDisabledReason,
+                          onClick: () => handleOpenInvoice(record),
+                        },
                       ]
                     : []),
-                  {
-                    key: 'invoice',
-                    icon: <DollarOutlined style={{ color: '#059669' }} />,
-                    label: 'Tạo hóa đơn học phí',
-                    disabled: !!invoiceDisabledReason,
-                    onClick: () => handleOpenInvoice(record),
-                  },
                   {
                     key: 'assign',
                     icon: <UserSwitchOutlined style={{ color: '#722ed1' }} />,
