@@ -31,7 +31,7 @@ import CourseQuestionList from '@/components/course/CourseQuestionList';
 import QuizListCard from '@/components/course/QuizListCard';
 // 🆕 Import 2 component dùng chung từ Admin
 import CourseEnrollmentList from '@/components/course/CourseEnrollmentList';
-import CourseProgressStats from '@/components/course/CourseProgressStats';
+
 import CourseProgressCharts from '@/components/course/CourseProgressCharts';
 
 import { courseApi } from '@/services/api/course';
@@ -215,7 +215,7 @@ const CourseEditPage = () => {
       label: 'Tiến độ lớp học',
       children: (
         <div className="flex flex-col gap-6">
-          <CourseProgressStats courseId={courseId} />
+       
           <CourseProgressCharts courseId={courseId} />
         </div>
       ),

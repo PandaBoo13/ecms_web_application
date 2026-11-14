@@ -19,13 +19,15 @@ export const API_ENDPOINT = {
   COURSE_DETAIL: (id: number) => `/api/courses/${id}`,
   COURSE_OFFLINE_INFO: (id: number) => `/api/courses/${id}/offline-info`,
   COURSE_SUBMIT_REVIEW: (id: number) => `/api/courses/${id}/submit-review`,
+  COURSE_WITHDRAW_REVIEW: (id: number) => `/api/courses/${id}/withdraw-review`, // 🆕
   COURSE_REVIEW: (id: number) => `/api/courses/${id}/review`,
+  COURSE_FINALIZE_SCHEDULE: (id: number) => `/api/courses/${id}/finalize-schedule`,
   COURSE_ARCHIVE: (id: number) => `/api/courses/${id}/archive`,
   COURSE_CANCEL: (id: number) => `/api/courses/${id}/cancel`,
   COURSE_COPY: (id: number) => `/api/courses/${id}/copy`,
   COURSE_HARD_DELETE: (id: number) => `/api/courses/${id}/hard`,
   COURSE_CHANGE_TEACHER: (id: number) => `/api/courses/${id}/teacher`,
-COURSE_FINALIZE_SCHEDULE: (id: number) => `/api/courses/${id}/finalize-schedule`,
+
   // ══════════════════════════════════════════════════════════════
   // RESOURCES
   // ══════════════════════════════════════════════════════════════
@@ -45,14 +47,19 @@ COURSE_FINALIZE_SCHEDULE: (id: number) => `/api/courses/${id}/finalize-schedule`
     `/api/courses/${courseId}/sessions/${id}/cancel`,
   SESSION_TEACHER: (courseId: number, id: number) =>
     `/api/courses/${courseId}/sessions/${id}/teacher`,
-  SESSION_GENERATE: (courseId: number) =>
-    `/api/courses/${courseId}/sessions/generate`,
-  SESSION_DONE: (courseId: number, id: number) =>
-    `/api/courses/${courseId}/sessions/${id}/done`,
   SESSION_SUBSTITUTE_TEACHER: (courseId: number, id: number) =>
     `/api/courses/${courseId}/sessions/${id}/substitute-teacher`,
   SESSION_ASSISTANT: (courseId: number, id: number) =>
     `/api/courses/${courseId}/sessions/${id}/assistant`,
+  SESSION_GENERATE: (courseId: number) =>
+    `/api/courses/${courseId}/sessions/generate`,
+  SESSION_DONE: (courseId: number, id: number) =>
+    `/api/courses/${courseId}/sessions/${id}/done`,
+  /** Lịch cá nhân (teaching/learning) phân nhánh theo role. */
+  SESSION_MY_SCHEDULE: '/api/sessions/my-schedule', // 🆕
+  /** Điểm danh buổi học — GET/PUT. */
+  SESSION_ATTENDANCE: (courseId: number, sessionId: number) =>
+    `/api/courses/${courseId}/sessions/${sessionId}/attendance`,
 
   // ══════════════════════════════════════════════════════════════
   // QUESTIONS
@@ -92,6 +99,7 @@ COURSE_FINALIZE_SCHEDULE: (id: number) => `/api/courses/${id}/finalize-schedule`
   ROOMS: '/api/rooms',
   ROOMS_ACTIVE: '/api/rooms/active',
   ROOM_DETAIL: (id: number) => `/api/rooms/${id}`,
+  ROOM_AVAILABILITY: (id: number) => `/api/rooms/${id}/availability`, // 🆕
 
   // ══════════════════════════════════════════════════════════════
   // PROGRESS
@@ -108,12 +116,18 @@ COURSE_FINALIZE_SCHEDULE: (id: number) => `/api/courses/${id}/finalize-schedule`
   // ══════════════════════════════════════════════════════════════
   // INSTRUCTORS
   // ══════════════════════════════════════════════════════════════
+  INSTRUCTOR_AVAILABILITY: (accountId: number) =>
+    `/api/instructors/${accountId}/availability`, // 🆕
+
+  // Specializations — self
   MY_SPECIALIZATIONS: '/api/instructors/me/specializations',
   MY_SPECIALIZATION_DETAIL: (categoryId: number) =>
     `/api/instructors/me/specializations/${categoryId}`,
   MY_SPECIALIZATION_PRIMARY: (categoryId: number) =>
     `/api/instructors/me/specializations/${categoryId}/primary`,
   MY_SPECIALIZATION_CLEAR_PRIMARY: '/api/instructors/me/specializations/primary',
+
+  // Specializations — admin
   INSTRUCTOR_SPECIALIZATIONS: (accountId: number) =>
     `/api/instructors/${accountId}/specializations`,
   INSTRUCTOR_SPECIALIZATION_PRIMARY: (accountId: number) =>
@@ -124,21 +138,23 @@ COURSE_FINALIZE_SCHEDULE: (id: number) => `/api/courses/${id}/finalize-schedule`
     `/api/instructors/category/${categoryId}/specializations`,
 
   // ══════════════════════════════════════════════════════════════
+  // INTERNAL — service-to-service
+  // ══════════════════════════════════════════════════════════════
+  INTERNAL_COURSE_SEATS: (id: number) => `/api/internal/courses/${id}/available-seats`, // 🆕
+
+  // ══════════════════════════════════════════════════════════════
   // RBAC
   // ══════════════════════════════════════════════════════════════
-  // Roles
   RBAC_ROLES: '/api/rbac/roles',
   RBAC_ROLE_DETAIL: (id: number) => `/api/rbac/roles/${id}`,
   RBAC_ROLE_ACCOUNTS: (roleId: number) => `/api/rbac/roles/${roleId}/accounts`,
 
-  // Permissions
   RBAC_PERMISSIONS: '/api/rbac/permissions',
   RBAC_PERMISSION_DETAIL: (id: number) => `/api/rbac/permissions/${id}`,
   RBAC_PERMISSIONS_ALL: '/api/rbac/permissions/all',
   RBAC_PERMISSIONS_MODULES: '/api/rbac/permissions/modules',
   RBAC_PERMISSIONS_SYNC: '/api/rbac/permissions/sync',
 
-  // Role ↔ Permission
   RBAC_ROLE_PERMISSIONS: (roleId: number) => `/api/rbac/roles/${roleId}/permissions`,
   RBAC_ROLE_PERMISSIONS_BATCH: (roleId: number) => `/api/rbac/roles/${roleId}/permissions/batch`,
   RBAC_ROLE_PERMISSION_DETAIL: (roleId: number, permissionId: number) =>
@@ -148,7 +164,6 @@ COURSE_FINALIZE_SCHEDULE: (id: number) => `/api/courses/${id}/finalize-schedule`
   RBAC_ROLE_PERMISSION_DEACTIVATE: (roleId: number, permissionId: number) =>
     `/api/rbac/roles/${roleId}/permissions/${permissionId}/deactivate`,
 
-  // Accounts
   RBAC_ACCOUNTS: '/api/rbac/accounts',
   RBAC_ACCOUNT_DETAIL: (id: number) => `/api/rbac/accounts/${id}`,
   RBAC_ACCOUNT_ROLES: (id: number) => `/api/rbac/accounts/${id}/roles`,
@@ -158,13 +173,12 @@ COURSE_FINALIZE_SCHEDULE: (id: number) => `/api/courses/${id}/finalize-schedule`
   RBAC_ACCOUNT_RESET_PASSWORD: (id: number) => `/api/rbac/accounts/${id}/reset-password`,
 
   // ══════════════════════════════════════════════════════════════
-  // REQUEST — workflow xin duyệt/hủy cho mọi loại entity
+  // REQUESTS
   // ══════════════════════════════════════════════════════════════
   REQUESTS: '/api/requests',
   REQUEST_DETAIL: (id: number) => `/api/requests/${id}`,
   REQUEST_REVIEW: (id: number) => `/api/requests/${id}/review`,
   REQUEST_CANCEL: (id: number) => `/api/requests/${id}/cancel`,
-  // 🆕 Preview conflict cho COURSE_REVIEW trước khi duyệt
   REQUEST_COURSE_CONFLICTS: (id: number) => `/api/requests/${id}/course-conflicts`,
 
   // ══════════════════════════════════════════════════════════════
@@ -195,8 +209,34 @@ COURSE_FINALIZE_SCHEDULE: (id: number) => `/api/courses/${id}/finalize-schedule`
   CHAT_CONVERSATION_DETAIL: (id: number) => `/api/chat/conversations/${id}`,
   CHAT_MESSAGES: (id: number) => `/api/chat/conversations/${id}/messages`,
   CHAT_MARK_READ: (id: number) => `/api/chat/conversations/${id}/read`,
-  CHAT_MESSAGE_DETAIL: (id: number) => `/api/chat/messages/${id}`,
   CHAT_USERS_SEARCH: '/api/chat/users/search',
+
+  // Messages
+  CHAT_MESSAGE_EDIT: (id: number) => `/api/chat/messages/${id}`,     // PUT
+  CHAT_MESSAGE_DELETE: (id: number) => `/api/chat/messages/${id}`,   // DELETE
+
+  // Participants
+  CHAT_PARTICIPANTS: (id: number) => `/api/chat/conversations/${id}/participants`, // GET, POST
+  CHAT_PARTICIPANT_REMOVE: (id: number, accountId: number) =>
+    `/api/chat/conversations/${id}/participants/${accountId}`, // DELETE
+  CHAT_PARTICIPANT_MUTE: (id: number, accountId: number) =>
+    `/api/chat/conversations/${id}/participants/${accountId}/mute`,
+  CHAT_PARTICIPANT_UNMUTE: (id: number, accountId: number) =>
+    `/api/chat/conversations/${id}/participants/${accountId}/unmute`,
+  CHAT_PARTICIPANT_BAN: (id: number, accountId: number) =>
+    `/api/chat/conversations/${id}/participants/${accountId}/ban`,
+  CHAT_PARTICIPANT_UNBAN: (id: number, accountId: number) =>
+    `/api/chat/conversations/${id}/participants/${accountId}/unban`,
+  CHAT_PARTICIPANT_ROLE: (id: number, accountId: number) =>
+    `/api/chat/conversations/${id}/participants/${accountId}/role`,
+
+  // Conversation settings
+  CHAT_RENAME: (id: number) => `/api/chat/conversations/${id}/name`,
+  CHAT_TRANSFER_OWNERSHIP: (id: number) => `/api/chat/conversations/${id}/transfer-ownership`,
+  CHAT_PIN: (id: number) => `/api/chat/conversations/${id}/pin`,
+  CHAT_PERMISSION: (id: number) => `/api/chat/conversations/${id}/permission`,
+  CHAT_MUTE_BY_USER: (id: number) => `/api/chat/conversations/${id}/mute-by-user`,
+  CHAT_ARCHIVE: (id: number) => `/api/chat/conversations/${id}/archive`,
 
   // ══════════════════════════════════════════════════════════════
   // LEADS
@@ -207,6 +247,7 @@ COURSE_FINALIZE_SCHEDULE: (id: number) => `/api/courses/${id}/finalize-schedule`
   LEAD_ASSIGN: (id: number) => `/api/leads/${id}/assign`,
   LEAD_INTERACTIONS: (id: number) => `/api/leads/${id}/interactions`,
   LEAD_PLACEMENT_TESTS: (id: number) => `/api/leads/${id}/placement-tests`,
+  LEAD_CONSULTANTS: '/api/leads/consultants', // 🆕 GET
 
   // ══════════════════════════════════════════════════════════════
   // STUDENTS
@@ -218,25 +259,49 @@ COURSE_FINALIZE_SCHEDULE: (id: number) => `/api/courses/${id}/finalize-schedule`
   STUDENT_CONVERT_LEAD: '/api/students/convert-lead',
   STUDENT_STATUS: (id: number) => `/api/students/${id}/status`,
   STUDENT_LOCK_ACCOUNT: (id: number) => `/api/students/${id}/lock-account`,
-  STUDENT_GUARDIANS: (id: number) => `/api/students/${id}/guardians`,
-  STUDENT_GUARDIAN_DETAIL: (id: number, guardianId: number) => `/api/students/${id}/guardians/${guardianId}`,
   STUDENT_ACADEMIC_HISTORIES: (id: number) => `/api/students/${id}/academic-histories`,
 
-  // TUITION & ENROLLMENT
+  // Guardians
+  STUDENT_GUARDIANS: (id: number) => `/api/students/${id}/guardians`,   // GET, POST
+  STUDENT_GUARDIAN_DELETE: (id: number, guardianId: number) =>
+    `/api/students/${id}/guardians/${guardianId}`,                       // DELETE (đổi tên)
+
+  // ══════════════════════════════════════════════════════════════
+  // TUITION
+  // ══════════════════════════════════════════════════════════════
   TUITION_INVOICES: '/api/tuition/invoices',
   TUITION_INVOICE_STATS: '/api/tuition/invoices/stats',
   TUITION_ELIGIBLE_LEADS: '/api/tuition/invoices/eligible-leads',
   TUITION_FROM_LEAD: '/api/tuition/invoices/from-lead',
   TUITION_FROM_STUDENT: '/api/tuition/invoices/from-student',
+  TUITION_INVOICE_DETAIL: (id: number) => `/api/tuition/invoices/${id}`,
   TUITION_PAYMENT_LINK: (id: number) => `/api/tuition/invoices/${id}/payment-link`,
   TUITION_CHECKOUT: '/api/tuition/invoices/checkout',
   TUITION_VNPAY_START: (id: number) => `/api/tuition/invoices/${id}/vnpay`,
-  TUITION_INVOICE_DETAIL: (id: number) => `/api/tuition/invoices/${id}`,
   TUITION_CASH_CONFIRMATION: (id: number) => `/api/tuition/invoices/${id}/cash-confirmation`,
-  TUITION_BANK_TRANSFER_CONFIRMATION: (id: number) => `/api/tuition/invoices/${id}/bank-transfer-confirmation`,
+  TUITION_BANK_TRANSFER_CONFIRMATION: (id: number) =>
+    `/api/tuition/invoices/${id}/bank-transfer-confirmation`,
   TUITION_DUE_DATE: (id: number) => `/api/tuition/invoices/${id}/due-date`,
   TUITION_CANCEL: (id: number) => `/api/tuition/invoices/${id}/cancel`,
   TUITION_REFUND: (id: number) => `/api/tuition/invoices/${id}/refund`,
+
+  /** VNPay IPN webhook (server-to-server) — KHÔNG gọi từ browser. */
+  TUITION_VNPAY_IPN: '/api/tuition/payments/vnpay/ipn', // 🆕
+
+  // Public tuition (không cần auth)
+  PUBLIC_TUITION_CHECKOUT: '/api/public/tuition/checkout',              // 🆕
+  PUBLIC_VNPAY_RETURN: '/api/public/tuition/vnpay-return',              // 🆕
+  PUBLIC_VNPAY_RETURN_PAGE: '/api/public/tuition/vnpay-return-page',    // 🆕
+  PUBLIC_PAYMENT_LINK: '/api/public/tuition/payment-links',             // 🆕
+  PUBLIC_PAYMENT_LINK_VNPAY: '/api/public/tuition/payment-links/vnpay', // 🆕
+  PUBLIC_PAYMENT_LINK_REDIRECT: '/api/public/tuition/payment-links/redirect', // 🆕
+
+  // Public lead
+  PUBLIC_LEAD_REGISTER: '/api/public/leads/register',                   // 🆕
+
+  // ══════════════════════════════════════════════════════════════
+  // ENROLLMENTS
+  // ══════════════════════════════════════════════════════════════
   ENROLLMENTS: '/api/enrollments',
   ENROLLMENT_SUMMARY: '/api/enrollments/summary',
   ENROLLMENT_OFFLINE: '/api/enrollments/offline',
@@ -251,12 +316,9 @@ COURSE_FINALIZE_SCHEDULE: (id: number) => `/api/courses/${id}/finalize-schedule`
   ENROLLMENT_FINAL_SCORE: (id: number) => `/api/enrollments/${id}/final-score`,
   ENROLLMENT_COMPLETE: (id: number) => `/api/enrollments/${id}/complete`,
   ENROLLMENT_COMPLETE_BULK: '/api/enrollments/complete/bulk',
-  SESSION_ATTENDANCE: (courseId: number, sessionId: number) =>
-    `/api/courses/${courseId}/sessions/${sessionId}/attendance`,
 
   // ══════════════════════════════════════════════════════════════
   // AI AGENT
   // ══════════════════════════════════════════════════════════════
   AI_AGENT_CHAT: '/api/ai-agent/chat',
-
 } as const;

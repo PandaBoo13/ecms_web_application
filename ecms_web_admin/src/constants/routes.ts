@@ -64,11 +64,9 @@ export const ADMIN_MENU: MenuItem[] = [
     children: [
       { key: '/admin/courses', label: 'Danh sách khóa học', path: '/admin/courses', roles: [ROLE.ADMIN, ROLE.LEAD, ROLE.CONSULTANT] },
       { key: '/admin/categories', label: 'Danh mục', path: '/admin/categories', roles: [ROLE.ADMIN, ROLE.LEAD, ROLE.CONSULTANT] },
-      // 🆕 Thêm mục Phòng học ở đây
       { key: '/admin/rooms', label: 'Phòng học', path: '/admin/rooms', roles: [ROLE.ADMIN] },
     ],
   },
-  // 🆕 REQUEST MODULE — dùng icon SolutionOutlined có sẵn trong ICON_MAP
   {
     key: 'requests',
     label: 'Yêu cầu & Kiểm duyệt',
@@ -116,6 +114,13 @@ export const INSTRUCTOR_MENU: MenuItem[] = [
     icon: 'DashboardOutlined',
     path: '/instructor/dashboard',
   },
+  // 🆕 Thêm Lịch giảng dạy ngay dưới Tổng quan
+  {
+    key: '/instructor/schedule',
+    label: 'Lịch giảng dạy',
+    icon: 'CalendarOutlined',
+    path: '/instructor/schedule',
+  },
   {
     key: '/instructor/courses',
     label: 'Khóa học của tôi',
@@ -159,13 +164,15 @@ export const ROUTE_TITLE: Record<string, string> = {
   '/admin/users': 'Quản lý tài khoản',
   '/admin/courses': 'Quản lý khóa học',
   '/admin/categories': 'Quản lý danh mục',
-  '/admin/rooms': 'Quản lý phòng học', // 🆕
+  '/admin/rooms': 'Quản lý phòng học',
   '/admin/requests': 'Quản lý yêu cầu',
   '/admin/roles': 'Phân quyền',
   '/admin/permissions': 'Quản lý Quyền hạn',
   '/admin/audit-logs': 'Nhật ký hệ thống',
   '/admin/reports': 'Báo cáo',
+  
   '/instructor/dashboard': 'Tổng quan',
+  '/instructor/schedule': 'Lịch giảng dạy', // 🆕 Thêm title cho lịch
   '/instructor/courses': 'Khóa học của tôi',
   '/instructor/students': 'Học viên',
   '/instructor/attendance': 'Điểm danh',

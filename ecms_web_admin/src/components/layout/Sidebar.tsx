@@ -13,7 +13,8 @@ import {
   FolderOutlined,
   DollarOutlined,
   SolutionOutlined,
-  HomeOutlined, // 🆕 Import icon Phòng học
+  HomeOutlined, 
+  CalendarOutlined, // 🆕 Import icon Lịch
 } from '@ant-design/icons';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
@@ -39,7 +40,8 @@ const ICON_MAP: Record<string, React.ReactNode> = {
   FolderOutlined: <FolderOutlined />,
   DollarOutlined: <DollarOutlined />,
   SolutionOutlined: <SolutionOutlined />,
-  HomeOutlined: <HomeOutlined />, // 🆕 Thêm vào map
+  HomeOutlined: <HomeOutlined />, 
+  CalendarOutlined: <CalendarOutlined />, // 🆕 Thêm vào map
 };
 
 const MENU_KEY_TRANSLATION_MAP: Record<string, string> = {
@@ -57,7 +59,7 @@ const MENU_KEY_TRANSLATION_MAP: Record<string, string> = {
   'courses': 'menu.courses',
   '/admin/courses': 'menu.courseList',
   '/admin/categories': 'menu.categories',
-  '/admin/rooms': 'Phòng học', // 🆕 Thêm key dịch cho phòng học
+  '/admin/rooms': 'Phòng học', 
   'users': 'menu.users',
   '/admin/users': 'menu.userList',
   'system': 'menu.system',
@@ -66,6 +68,7 @@ const MENU_KEY_TRANSLATION_MAP: Record<string, string> = {
   'reports': 'menu.reports',
   '/admin/reports': 'menu.generalReports',
   '/instructor/dashboard': 'menu.dashboard',
+  '/instructor/schedule': 'Lịch giảng dạy', // 🆕 Thêm key dịch cho lịch
   '/instructor/courses': 'menu.myCourses',
   '/instructor/students': 'menu.students',
   '/instructor/attendance': 'Điểm danh',

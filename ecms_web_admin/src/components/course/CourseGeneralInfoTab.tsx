@@ -2,8 +2,9 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   Card, Typography, Space, Button, Tag,
   Popover, DatePicker, TimePicker, Checkbox, Spin, Divider,
-  Image, Upload, Input,
+  Image, Upload, Input, Dropdown, Modal,
 } from 'antd';
+import type { MenuProps } from 'antd';
 import {
   EditOutlined, TeamOutlined, InfoCircleOutlined, CheckCircleOutlined,
   UploadOutlined, DeleteOutlined, EyeOutlined, PictureOutlined,
@@ -119,6 +120,11 @@ const CourseGeneralInfoTab = ({ course, onRefresh }: Props) => {
   const [rooms, setRooms] = useState<RoomResponse[]>([]);
   const [previewVisible, setPreviewVisible] = useState(false);
 
+  // State cho Modal đổi trạng thái (nhập lý do khi cancel/reject)
+  const [statusModal, setStatusModal] = useState<{ action: 'cancel' | 'reject'; title: string } | null>(null);
+  const [statusReason, setStatusReason] = useState('');
+  const [statusLoading, setStatusLoading] = useState(false);
+
   const isOffline = course.courseType === 'OFFLINE';
   const isLocked = ['ONGOING', 'FINISHED', 'CANCELLED'].includes(course.status);
 
@@ -142,6 +148,131 @@ const CourseGeneralInfoTab = ({ course, onRefresh }: Props) => {
       showError(err, 'Cập nhật thất bại'); throw err;
     } finally { setSavingField(null); }
   }, [course.id, savingField, onRefresh]);
+
+  // ══════════════════════════════════════════════════════════
+  // XỬ LÝ ĐỔI TRẠNG THÁI TỰ DO (FORCE CHANGE)
+  // ══════════════════════════════════════════════════════════
+  const handleForceStatusChange = async (targetStatus: string) => {
+    const s = (course.status || '').toUpperCase();
+    
+    // Nếu trạng thái đích trùng với hiện tại -> bỏ qua
+    if (targetStatus === s || (targetStatus === 'DRAFT' && s === 'PLANNING')) return;
+    if (savingField) return;
+
+    // 1. Xử lý các trạng thái cần nhập lý do (Mở Modal)
+    if (targetStatus === 'CANCELLED') {
+      if (['DRAFT', 'PLANNING', 'PENDING', 'PUBLISHED'].includes(s)) {
+        setStatusModal({ action: 'cancel', title: 'Huỷ khóa học' });
+        setStatusReason('');
+      } else {
+        toast.error('Không thể huỷ từ trạng thái hiện tại.');
+      }
+      return;
+    }
+    if (targetStatus === 'REJECTED') {
+      if (s === 'PENDING') {
+        setStatusModal({ action: 'reject', title: 'Từ chối khóa học' });
+        setStatusReason('');
+      } else {
+        toast.error('Chỉ có thể từ chối khóa học đang chờ duyệt (PENDING).');
+      }
+      return;
+    }
+
+    // 2. Xử lý các trạng thái gọi API trực tiếp
+    setSavingField('status');
+    try {
+      if (targetStatus === 'DRAFT') {
+        if (s === 'PENDING') {
+          await courseApi.withdrawReview(course.id);
+        } else if (s === 'REJECTED') {
+          toast.success('Khóa học đã ở trạng thái Nháp (DRAFT)');
+          return;
+        } else {
+          toast.error('Backend không hỗ trợ chuyển từ trạng thái này về Nháp.');
+          return;
+        }
+      } 
+      
+      else if (targetStatus === 'PENDING') {
+        if (['DRAFT', 'PLANNING', 'REJECTED'].includes(s)) {
+          await courseApi.submitReview(course.id);
+        } else {
+          toast.error('Chỉ có thể Gửi duyệt từ trạng thái Nháp hoặc Bị từ chối.');
+          return;
+        }
+      } 
+      
+      else if (targetStatus === 'PUBLISHED') {
+        if (s === 'PENDING') {
+          await courseApi.review(course.id, true);
+        } else if (['DRAFT', 'PLANNING', 'REJECTED'].includes(s)) {
+          if (isOffline) {
+            await courseApi.finalizeSchedule(course.id);
+          } else {
+            await courseApi.submitReview(course.id);
+            await courseApi.review(course.id, true);
+          }
+        } else {
+          toast.error('Không thể xuất bản từ trạng thái hiện tại.');
+          return;
+        }
+      } 
+      
+      else if (targetStatus === 'ARCHIVED') {
+        if (s === 'PUBLISHED') {
+          await courseApi.archive(course.id);
+        } else {
+          toast.error('Chỉ có thể Lưu trữ từ trạng thái Đã xuất bản.');
+          return;
+        }
+      }
+
+      toast.success(`Đã chuyển trạng thái sang ${targetStatus}`);
+      onRefresh();
+    } catch (err) {
+      showError(err, 'Cập nhật trạng thái thất bại');
+    } finally {
+      setSavingField(null);
+    }
+  };
+
+  const handleStatusModalSubmit = async () => {
+    if (!statusReason.trim()) {
+      toast.error('Vui lòng nhập lý do');
+      return;
+    }
+    setStatusLoading(true);
+    try {
+      if (statusModal?.action === 'cancel') {
+        await courseApi.cancel(course.id, statusReason.trim());
+      } else if (statusModal?.action === 'reject') {
+        await courseApi.review(course.id, false, statusReason.trim());
+      }
+      toast.success('Cập nhật trạng thái thành công');
+      setStatusModal(null);
+      setStatusReason('');
+      onRefresh();
+    } catch (err) {
+      showError(err, 'Cập nhật trạng thái thất bại');
+    } finally {
+      setStatusLoading(false);
+    }
+  };
+
+  // Menu items: Liệt kê TẤT CẢ trạng thái có thể đổi
+  const allStatusActions: MenuProps['items'] = [
+    { key: 'DRAFT', label: '📝 Kế hoạch / Nháp (DRAFT)' },
+    { key: 'PENDING', label: '⏳ Chờ duyệt (PENDING)' },
+    { key: 'REJECTED', label: '❌ Từ chối duyệt (REJECTED)', danger: true },
+    { key: 'PUBLISHED', label: '✅ Đã xuất bản (PUBLISHED)' },
+    { key: 'ARCHIVED', label: '📦 Lưu trữ (ARCHIVED)' },
+    { key: 'CANCELLED', label: '🚫 Đã huỷ (CANCELLED)', danger: true },
+  ];
+
+  // ══════════════════════════════════════════════════════════
+  // INLINE COMPONENTS
+  // ══════════════════════════════════════════════════════════
 
   const DateInline = ({ value, onSave }: { value?: string | null; onSave: (v: string) => Promise<void> }) => {
     const [open, setOpen] = useState(false);
@@ -290,8 +421,38 @@ const CourseGeneralInfoTab = ({ course, onRefresh }: Props) => {
             </FieldWrapper>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              <FieldWrapper label="Trạng thái & Hình thức" disabled={true}>
-                <Space wrap size={4}><StatusTag status={course.status} /><StatusTag status={course.courseType} /></Space>
+              
+              {/* TRẠNG THÁI: Dropdown đổi tất cả trạng thái */}
+              <FieldWrapper label="Trạng thái & Hình thức" disabled={false}>
+                <Space wrap size={8} align="center">
+                  <Space size={4}>
+                    <StatusTag status={course.status} />
+                    <StatusTag status={course.courseType} />
+                  </Space>
+                  
+                  {!isLocked && (
+                    <Dropdown
+                      menu={{ 
+                        items: allStatusActions, 
+                        onClick: ({ key }) => handleForceStatusChange(key),
+                        // Highlight trạng thái hiện tại
+                        selectedKeys: [(course.status || '').toUpperCase() === 'PLANNING' ? 'DRAFT' : (course.status || '').toUpperCase()]
+                      }}
+                      trigger={['click']}
+                      placement="bottomLeft"
+                    >
+                      <Button 
+                        size="small" 
+                        type="dashed" 
+                        icon={<EditOutlined />} 
+                        loading={savingField === 'status'}
+                        className="!text-[12px] !text-blue-600 !border-blue-300 hover:!bg-blue-50 font-medium"
+                      >
+                        Đổi trạng thái
+                      </Button>
+                    </Dropdown>
+                  )}
+                </Space>
               </FieldWrapper>
 
               <FieldWrapper label="Danh mục" disabled={isLocked}>
@@ -395,9 +556,26 @@ const CourseGeneralInfoTab = ({ course, onRefresh }: Props) => {
               <FieldWrapper label="Ngày kết thúc" disabled={isLocked}><DateInline value={course.endDate} onSave={(v) => saveField('endDate', v, true)} /></FieldWrapper>
               <FieldWrapper label="Giờ bắt đầu" disabled={isLocked}><TimeInline value={course.sessionStartTime} onSave={(v) => saveField('sessionStartTime', v, true)} /></FieldWrapper>
               <FieldWrapper label="Giờ kết thúc" disabled={isLocked}><TimeInline value={course.sessionEndTime} onSave={(v) => saveField('sessionEndTime', v, true)} /></FieldWrapper>
-              
-              <FieldWrapper label="Lịch học trong tuần" disabled={isLocked} className="sm:col-span-2 md:col-span-4">
+
+              {/* Lịch tuần + Tổng số buổi */}
+              <FieldWrapper label="Lịch học trong tuần" disabled={isLocked} className="sm:col-span-2 md:col-span-3">
                 <ScheduleDaysInline value={course.scheduleDays} onSave={(v) => saveField('scheduleDays', v, true)} />
+              </FieldWrapper>
+              <FieldWrapper label="Tổng số buổi dự kiến" disabled={isLocked} className="sm:col-span-2 md:col-span-1">
+                <InlineDraftField
+                  type="number"
+                  value={course.totalSessionsExpected}
+                  min={0}
+                  onCommit={(v) => saveField('totalSessionsExpected', v)}   // Không có `true`
+                  disabled={isLocked || !!savingField}
+                  formatDisplay={(v) =>
+                    v !== undefined && v !== null ? (
+                      <span className="text-[14px] font-medium text-slate-700">{v as number} buổi</span>
+                    ) : (
+                      <span className="text-[14px] italic font-normal text-slate-400">Chưa cấu hình</span>
+                    )
+                  }
+                />
               </FieldWrapper>
             </div>
           </>
@@ -446,6 +624,31 @@ const CourseGeneralInfoTab = ({ course, onRefresh }: Props) => {
           </div>
         </div>
       </Card>
+
+      {/* Modal nhập lý do khi Cancel / Reject */}
+      <Modal
+        title={statusModal?.title}
+        open={!!statusModal}
+        onCancel={() => { setStatusModal(null); setStatusReason(''); }}
+        onOk={handleStatusModalSubmit}
+        confirmLoading={statusLoading}
+        okText="Xác nhận"
+        cancelText="Đóng"
+        okButtonProps={{ danger: true }}
+        destroyOnClose
+      >
+        <div style={{ marginTop: 12 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+            Lý do <span style={{ color: 'red' }}>*</span>
+          </div>
+          <Input.TextArea
+            rows={3}
+            value={statusReason}
+            onChange={(e) => setStatusReason(e.target.value)}
+            placeholder="Nhập lý do..."
+          />
+        </div>
+      </Modal>
     </div>
   );
 };
