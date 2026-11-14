@@ -4,10 +4,10 @@ import com.ecms_web_application.OC01.dto.request.enrollment.CreateEnrollmentRequ
 import com.ecms_web_application.OC01.dto.request.enrollment.CreateOfflineEnrollmentsRequest;
 import com.ecms_web_application.OC01.dto.request.enrollment.CompleteEnrollmentsRequest;
 import com.ecms_web_application.OC01.dto.request.enrollment.RecordFinalScoreRequest;
-import com.ecms_web_application.OC01.dto.request.enrollment.ReplaceSessionAbsencesRequest;
 import com.ecms_web_application.OC01.dto.request.enrollment.ReserveEnrollmentRequest;
 import com.ecms_web_application.OC01.dto.request.enrollment.TerminateEnrollmentRequest;
 import com.ecms_web_application.OC01.dto.response.RequestResponse;
+import com.ecms_web_application.OC01.entity.enums.CourseType;
 import com.ecms_web_application.OC01.entity.enums.EnrollmentStatus;
 import com.ecms_web_application.OC01.entity.enums.EnrollmentType;
 import com.ecms_web_application.OC01.service.EnrollmentService;
@@ -32,12 +32,12 @@ public class EnrollmentController {
                 enrollmentService.createOffline(request.getInvoiceId()), "Tạo ghi danh OFFLINE thành công"));
     }
 
-    @PostMapping("/offline/bulk")
-    public ResponseEntity<RequestResponse> createOfflineBatch(
+    @PostMapping("/pending/bulk")
+    public ResponseEntity<RequestResponse> createPendingBatch(
             @Valid @RequestBody CreateOfflineEnrollmentsRequest request) {
         return ResponseEntity.ok(new RequestResponse(
-                enrollmentService.createOfflineBatch(request.invoiceIds()),
-                "Đã xử lý danh sách ghi danh OFFLINE"));
+                enrollmentService.createPendingBatch(request.invoiceIds()),
+                "Đã xử lý danh sách hóa đơn chờ ghi danh"));
     }
 
     @PostMapping("/complete/bulk")
@@ -48,16 +48,17 @@ public class EnrollmentController {
                 "Đã xử lý xét hoàn thành học viên"));
     }
 
-    @GetMapping("/offline/eligible")
-    public ResponseEntity<RequestResponse> offlineCandidates(
+    @GetMapping("/pending/eligible")
+    public ResponseEntity<RequestResponse> pendingCandidates(
             @RequestParam(required = false) Long courseId,
+            @RequestParam(required = false) CourseType courseType,
             @RequestParam(required = false) String search,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         Pageable pageable = PageRequest.of(Math.max(page, 0), Math.max(1, Math.min(size, 100)));
         return ResponseEntity.ok(new RequestResponse(
-                enrollmentService.searchOfflineCandidates(courseId, search, pageable),
-                "Lấy danh sách đủ điều kiện ghi danh OFFLINE thành công"));
+                enrollmentService.searchPendingCandidates(courseId, courseType, search, pageable),
+                "Lấy danh sách hóa đơn chờ ghi danh thành công"));
     }
 
     @GetMapping("/summary")
@@ -93,7 +94,7 @@ public class EnrollmentController {
     @GetMapping("/{enrollmentId}/attendance")
     public ResponseEntity<RequestResponse> attendanceHistory(@PathVariable Long enrollmentId) {
         return ResponseEntity.ok(new RequestResponse(enrollmentService.getAttendanceHistory(enrollmentId),
-                "Lấy lịch sử vắng mặt thành công"));
+                "Lấy lịch sử điểm danh thành công"));
     }
 
     @GetMapping("/{enrollmentId}/status-history")

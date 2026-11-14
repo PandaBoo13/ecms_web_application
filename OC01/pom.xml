@@ -237,6 +237,9 @@
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
 				<configuration>
+					<!-- Giới hạn heap cho dev: tránh JVM xin heap mặc định (~1/4 RAM)
+					     làm cạn commit memory / page file trên máy 16GB -->
+					<jvmArguments>-Xms256m -Xmx1024m -XX:MaxMetaspaceSize=512m -XX:ReservedCodeCacheSize=128m -Xss512k</jvmArguments>
 					<excludes>
 						<exclude>
 							<groupId>org.projectlombok</groupId>

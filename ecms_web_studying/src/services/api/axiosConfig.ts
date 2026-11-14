@@ -11,6 +11,8 @@ export interface AppAxiosError extends AxiosError {
   isAuthError?: boolean;
   isSessionExpired?: boolean;
   isBusinessError?: boolean;
+  /** Mã lỗi nghiệp vụ do backend trả về (nếu có). */
+  code?: string;
 }
 
 type RetryConfig = InternalAxiosRequestConfig & { _retry?: boolean };
@@ -19,6 +21,7 @@ interface ApiResponse<T = unknown> {
   status?: string;
   message?: string;
   error?: string;
+  code?: string;
   data?: T;
 }
 
@@ -188,6 +191,7 @@ api.interceptors.response.use(
       err.response = response;
       err.isBusinessError = true;
       err.isSilent = shouldBeSilent(response.config.url);
+      err.code = data.code;
       return Promise.reject(err);
     }
 
@@ -202,6 +206,7 @@ api.interceptors.response.use(
 
     if (appErr.response) {
       appErr.message = extractErrorMessage(appErr);
+      appErr.code = (appErr.response.data as ApiResponse | undefined)?.code;
     }
 
     // ── Silent URL fail 401 ──

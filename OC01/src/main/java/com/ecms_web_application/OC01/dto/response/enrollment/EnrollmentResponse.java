@@ -43,25 +43,28 @@ public record EnrollmentResponse(
         boolean completionEligible,
         String completionBlockedReason
 ) {
-    public static EnrollmentResponse from(Enrollment e, long absences) {
-        return from(e, absences, null, null, null, null, null, null);
+    public static EnrollmentResponse from(Enrollment e, EnrollmentType enrollmentType, Long accountId,
+                                          long absences) {
+        return from(e, enrollmentType, accountId, absences, null, null, null, null, null, null);
     }
 
-    public static EnrollmentResponse from(Enrollment e, long absences,
+    public static EnrollmentResponse from(Enrollment e, EnrollmentType enrollmentType, Long accountId,
+                                          long absences,
                                           String studentName, String studentCode,
                                           String studentEmail, String studentPhone,
                                           String courseTitle, String invoiceCode) {
-        return from(e, absences, studentName, studentCode, studentEmail, studentPhone,
+        return from(e, enrollmentType, accountId, absences, studentName, studentCode, studentEmail, studentPhone,
                 courseTitle, invoiceCode, false, null);
     }
 
-    public static EnrollmentResponse from(Enrollment e, long absences,
+    public static EnrollmentResponse from(Enrollment e, EnrollmentType enrollmentType, Long accountId,
+                                          long absences,
                                           String studentName, String studentCode,
                                           String studentEmail, String studentPhone,
                                           String courseTitle, String invoiceCode,
                                           boolean completionEligible, String completionBlockedReason) {
         return new EnrollmentResponse(
-                e.getId(), e.getEnrollmentType(), e.getAccountId(),
+                e.getId(), enrollmentType, accountId,
                 e.getStudentId(), e.getCourseId(), e.getInvoiceId(), e.getStatus(),
                 e.getEnrolledAt(), e.getEnrolledBy(), e.getUpdatedAt(), e.getUpdatedBy(),
                 e.getHoldReason(), e.getHoldStartDate(), e.getHoldEndDate(), e.getActualReturnDate(),

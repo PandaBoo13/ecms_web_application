@@ -113,8 +113,8 @@ public class JwtFilter extends OncePerRequestFilter {
             }
         }
 
-        // 4. Public GET → qua
-        if ("GET".equalsIgnoreCase(method) && isPublicPath(path)) {
+        // 4. Public request (GET + allow-list POST) → qua
+        if (isPublicRequest(method, path)) {
             filterChain.doFilter(request, response);
             return;
         }
@@ -157,6 +157,19 @@ public class JwtFilter extends OncePerRequestFilter {
     private boolean isPublicPath(String path) {
         for (String publicUrl : APIURL.PUBLIC_URLS) {
             if (pathMatcher.match(publicUrl, path)) return true;
+        }
+        return false;
+    }
+
+    /** GET/OPTIONS được public theo PUBLIC_URLS; POST chỉ mở cho danh sách PUBLIC_POST_URLS. */
+    private boolean isPublicRequest(String method, String path) {
+        if ("GET".equalsIgnoreCase(method) || "OPTIONS".equalsIgnoreCase(method)) {
+            return isPublicPath(path);
+        }
+        if ("POST".equalsIgnoreCase(method)) {
+            for (String publicPost : APIURL.PUBLIC_POST_URLS) {
+                if (pathMatcher.match(publicPost, path)) return true;
+            }
         }
         return false;
     }

@@ -73,6 +73,10 @@ export interface CourseCreateRequest {
   learningMode?: LearningMode;
   allowedRoomIds?: number[];
   totalSessionsExpected?: number;
+  
+  // 🆕 Bổ sung để hứng dữ liệu từ Form trước khi gọi API updateOfflineInfo
+  minStudents?: number;
+  maxStudents?: number;
 }
 
 export interface CourseUpdateRequest {
@@ -89,6 +93,10 @@ export interface CourseUpdateRequest {
   learningMode?: LearningMode;
   allowedRoomIds?: number[];
   totalSessionsExpected?: number;
+  
+  // 🆕 Bổ sung cho đồng bộ
+  minStudents?: number;
+  maxStudents?: number;
 }
 
 // ⚠️ ĐÃ SỬA: Thêm dấu "?" vào tất cả field để hỗ trợ partial update

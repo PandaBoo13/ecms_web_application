@@ -1,26 +1,15 @@
 import { Button, Space, Modal, Input, Typography, Select, Dropdown } from 'antd';
 import type { MenuProps } from 'antd';
 import {
-  SendOutlined,
-  CheckOutlined,
-  CloseOutlined,
-  InboxOutlined,
-  StopOutlined,
-  ReloadOutlined,
-  UserSwitchOutlined,
-  ThunderboltOutlined,
-  CopyOutlined,
-  DownOutlined,
-  PlayCircleOutlined,
+  SendOutlined, CheckOutlined, CloseOutlined, InboxOutlined, StopOutlined,
+  ReloadOutlined, UserSwitchOutlined, ThunderboltOutlined, CopyOutlined,
+  DownOutlined, CalendarOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 
-// 🆕 Cập nhật lại đường dẫn import API theo cấu trúc mới
-import { courseApi } from '@/services/api/course';
-import { sessionApi } from '@/services/api/course';
-
+import { courseApi, sessionApi } from '@/services/api/course';
 import { adminUserApi } from '@/services/api/admin';
 import type { CourseDetailResponse } from '@/services/types/course';
 import type { AccountResponse } from '@/services/types/user';
@@ -33,15 +22,11 @@ interface Props {
   onRefresh: () => void;
 }
 
-/**
- * Action buttons cho admin (Duyệt/Từ chối/Lưu trữ/Huỷ/Copy/Đổi GV/Sinh session).
- * Render gọn vào PageHeader.extra — giống layout instructor.
- */
 const CourseDetailActions = ({ course, onRefresh }: Props) => {
   const navigate = useNavigate();
   const { isAdmin } = useAuth();
-  const [, setSubmitting] = useState(false);
-  const [, setGenerating] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [generating, setGenerating] = useState(false);
 
   const [teacherModalOpen, setTeacherModalOpen] = useState(false);
   const [instructors, setInstructors] = useState<AccountResponse[]>([]);
@@ -80,10 +65,12 @@ const CourseDetailActions = ({ course, onRefresh }: Props) => {
   const handleApprove = async () => {
     setSubmitting(true);
     try {
-      // Gọi API duyệt. (Nếu là OFFLINE và BE xử lý đúng logic, nó sẽ chuyển sang PLANNED).
-      // Nếu là ONLINE, nó sẽ chuyển sang PUBLISHED.
       await courseApi.review(course.id, true);
-      toast.success(course.courseType === 'OFFLINE' ? 'Đã duyệt nội dung khóa học' : 'Đã phê duyệt và xuất bản khóa học');
+      toast.success(
+        course.courseType === 'OFFLINE'
+          ? 'Đã duyệt nội dung khóa học'
+          : 'Đã phê duyệt và xuất bản khóa học',
+      );
       onRefresh();
     } catch (err) {
       toast.error((err as { message?: string })?.message || 'Phê duyệt thất bại');
@@ -92,15 +79,15 @@ const CourseDetailActions = ({ course, onRefresh }: Props) => {
     }
   };
 
-  const handlePublish = async () => {
+  // 🆕 Hàm chốt lịch (PLANNED -> PUBLISHED)
+  const handleFinalize = async () => {
     setSubmitting(true);
     try {
-      // Dùng tạm API review(id, true) để Publish khóa OFFLINE đang ở PLANNED
-      await courseApi.review(course.id, true);
-      toast.success('Đã phát hành khóa học chính thức');
+      await courseApi.finalizeSchedule(course.id);
+      toast.success('Đã chốt lịch và xuất bản khóa học chính thức');
       onRefresh();
     } catch (err) {
-      toast.error((err as { message?: string })?.message || 'Phát hành thất bại');
+      toast.error((err as { message?: string })?.message || 'Chốt lịch thất bại');
     } finally {
       setSubmitting(false);
     }
@@ -241,7 +228,11 @@ const CourseDetailActions = ({ course, onRefresh }: Props) => {
       });
       toast.success(`Đã copy khóa học #${newCourse.id}`);
       setCopyModalOpen(false);
-      navigate(`/admin/courses/${newCourse.id}`);
+      const basePath = isAdmin() ? '/admin/courses' : '/instructor/courses';
+      const detailPath = isAdmin()
+        ? `${basePath}/${newCourse.id}`
+        : `${basePath}/${newCourse.id}/edit`;
+      navigate(detailPath);
     } catch (err) {
       toast.error((err as { message?: string })?.message || 'Copy thất bại');
     } finally {
@@ -261,7 +252,7 @@ const CourseDetailActions = ({ course, onRefresh }: Props) => {
     });
   }
 
-  if (course.status === 'PENDING_REVIEW') {
+  if (course.status === 'PENDING_REVIEW' && isAdmin()) {
     menuItems.push(
       {
         key: 'approve',
@@ -279,13 +270,14 @@ const CourseDetailActions = ({ course, onRefresh }: Props) => {
     );
   }
 
-  if (course.status === 'PLANNED') {
+  // 🆕 Fix: Nút Publish cho OFFLINE phải gọi FinalizeSchedule
+  if (course.status === 'PLANNED' && isAdmin()) {
     menuItems.push(
       {
-        key: 'publish',
-        icon: <PlayCircleOutlined style={{ color: '#16a34a' }} />,
-        label: 'Phát hành chính thức',
-        onClick: handlePublish,
+        key: 'finalize',
+        icon: <CalendarOutlined style={{ color: '#16a34a' }} />,
+        label: 'Chốt lịch & Xuất bản',
+        onClick: handleFinalize,
       },
       {
         key: 'reject',
@@ -293,11 +285,10 @@ const CourseDetailActions = ({ course, onRefresh }: Props) => {
         label: 'Hủy duyệt',
         danger: true,
         onClick: handleReject,
-      }
+      },
     );
   }
 
-  // Sinh session cho khóa OFFLINE (DRAFT, PENDING_REVIEW, PLANNED, hoặc ONGOING nếu cần bù)
   if (
     course.courseType === 'OFFLINE' &&
     ['DRAFT', 'PENDING_REVIEW', 'PLANNED', 'PUBLISHED', 'ONGOING'].includes(course.status)
@@ -319,8 +310,11 @@ const CourseDetailActions = ({ course, onRefresh }: Props) => {
     });
   }
 
-  // Có thể copy ở nhiều trạng thái
-  if (['DRAFT', 'PLANNED', 'PUBLISHED', 'ONGOING', 'FINISHED', 'ARCHIVED', 'CANCELLED'].includes(course.status)) {
+  if (
+    ['DRAFT', 'PLANNED', 'PUBLISHED', 'ONGOING', 'FINISHED', 'ARCHIVED', 'CANCELLED'].includes(
+      course.status,
+    )
+  ) {
     menuItems.push({
       key: 'copy',
       icon: <CopyOutlined />,
@@ -329,7 +323,6 @@ const CourseDetailActions = ({ course, onRefresh }: Props) => {
     });
   }
 
-  // Có thể hủy ở DRAFT, PENDING_REVIEW, PLANNED, PUBLISHED, ONGOING
   if (['DRAFT', 'PENDING_REVIEW', 'PLANNED', 'PUBLISHED', 'ONGOING'].includes(course.status)) {
     menuItems.push({
       key: 'cancel',
@@ -340,8 +333,10 @@ const CourseDetailActions = ({ course, onRefresh }: Props) => {
     });
   }
 
-  // Có thể lưu trữ ở PUBLISHED, ONGOING, FINISHED, CANCELLED
-  if (['PUBLISHED', 'ONGOING', 'FINISHED', 'CANCELLED'].includes(course.status)) {
+  if (
+    isAdmin() &&
+    ['PUBLISHED', 'ONGOING', 'FINISHED', 'CANCELLED'].includes(course.status)
+  ) {
     menuItems.push({
       key: 'archive',
       icon: <InboxOutlined />,
@@ -409,11 +404,11 @@ const CourseDetailActions = ({ course, onRefresh }: Props) => {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div>
             <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 4 }}>Tiêu đề mới</div>
-            <Input value={copyTitle} onChange={(e) => setCopyTitle(e.target.value)} placeholder="VD: Khóa học ABC (Copy)" />
+            <Input value={copyTitle} onChange={(e) => setCopyTitle(e.target.value)} />
           </div>
           <div>
             <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 4 }}>Display code mới</div>
-            <Input value={copyDisplayCode} onChange={(e) => setCopyDisplayCode(e.target.value)} placeholder="VD: CRS-ONL-202610-COPY" />
+            <Input value={copyDisplayCode} onChange={(e) => setCopyDisplayCode(e.target.value)} />
           </div>
           <Text type="secondary" style={{ fontSize: 12 }}>
             Cây nội dung và ngân hàng câu hỏi sẽ được copy. Enrollment, session, progress không copy.

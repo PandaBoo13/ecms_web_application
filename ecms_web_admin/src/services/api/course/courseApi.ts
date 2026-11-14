@@ -37,7 +37,6 @@ export const courseApi = {
     return data.data;
   },
 
-  // ⚠️ ĐÃ SỬA: Thêm Partial<CourseOfflineInfoRequest> để hỗ trợ update từng field
   updateOfflineInfo: async (
     id: number, 
     payload: Partial<CourseOfflineInfoRequest>, 
@@ -59,6 +58,20 @@ export const courseApi = {
     const body: CourseReviewRequest = { approved, rejectReason };
     const { data } = await api.post<RequestResponse<CourseResponse>>(
       API_ENDPOINT.COURSE_REVIEW(id), body);
+    return data.data;
+  },
+
+  // 🆕 Bổ sung API Chốt lịch
+  finalizeSchedule: async (id: number): Promise<CourseResponse> => {
+    const { data } = await api.post<RequestResponse<CourseResponse>>(
+      API_ENDPOINT.COURSE_FINALIZE_SCHEDULE(id));
+    return data.data;
+  },
+
+  // 🆕 Bổ sung API lấy số liệu thống kê tiến độ (Dành cho Admin)
+  getCourseProgressStats: async (id: number): Promise<any> => {
+    // Giả định endpoint này có trên BE, nếu chưa có bạn có thể comment lại và dùng Mock
+    const { data } = await api.get(`/api/progress/admin/courses/${id}/stats`);
     return data.data;
   },
 

@@ -66,7 +66,7 @@ function DataTable<T extends object>({
       <div
         style={{
           display: 'flex',
-          justifyContent: 'space-between',
+          justifyContent: 'flex-end',
           alignItems: 'center',
           marginBottom: 16,
           gap: 12,

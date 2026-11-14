@@ -18,7 +18,19 @@ const Sidebar = ({ collapsed }: { collapsed: boolean }) => {
 
   return (
     <Sider trigger={null} collapsible collapsed={collapsed} width={240} style={{ overflow: 'auto', height: '100vh', position: 'sticky', top: 0, left: 0 }}>
-      <div style={{ height: 64, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: collapsed ? 16 : 18, fontWeight: 700, letterSpacing: 1, borderBottom: '1px solid rgba(255,255,255,.1)' }}>
+      <div
+        role="button"
+        tabIndex={0}
+        aria-label="Về trang chủ"
+        onClick={() => navigate('/')}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            navigate('/');
+          }
+        }}
+        style={{ height: 64, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: collapsed ? 16 : 18, fontWeight: 700, letterSpacing: 1, borderBottom: '1px solid rgba(255,255,255,.1)', cursor: 'pointer' }}
+      >
         {collapsed ? 'E' : 'ECMS'}
       </div>
       <Menu theme="dark" mode="inline" selectedKeys={[getSelectedKey()]} items={STUDENT_MENU.map(renderItem)} onClick={({ key }) => { if (typeof key === 'string' && key.startsWith('/')) navigate(key); }} />

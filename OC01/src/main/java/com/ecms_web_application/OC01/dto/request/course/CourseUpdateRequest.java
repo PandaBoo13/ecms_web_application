@@ -31,5 +31,7 @@ public class CourseUpdateRequest {
 
     // 🆕 BỔ SUNG
     @Min(value = 0, message = "total_sessions_expected phải >= 0")
-    private Integer totalSessionsExpected;
+    private Integer totalSessionsExpected;    private Long certificateTypeId;
+    private java.util.Map<String, Object> certificateConfig;
+
 }

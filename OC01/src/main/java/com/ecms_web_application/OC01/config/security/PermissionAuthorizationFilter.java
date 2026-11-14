@@ -66,8 +66,8 @@ public class PermissionAuthorizationFilter extends OncePerRequestFilter {
             return;
         }
 
-        // ── 3. PUBLIC → CHỈ pass nếu là GET ──
-        if ("GET".equals(method) && matchesPath(APIURL.PUBLIC_URLS, path)) {
+        // ── 3. PUBLIC → GET/OPTIONS theo PUBLIC_URLS, POST theo PUBLIC_POST_URLS ──
+        if (isPublicRequest(method, path)) {
             filterChain.doFilter(request, response);
             return;
         }
@@ -121,6 +121,17 @@ public class PermissionAuthorizationFilter extends OncePerRequestFilter {
             if (PATH_MATCHER.match(pattern, path)) {
                 return true;
             }
+        }
+        return false;
+    }
+
+    /** GET/OPTIONS được public theo PUBLIC_URLS; POST chỉ mở cho danh sách PUBLIC_POST_URLS. */
+    private boolean isPublicRequest(String method, String path) {
+        if ("GET".equals(method) || "OPTIONS".equals(method)) {
+            return matchesPath(APIURL.PUBLIC_URLS, path);
+        }
+        if ("POST".equals(method)) {
+            return matchesPath(APIURL.PUBLIC_POST_URLS, path);
         }
         return false;
     }

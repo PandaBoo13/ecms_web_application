@@ -15,7 +15,6 @@ public class CreateInvoiceRequest {
 
     private Long studentId;
     private Long leadId;
-    private Long accountId;
 
     @NotNull
     @DecimalMin(value = "0.01")

@@ -44,6 +44,7 @@ import {
   CalendarOutlined,
   FileTextOutlined,
   MoreOutlined,
+  DollarOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import toast from 'react-hot-toast';
@@ -55,12 +56,14 @@ import StatusTag from '@/components/common/StatusTag';
 import DateDisplay from '@/components/common/DateDisplay';
 import UserAvatar from '@/components/common/UserAvatar';
 import StatsCard from '@/components/common/StatsCard';
+import CreateInvoiceFromLeadModal from '@/components/tuition/CreateInvoiceFromLeadModal';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useAuth } from '@/hooks/useAuth';
 
 import { leadApi } from '@/services/api/leads';
 import { studentApi } from '@/services/api/students';
 import { courseApi } from '@/services/api/course';
+import type { CourseResponse } from '@/services/types/course/course';
 import type {
   Lead,
   LeadDetail,
@@ -101,7 +104,8 @@ const LeadListPage = () => {
   const [courseFilter, setCourseFilter] = useState<number | undefined>();
   const [consultantFilter, setConsultantFilter] = useState<number | undefined>();
   const [inQueueFilter, setInQueueFilter] = useState<boolean | undefined>();
-  const [courses, setCourses] = useState<{ id: number; title: string; code: string }[]>([]);
+  const [invoiceFilter, setInvoiceFilter] = useState<boolean | undefined>();
+  const [courses, setCourses] = useState<CourseResponse[]>([]);
 
   const [consultants, setConsultants] = useState<Consultant[]>([]);
 
@@ -125,7 +129,7 @@ const LeadListPage = () => {
       .search({ page: 0, size: 500 })
       .then((res) => {
         if (res?.content) {
-          setCourses(res.content.map((c) => ({ id: c.id, title: c.title, code: c.code })));
+          setCourses(res.content);
         }
       })
       .catch(() => {});
@@ -146,6 +150,8 @@ const LeadListPage = () => {
   const [placementTestModalVisible, setPlacementTestModalVisible] = useState(false);
   const [convertModalVisible, setConvertModalVisible] = useState(false);
   const [detailDrawerVisible, setDetailDrawerVisible] = useState(false);
+  const [invoiceModalVisible, setInvoiceModalVisible] = useState(false);
+  const [invoiceLead, setInvoiceLead] = useState<Lead | null>(null);
 
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [leadDetail, setLeadDetail] = useState<LeadDetail | null>(null);
@@ -197,6 +203,7 @@ const LeadListPage = () => {
         courseId: courseFilter,
         consultantId: effectiveConsultantId,
         inQueue: inQueueFilter,
+        hasOpenInvoice: invoiceFilter,
         page,
         size: pageSize,
         sortBy: 'createdAt',
@@ -212,7 +219,7 @@ const LeadListPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, keyword, statusFilter, courseFilter, consultantFilter, inQueueFilter, isTvv, user?.accountId]);
+  }, [page, pageSize, keyword, statusFilter, courseFilter, consultantFilter, inQueueFilter, invoiceFilter, isTvv, user?.accountId]);
 
   useEffect(() => {
     fetchData();
@@ -247,6 +254,16 @@ const LeadListPage = () => {
     setPage(0);
   };
 
+  const handleInvoiceFilterChange = (val?: boolean) => {
+    setInvoiceFilter(val);
+    setPage(0);
+  };
+
+  const handleOpenInvoice = (lead: Lead) => {
+    setInvoiceLead(lead);
+    setInvoiceModalVisible(true);
+  };
+
   const handleRefresh = () => {
     fetchData();
     fetchStats();
@@ -259,6 +276,7 @@ const LeadListPage = () => {
     setCourseFilter(undefined);
     setConsultantFilter(undefined);
     setInQueueFilter(undefined);
+    setInvoiceFilter(undefined);
     setPage(0);
   };
 
@@ -579,8 +597,26 @@ const LeadListPage = () => {
         title: t('common.actions'),
         key: 'actions',
         fixed: 'right',
-        width: 175,
-        render: (_, record: Lead) => (
+        width: 200,
+        render: (_, record: Lead) => {
+          const invoiceCourse = record.courseId
+            ? courses.find((c) => c.id === record.courseId)
+            : undefined;
+          const invoiceDisabledReason = record.studentId
+            ? t('lead.invoiceReasonEnrolled')
+            : record.hasOpenInvoice
+              ? t('lead.invoiceReasonHasInvoice')
+              : record.status !== 'CONSULTED'
+                ? t('lead.invoiceReasonNotConsulted')
+                : !invoiceCourse
+                  ? t('lead.invoiceReasonNoCourse')
+                  : invoiceCourse.courseType !== 'OFFLINE'
+                    ? t('lead.invoiceReasonOnline')
+                    : invoiceCourse.isFree || !invoiceCourse.price || invoiceCourse.price <= 0
+                      ? t('lead.invoiceReasonNoPrice')
+                      : undefined;
+
+          return (
           <Space size={4}>
             <Tooltip title={t('lead.tooltip.view')}>
               <Button
@@ -604,6 +640,26 @@ const LeadListPage = () => {
                   setInteractionModalVisible(true);
                 }}
               />
+            </Tooltip>
+
+            <Tooltip title={invoiceDisabledReason ?? t('lead.tooltip.createInvoice')}>
+              <span style={{ display: 'inline-block' }}>
+                <Button
+                  type="text"
+                  shape="circle"
+                  className="action-btn-circle"
+                  disabled={!!invoiceDisabledReason}
+                  icon={
+                    <DollarOutlined
+                      style={{
+                        color: invoiceDisabledReason ? '#bfbfbf' : '#059669',
+                        fontSize: 15,
+                      }}
+                    />
+                  }
+                  onClick={() => handleOpenInvoice(record)}
+                />
+              </span>
             </Tooltip>
 
             {!record.studentId ? (
@@ -699,10 +755,11 @@ const LeadListPage = () => {
               />
             </Dropdown>
           </Space>
-        ),
+          );
+        },
       },
     ],
-    [t, handleOpenDetail, courses, consultants]
+    [t, handleOpenDetail, handleOpenInvoice, courses, consultants]
   );
 
   const hasActiveFilters = Boolean(
@@ -710,7 +767,8 @@ const LeadListPage = () => {
       statusFilter ||
       courseFilter !== undefined ||
       consultantFilter !== undefined ||
-      inQueueFilter !== undefined
+      inQueueFilter !== undefined ||
+      invoiceFilter !== undefined
   );
 
   return (
@@ -953,6 +1011,21 @@ const LeadListPage = () => {
                 </Option>
                 <Option value={false}>
                   <Badge status="default" text={t('lead.filter.assigned')} />
+                </Option>
+              </Select>
+
+              <Select
+                placeholder={t('lead.filter.invoice')}
+                allowClear
+                style={{ width: 190, height: 38 }}
+                value={invoiceFilter}
+                onChange={handleInvoiceFilterChange}
+              >
+                <Option value={false}>
+                  <Badge status="default" text={t('lead.filter.invoiceNotCreated')} />
+                </Option>
+                <Option value={true}>
+                  <Badge status="success" text={t('lead.filter.invoiceCreated')} />
                 </Option>
               </Select>
 
@@ -1435,6 +1508,25 @@ const LeadListPage = () => {
           </Form.Item>
         </Form>
       </Modal>
+
+      {/* ── Modal Tạo hóa đơn học phí từ Lead ── */}
+      <CreateInvoiceFromLeadModal
+        open={invoiceModalVisible}
+        lead={invoiceLead}
+        course={
+          invoiceLead?.courseId
+            ? courses.find((c) => c.id === invoiceLead.courseId) ?? null
+            : null
+        }
+        onCancel={() => {
+          setInvoiceModalVisible(false);
+          setInvoiceLead(null);
+        }}
+        onCreated={() => {
+          fetchData();
+          fetchStats();
+        }}
+      />
 
       {/* ── Drawer Chi tiết Lead & Lịch sử tương tác ── */}
       <Drawer

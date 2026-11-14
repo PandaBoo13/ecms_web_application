@@ -106,14 +106,11 @@ export interface LeadFilterParams {
   direction?: 'asc' | 'desc';
 }
 
-export interface LeadCreatePayload {
+export interface LeadRegisterPayload {
   fullName: string;
   email?: string;
   phone?: string;
-  courseId?: number;
-  sourceId?: number;
-  assignedConsultantId?: number;
-  status?: LeadStatus;
+  courseId: number;
   note?: string;
 }
 

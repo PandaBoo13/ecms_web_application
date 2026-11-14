@@ -22,12 +22,19 @@ public class FileStorageService {
     /** Root tuyệt đối, đã normalize — mọi path phải nằm dưới đây. */
     private final Path fileStorageLocation;
 
+    /** Thư mục riêng tư (chứng chỉ...) — KHÔNG được serve trực tiếp qua /uploads/**. */
+    private final Path privateStorageLocation;
+
     public FileStorageService() {
         this.fileStorageLocation = Paths.get("uploads")
                 .toAbsolutePath()
                 .normalize();
+        this.privateStorageLocation = Paths.get("private-storage")
+                .toAbsolutePath()
+                .normalize();
         try {
             Files.createDirectories(this.fileStorageLocation);
+            Files.createDirectories(this.privateStorageLocation);
         } catch (IOException ex) {
             throw new RuntimeException("Could not create upload directory", ex);
         }
@@ -52,21 +59,27 @@ public class FileStorageService {
         if (input == null || input.trim().isEmpty()) {
             throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Đường dẫn không hợp lệ");
         }
+        return resolveUnder(this.fileStorageLocation, stripUploadsPrefix(input.trim()));
+    }
 
-        String cleanPath = stripUploadsPrefix(input.trim());
+    /** Resolve một đường dẫn tương đối dưới root cho trước, chặn traversal/symlink. */
+    private Path resolveUnder(Path root, String input) {
+        if (input == null || input.trim().isEmpty()) {
+            throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Đường dẫn không hợp lệ");
+        }
 
         // Lớp 1: reject absolute path
-        Path raw = Paths.get(cleanPath);
+        Path raw = Paths.get(input.trim());
         if (raw.isAbsolute()) {
             throw new ErrorHandler(HttpStatus.BAD_REQUEST,
                     "Không chấp nhận đường dẫn tuyệt đối");
         }
 
         // Lớp 2: resolve + normalize
-        Path target = this.fileStorageLocation.resolve(raw).normalize();
+        Path target = root.resolve(raw).normalize();
 
         // Lớp 3: PHẢI nằm dưới root
-        if (!target.startsWith(this.fileStorageLocation)) {
+        if (!target.startsWith(root)) {
             throw new ErrorHandler(HttpStatus.BAD_REQUEST,
                     "Đường dẫn vượt quá phạm vi cho phép");
         }
@@ -146,6 +159,61 @@ public class FileStorageService {
     public String storeFileWithPrefix(MultipartFile file, String subFolder) throws IOException {
         String relativePath = storeFile(file, subFolder);
         return relativePath != null ? UPLOADS_PREFIX + relativePath : null;
+    }
+
+    /**
+     * Lưu file vào thư mục riêng tư (không truy cập được qua /uploads/**).
+     * Trả về đường dẫn tương đối dưới private-storage/.
+     */
+    public String storePrivateFile(MultipartFile file, String subFolder) throws IOException {
+        if (file == null || file.isEmpty()) {
+            return null;
+        }
+
+        String originalFileName = file.getOriginalFilename();
+        String fileExtension = "";
+        if (originalFileName != null && originalFileName.contains(".")) {
+            fileExtension = originalFileName.substring(originalFileName.lastIndexOf("."));
+            if (fileExtension.length() > 10) {
+                fileExtension = "";
+            }
+        }
+
+        String fileName = UUID.randomUUID() + fileExtension;
+
+        Path targetDir;
+        if (subFolder != null && !subFolder.isEmpty()) {
+            targetDir = resolveUnder(this.privateStorageLocation, subFolder);
+            Files.createDirectories(targetDir);
+        } else {
+            targetDir = this.privateStorageLocation;
+        }
+
+        Path targetLocation = targetDir.resolve(fileName).normalize();
+        if (!targetLocation.startsWith(this.privateStorageLocation)) {
+            throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Đường dẫn đích không hợp lệ");
+        }
+
+        Files.copy(file.getInputStream(), targetLocation, StandardCopyOption.REPLACE_EXISTING);
+
+        return this.privateStorageLocation.relativize(targetLocation)
+                .toString().replace("\\", "/");
+    }
+
+    /** Lấy Path của một file riêng tư; throw nếu path traversal. */
+    public Path getPrivateFilePath(String relativePath) {
+        return resolveUnder(this.privateStorageLocation, relativePath);
+    }
+
+    public boolean deletePrivateFile(String relativePath) {
+        try {
+            if (relativePath == null || relativePath.isEmpty()) {
+                return false;
+            }
+            return Files.deleteIfExists(getPrivateFilePath(relativePath));
+        } catch (ErrorHandler | IOException ex) {
+            return false;
+        }
     }
 
     /** Xóa file cũ và lưu file mới. */

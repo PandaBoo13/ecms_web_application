@@ -11,6 +11,7 @@ import com.ecms_web_application.OC01.repository.InvoiceRepository;
 import com.ecms_web_application.OC01.service.EnrollmentService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
@@ -18,6 +19,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
 @Component
 @RequiredArgsConstructor
 @Slf4j
+@Order(1)
 public class OfflineEnrollmentOnPaymentListener {
     private final InvoiceRepository invoiceRepository;
     private final CourseRepository courseRepository;

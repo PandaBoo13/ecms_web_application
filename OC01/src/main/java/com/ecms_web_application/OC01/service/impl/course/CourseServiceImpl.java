@@ -80,6 +80,8 @@ public class CourseServiceImpl implements CourseService {
         c.setDescription(request.getDescription());
         c.setThumbnailUrl(request.getThumbnailUrl());
         c.setOutcomes(request.getOutcomes());
+        c.setCertificateTypeId(request.getCertificateTypeId());
+        c.setCertificateConfig(request.getCertificateConfig());
 
         String learningMode = StringUtils.hasText(request.getLearningMode())
                 ? request.getLearningMode()
@@ -162,6 +164,8 @@ public class CourseServiceImpl implements CourseService {
         if (request.getDescription() != null) c.setDescription(request.getDescription());
         if (request.getThumbnailUrl() != null) c.setThumbnailUrl(request.getThumbnailUrl());
         if (request.getOutcomes() != null) c.setOutcomes(request.getOutcomes());
+        if (request.getCertificateTypeId() != null) c.setCertificateTypeId(request.getCertificateTypeId());
+        if (request.getCertificateConfig() != null) c.setCertificateConfig(request.getCertificateConfig());
         if (request.getLearningMode() != null)    c.setLearningMode(request.getLearningMode());
         if (request.getAllowedRoomIds() != null)  c.setAllowedRoomIds(request.getAllowedRoomIds());
         if (request.getTotalSessionsExpected() != null) c.setTotalSessionsExpected(request.getTotalSessionsExpected());

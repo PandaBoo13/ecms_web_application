@@ -57,6 +57,7 @@ public class LeadController {
             @RequestParam(required = false) Long sourceId,
             @RequestParam(required = false) Long consultantId,
             @RequestParam(required = false) Boolean inQueue,
+            @RequestParam(required = false) Boolean hasOpenInvoice,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(defaultValue = "createdAt") String sortBy,
@@ -79,7 +80,7 @@ public class LeadController {
                 : Sort.by(sortProperty).descending();
         Pageable pageable = PageRequest.of(page, size, sort);
 
-        Page<LeadResponse> data = leadService.search(search, status, courseId, sourceId, consultantId, inQueue, pageable);
+        Page<LeadResponse> data = leadService.search(search, status, courseId, sourceId, consultantId, inQueue, hasOpenInvoice, pageable);
         return ResponseEntity.ok(new RequestResponse(data, "Lấy danh sách Lead thành công"));
     }
 

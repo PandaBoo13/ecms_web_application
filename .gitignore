@@ -38,6 +38,9 @@ lerna-debug.log*
 *.sw?
 OC01/env
 
+# Runtime-private files (certificate PDFs are served through authorized endpoints)
+OC01/private-storage/
+
 # AI & Trae Documents
 .trae/
 **/.trae/

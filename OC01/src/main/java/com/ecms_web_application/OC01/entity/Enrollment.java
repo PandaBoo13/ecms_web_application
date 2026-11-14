@@ -1,7 +1,6 @@
 package com.ecms_web_application.OC01.entity;
 
 import com.ecms_web_application.OC01.entity.enums.EnrollmentStatus;
-import com.ecms_web_application.OC01.entity.enums.EnrollmentType;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -23,15 +22,7 @@ public class Enrollment {
     @Column(name = "enrollment_id")
     private Long id;
 
-    @Enumerated(EnumType.STRING)
-    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
-    @Column(name = "enrollment_type", nullable = false, columnDefinition = "enrollment_type")
-    private EnrollmentType enrollmentType = EnrollmentType.OFFLINE;
-
-    @Column(name = "account_id")
-    private Long accountId;
-
-    @Column(name = "student_id")
+    @Column(name = "student_id", nullable = false)
     private Long studentId;
 
     @Column(name = "course_id", nullable = false)

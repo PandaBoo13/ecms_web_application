@@ -97,7 +97,7 @@ const StudentListPage = () => {
   const [keyword, setKeyword] = useState('');
   const [statusFilter, setStatusFilter] = useState<StudentStatus | undefined>();
   const [courseFilter, setCourseFilter] = useState<number | undefined>();
-  const [courses, setCourses] = useState<{ id: number; title: string; code: string }[]>([]);
+  const [courses, setCourses] = useState<Array<{ id: number; title: string; code?: string }>>([]);
 
   // Load courses for course filter dropdown
   useEffect(() => {
@@ -105,7 +105,13 @@ const StudentListPage = () => {
       .search({ page: 0, size: 500 })
       .then((res) => {
         if (res?.content) {
-          setCourses(res.content.map((c) => ({ id: c.id, title: c.title, code: c.code })));
+          setCourses(
+            res.content.map((c) => ({
+              id: c.id,
+              title: c.title,
+              code: c.code,
+            })),
+          );
         }
       })
       .catch(() => {});
@@ -494,8 +500,9 @@ const StudentListPage = () => {
         title: t('common.actions'),
         key: 'actions',
         fixed: 'right',
-        width: 120,
-        render: (_, record: Student) => (
+        width: 130,
+        render: (_, record: Student) => {
+          return (
           <Space size={4}>
             <Tooltip title={t('student.tooltip.view')}>
               <Button
@@ -600,7 +607,8 @@ const StudentListPage = () => {
               />
             </Dropdown>
           </Space>
-        ),
+          );
+        },
       },
     ],
     [t, updateForm, statusForm, guardianForm, accountLockForm]
@@ -1114,6 +1122,7 @@ const StudentListPage = () => {
         </Form>
       </Modal>
 
+
       {/* ── Drawer Chi tiết Học viên ── */}
       <Drawer
         title={
@@ -1482,6 +1491,7 @@ const StudentListPage = () => {
           />
         )}
       </Drawer>
+
     </PageContainer>
   );
 };

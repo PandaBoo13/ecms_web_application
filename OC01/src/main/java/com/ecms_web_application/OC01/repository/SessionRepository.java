@@ -14,7 +14,6 @@ import java.util.List;
 
 @Repository
 public interface SessionRepository extends IRepository<Session, Long> {
-
     List<Session> findByCourse_IdOrderBySessionNumberAsc(Long courseId);
     List<Session> findByCourse_IdAndStatus(Long courseId, SessionStatus status);
     long countByCourse_Id(Long courseId);
@@ -22,126 +21,100 @@ public interface SessionRepository extends IRepository<Session, Long> {
     @Query("SELECT COALESCE(MAX(s.sessionNumber), 0) FROM Session s WHERE s.course.id = :courseId")
     Integer maxSessionNumber(@Param("courseId") Long courseId);
 
-    @Query("""
-        SELECT s FROM Session s
-        LEFT JOIN FETCH s.teacher
-        LEFT JOIN FETCH s.substituteTeacher
-        LEFT JOIN FETCH s.assistant
-        LEFT JOIN FETCH s.room
-        WHERE s.course.id = :courseId
-        ORDER BY s.sessionNumber ASC
-    """)
+    @Query("SELECT s FROM Session s LEFT JOIN FETCH s.teacher LEFT JOIN FETCH s.substituteTeacher LEFT JOIN FETCH s.assistant LEFT JOIN FETCH s.room WHERE s.course.id = :courseId ORDER BY s.sessionNumber ASC")
     List<Session> findAllWithDetailsByCourse(@Param("courseId") Long courseId);
 
-    @Query("""
-        SELECT s FROM Session s
-        WHERE s.course.id = :courseId
-          AND s.status = 'SCHEDULED'
-          AND s.startTime >= :fromTime
-        ORDER BY s.startTime ASC
-    """)
-    List<Session> findUpcomingSessions(
-            @Param("courseId") Long courseId,
-            @Param("fromTime") LocalDateTime fromTime);
+    @Query("SELECT s FROM Session s WHERE s.course.id = :courseId AND s.status = 'SCHEDULED' AND s.startTime >= :fromTime ORDER BY s.startTime ASC")
+    List<Session> findUpcomingSessions(@Param("courseId") Long courseId, @Param("fromTime") LocalDateTime fromTime);
 
-    // ⚠️ Block SCHEDULED + ONGOING + DRAFT (DRAFT vẫn giữ chỗ để tránh sinh trùng)
-    @Query("""
-        SELECT s FROM Session s
-        WHERE s.effectiveTeacherId = :teacherId
-          AND s.status IN ('DRAFT', 'SCHEDULED', 'ONGOING')
-          AND s.startTime < :endTime
-          AND s.endTime   > :startTime
-          AND (:excludeId IS NULL OR s.id <> :excludeId)
-    """)
-    List<Session> findTeacherConflicts(
-            @Param("teacherId") Long teacherId,
-            @Param("startTime") LocalDateTime startTime,
-            @Param("endTime")   LocalDateTime endTime,
-            @Param("excludeId") Long excludeId);
+    @Query("SELECT s FROM Session s WHERE s.effectiveTeacherId = :teacherId AND s.status IN ('DRAFT', 'SCHEDULED', 'ONGOING') AND s.startTime < :endTime AND s.endTime > :startTime AND (:excludeId IS NULL OR s.id <> :excludeId)")
+    List<Session> findTeacherConflicts(@Param("teacherId") Long teacherId, @Param("startTime") LocalDateTime startTime, @Param("endTime") LocalDateTime endTime, @Param("excludeId") Long excludeId);
 
-    // ⚠️ Block SCHEDULED + ONGOING + DRAFT
-    @Query("""
-        SELECT s FROM Session s
-        WHERE s.effectiveRoomId = :roomId
-          AND s.status IN ('DRAFT', 'SCHEDULED', 'ONGOING')
-          AND s.startTime < :endTime
-          AND s.endTime   > :startTime
-          AND (:excludeId IS NULL OR s.id <> :excludeId)
-    """)
-    List<Session> findRoomConflicts(
-            @Param("roomId")    Long roomId,
-            @Param("startTime") LocalDateTime startTime,
-            @Param("endTime")   LocalDateTime endTime,
-            @Param("excludeId") Long excludeId);
+    @Query("SELECT s FROM Session s WHERE s.effectiveRoomId = :roomId AND s.status IN ('DRAFT', 'SCHEDULED', 'ONGOING') AND s.startTime < :endTime AND s.endTime > :startTime AND (:excludeId IS NULL OR s.id <> :excludeId)")
+    List<Session> findRoomConflicts(@Param("roomId") Long roomId, @Param("startTime") LocalDateTime startTime, @Param("endTime") LocalDateTime endTime, @Param("excludeId") Long excludeId);
 
-    // ── Conflict check dùng cho generateSessions: exclude toàn bộ course hiện tại ──
-    @Query("""
-        SELECT s FROM Session s
-        WHERE s.effectiveTeacherId = :teacherId
-          AND s.status IN ('DRAFT', 'SCHEDULED', 'ONGOING')
-          AND s.startTime < :endTime
-          AND s.endTime   > :startTime
-          AND s.course.id <> :excludeCourseId
-    """)
-    List<Session> findTeacherConflictsExcludingCourse(
-            @Param("teacherId") Long teacherId,
-            @Param("startTime") LocalDateTime startTime,
-            @Param("endTime")   LocalDateTime endTime,
-            @Param("excludeCourseId") Long excludeCourseId);
+    @Query("SELECT s FROM Session s WHERE s.effectiveTeacherId = :teacherId AND s.status IN ('DRAFT', 'SCHEDULED', 'ONGOING') AND s.startTime < :endTime AND s.endTime > :startTime AND s.course.id <> :excludeCourseId")
+    List<Session> findTeacherConflictsExcludingCourse(@Param("teacherId") Long teacherId, @Param("startTime") LocalDateTime startTime, @Param("endTime") LocalDateTime endTime, @Param("excludeCourseId") Long excludeCourseId);
 
-    @Query("""
-        SELECT s FROM Session s
-        WHERE s.effectiveRoomId = :roomId
-          AND s.status IN ('DRAFT', 'SCHEDULED', 'ONGOING')
-          AND s.startTime < :endTime
-          AND s.endTime   > :startTime
-          AND s.course.id <> :excludeCourseId
-    """)
-    List<Session> findRoomConflictsExcludingCourse(
-            @Param("roomId")    Long roomId,
-            @Param("startTime") LocalDateTime startTime,
-            @Param("endTime")   LocalDateTime endTime,
-            @Param("excludeCourseId") Long excludeCourseId);
+    @Query("SELECT s FROM Session s WHERE s.effectiveRoomId = :roomId AND s.status IN ('DRAFT', 'SCHEDULED', 'ONGOING') AND s.startTime < :endTime AND s.endTime > :startTime AND s.course.id <> :excludeCourseId")
+    List<Session> findRoomConflictsExcludingCourse(@Param("roomId") Long roomId, @Param("startTime") LocalDateTime startTime, @Param("endTime") LocalDateTime endTime, @Param("excludeCourseId") Long excludeCourseId);
 
-    List<Session> findBySubstituteTeacher_IdAndStatusIn(
-            Long substituteTeacherId, Collection<SessionStatus> statuses);
+    List<Session> findBySubstituteTeacher_IdAndStatusIn(Long substituteTeacherId, Collection<SessionStatus> statuses);
 
-    @Query("""
-        SELECT s FROM Session s
-        WHERE s.effectiveTeacherId = :teacherId
-          AND s.sessionDate BETWEEN :from AND :to
-          AND s.status IN ('SCHEDULED', 'ONGOING')
-        ORDER BY s.startTime ASC
-    """)
-    List<Session> findTeachingSchedule(
-            @Param("teacherId") Long teacherId,
-            @Param("from") LocalDate from,
-            @Param("to")   LocalDate to);
+    @Query("SELECT s FROM Session s WHERE s.effectiveTeacherId = :teacherId AND s.sessionDate BETWEEN :from AND :to AND s.status IN ('SCHEDULED', 'ONGOING') ORDER BY s.startTime ASC")
+    List<Session> findTeachingSchedule(@Param("teacherId") Long teacherId, @Param("from") LocalDate from, @Param("to") LocalDate to);
 
-    @Query("""
-        SELECT s FROM Session s
-        WHERE s.effectiveRoomId = :roomId
-          AND s.sessionDate BETWEEN :from AND :to
-          AND s.status IN ('SCHEDULED', 'ONGOING')
-        ORDER BY s.startTime ASC
-    """)
-    List<Session> findRoomBusySchedule(
-            @Param("roomId") Long roomId,
-            @Param("from") LocalDate from,
-            @Param("to")   LocalDate to);
+    @Query("SELECT s FROM Session s WHERE s.effectiveRoomId = :roomId AND s.sessionDate BETWEEN :from AND :to AND s.status IN ('SCHEDULED', 'ONGOING') ORDER BY s.startTime ASC")
+    List<Session> findRoomBusySchedule(@Param("roomId") Long roomId, @Param("from") LocalDate from, @Param("to") LocalDate to);
 
-    @Query("""
-        SELECT s FROM Session s
-        WHERE s.course.id = :courseId
-          AND s.status = 'SCHEDULED'
-          AND s.substituteTeacher IS NULL
-    """)
+    @Query("SELECT s FROM Session s WHERE s.course.id = :courseId AND s.status = 'SCHEDULED' AND s.substituteTeacher IS NULL")
     List<Session> findScheduledSessionsWithoutSubstitute(@Param("courseId") Long courseId);
 
-    @Query("SELECT COUNT(s) FROM Session s WHERE s.course.id = :courseId " +
-            "AND s.status <> 'CANCELLED' AND s.status <> 'DRAFT'")
+    @Query("SELECT COUNT(s) FROM Session s WHERE s.course.id = :courseId AND s.status <> 'CANCELLED' AND s.status <> 'DRAFT'")
     long countActiveSessions(@Param("courseId") Long courseId);
 
     @Query("SELECT COUNT(s) FROM Session s WHERE s.course.id = :courseId AND s.status = 'COMPLETED'")
     long countDoneSessions(@Param("courseId") Long courseId);
+
+    // ============================================================
+    // [M1] Lịch giảng dạy INSTRUCTOR — có học viên (dùng cho /my-schedule)
+    // ============================================================
+    @Query("""
+        SELECT s FROM Session s
+        JOIN FETCH s.course c
+        WHERE s.effectiveTeacherId = :teacherId
+          AND s.sessionDate BETWEEN :from AND :to
+          AND s.status IN ('SCHEDULED', 'ONGOING')
+        ORDER BY s.startTime ASC
+    """)
+    List<Session> findInstructorScheduleWithCourse(
+            @Param("teacherId") Long teacherId,
+            @Param("from") LocalDate from,
+            @Param("to") LocalDate to);
+
+    // ============================================================
+    // [M2] Lịch học STUDENT — dựa vào ENROLLMENT còn hiệu lực
+    // ============================================================
+    @Query("""
+        SELECT s FROM Session s
+        JOIN FETCH s.course c
+        WHERE s.course.id IN (
+            SELECT e.courseId FROM Enrollment e
+            WHERE e.studentId IN (
+                SELECT st.id FROM Student st WHERE st.userId = :accountId
+            )
+            AND e.status IN ('PENDING','ACTIVE','RESERVED','COMPLETED')
+        )
+          AND s.sessionDate BETWEEN :from AND :to
+          AND s.status IN ('SCHEDULED', 'ONGOING', 'COMPLETED')
+        ORDER BY s.startTime ASC
+    """)
+    List<Session> findStudentScheduleWithCourse(
+            @Param("accountId") Long accountId,
+            @Param("from") LocalDate from,
+            @Param("to") LocalDate to);
+
+    // ============================================================
+    // [M7] Scheduler SCHEDULED → ONGOING
+    // ============================================================
+    @Query("""
+        SELECT s FROM Session s
+        JOIN FETCH s.course c
+        WHERE s.status = com.ecms_web_application.OC01.entity.enums.SessionStatus.SCHEDULED
+          AND s.startTime <= :now
+          AND c.status IN (com.ecms_web_application.OC01.entity.enums.CourseStatus.PUBLISHED,
+                           com.ecms_web_application.OC01.entity.enums.CourseStatus.ONGOING)
+    """)
+    List<Session> findScheduledToStart(@Param("now") LocalDateTime now);
+
+    // ============================================================
+    // [M8] Scheduler ONGOING → COMPLETED
+    // ============================================================
+    @Query("""
+        SELECT s FROM Session s
+        JOIN FETCH s.course c
+        WHERE s.status = com.ecms_web_application.OC01.entity.enums.SessionStatus.ONGOING
+          AND s.endTime <= :now
+    """)
+    List<Session> findOngoingToComplete(@Param("now") LocalDateTime now);
 }

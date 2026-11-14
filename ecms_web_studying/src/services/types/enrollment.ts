@@ -16,11 +16,25 @@ export interface EnrollmentResponse {
   invoiceCode?: string | null;
 }
 
-export interface AttendanceAbsenceResponse {
+export type AttendanceStatus = 'NOT_MARKED' | 'PRESENT' | 'LATE' | 'ABSENT' | 'EXCUSED';
+
+export interface AttendanceRecordResponse {
   attendanceId: number;
   enrollmentId: number;
   sessionId: number;
-  createdAt: string;
+  sessionNumber: number | null;
+  sessionTitle: string | null;
+  sessionDate: string | null;
+  sessionStartTime: string | null;
+  status: AttendanceStatus;
+  checkInAt: string | null;
+  note: string | null;
+  studentName: string | null;
+  studentCode: string | null;
+  markedAt: string | null;
+  markedBy: number | null;
+  updatedAt: string | null;
+  updatedBy: number | null;
 }
 
 export interface EnrollmentStatusLogResponse {

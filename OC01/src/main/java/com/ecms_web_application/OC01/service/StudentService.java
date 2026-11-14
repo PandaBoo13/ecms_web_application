@@ -21,6 +21,10 @@ public interface StudentService {
 
     StudentResponse convertFromLead(StudentConvertFromLeadRequest request);
 
+    StudentResponse convertFromLeadForPayment(StudentConvertFromLeadRequest request, Long actorId);
+
+    StudentResponse ensureAccountForPayment(Long studentId);
+
     Page<StudentResponse> search(String search, String status, Long courseId, Pageable pageable);
 
     StudentResponse getById(Long id);

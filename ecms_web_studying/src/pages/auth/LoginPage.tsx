@@ -35,6 +35,14 @@ const LoginPage = () => {
     }
   }, [form]);
 
+  useEffect(() => {
+    // Checkout chuyển sang đăng nhập khi email đã thuộc tài khoản có sẵn.
+    const prefillEmail = (location.state as { email?: string } | null)?.email;
+    if (prefillEmail) {
+      form.setFieldsValue({ email: prefillEmail });
+    }
+  }, [form, location.state]);
+
   const handleSubmit = async (values: LoginFormValues) => {
     setLoading(true);
     setError(null);

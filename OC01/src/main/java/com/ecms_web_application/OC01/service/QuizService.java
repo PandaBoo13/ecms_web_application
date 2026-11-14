@@ -27,4 +27,9 @@ public interface QuizService {
     List<QuizAttemptResponse> getMyAttempts(Long courseId, Long quizId);
 
     QuizAttemptResponse getAttemptDetail(Long courseId, Long quizId, Long attemptId);
+
+    // ============================================================
+    // [M9] Scheduler gọi — auto-submit + auto-grade khi hết giờ
+    // ============================================================
+    void autoSubmitTimedOutAttempt(Long attemptId);
 }
