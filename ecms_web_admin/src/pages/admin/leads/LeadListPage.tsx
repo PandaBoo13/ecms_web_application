@@ -596,6 +596,26 @@ const LeadListPage = () => {
               </Tooltip>
             );
           }
+          const isBuyNow = record.sourceName?.includes('Mua ngay') || record.note?.toLowerCase().includes('mua');
+          if (isBuyNow && record.studentId) {
+            return (
+              <Tooltip title="Khách tự mua online & thanh toán thành công, hệ thống đã tự động kích hoạt. Không cần phân công TVV.">
+                <Tag
+                  color="default"
+                  style={{
+                    borderRadius: 12,
+                    padding: '2px 10px',
+                    fontWeight: 500,
+                    color: '#64748b',
+                    background: '#f1f5f9',
+                    borderColor: '#cbd5e1',
+                  }}
+                >
+                  ⚡ Hệ thống tự động
+                </Tag>
+              </Tooltip>
+            );
+          }
           return (
             <Tag
               color="warning"
@@ -617,7 +637,19 @@ const LeadListPage = () => {
         title: t('common.status'),
         dataIndex: 'status',
         width: 130,
-        render: (status: LeadStatus) => <StatusTag status={status} />,
+        render: (status: LeadStatus, record: Lead) => {
+          const isBuyNow = record.sourceName?.includes('Mua ngay') || record.note?.toLowerCase().includes('mua');
+          if (isBuyNow && record.studentId) {
+            return (
+              <Tooltip title="Khách tự mua online & thanh toán thành công. Đã tự động tạo học viên và ghi danh, không cần tư vấn.">
+                <Tag color="success" style={{ borderRadius: 12, fontWeight: 600, padding: '2px 10px' }}>
+                  Đã hoàn tất
+                </Tag>
+              </Tooltip>
+            );
+          }
+          return <StatusTag status={status} />;
+        },
       },
       {
         title: t('lead.converted'),

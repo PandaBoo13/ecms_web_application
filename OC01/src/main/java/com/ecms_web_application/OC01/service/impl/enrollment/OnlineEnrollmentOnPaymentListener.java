@@ -44,6 +44,13 @@ public class OnlineEnrollmentOnPaymentListener {
         if (invoice.getLeadId() != null) {
             leadRepository.findById(invoice.getLeadId()).ifPresent(lead -> {
                 lead.setNote("[MUA NGAY - ĐÃ THANH TOÁN] Khách đã thanh toán hóa đơn " + invoice.getInvoiceCode() + " (" + String.format("%,.0f đ", invoice.getAmount()) + ") & tự động ghi danh.");
+                if (!"CONSULTED".equalsIgnoreCase(lead.getStatus())) {
+                    lead.setStatus("CONSULTED");
+                    lead.setConsultedAt(java.time.LocalDateTime.now());
+                }
+                if (lead.getConvertedAt() == null) {
+                    lead.setConvertedAt(java.time.LocalDateTime.now());
+                }
                 leadRepository.save(lead);
             });
         }
