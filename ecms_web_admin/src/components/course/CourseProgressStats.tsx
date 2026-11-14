@@ -1,4 +1,4 @@
-import { Card, Row, Col, Statistic, Tag, Tooltip, Spin } from 'antd';
+import { Card, Row, Col, Statistic, Tooltip, Spin } from 'antd';
 import { TeamOutlined, PlayCircleOutlined, CheckCircleOutlined, RiseOutlined, InfoCircleOutlined } from '@ant-design/icons';
 import { useEffect, useState } from 'react';
 import { courseApi } from '@/services/api/course';

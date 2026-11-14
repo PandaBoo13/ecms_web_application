@@ -10,13 +10,13 @@ import {
   Input,
   Radio,
   Button,
-  Space,
 } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import { SearchOutlined, BookOutlined, SendOutlined, EyeOutlined, CreditCardOutlined } from '@ant-design/icons';
 import toast from 'react-hot-toast';
 
 import { courseApi, progressApi } from '@/services/api/course';
+import { tuitionApi } from '@/services/api/tuition';
 import { useAuth } from '@/hooks/useAuth';
 import MoneyDisplay from '@/components/common/MoneyDisplay';
 import type { CourseResponse } from '@/services/types/course';
@@ -26,7 +26,7 @@ const { Title, Paragraph, Text } = Typography;
 
 export default function CourseCatalogPage() {
   const navigate = useNavigate();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isStudent } = useAuth();
   const [courses, setCourses] = useState<CourseResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchText, setSearchText] = useState('');
@@ -109,14 +109,37 @@ export default function CourseCatalogPage() {
     setConsultModalOpen(true);
   };
 
-  const handleOnlineCheckout = (course: CourseResponse, event: React.MouseEvent) => {
-    event.stopPropagation();
+  const handleOnlineCheckout = async (course: CourseResponse, event?: React.MouseEvent) => {
+    if (event) event.stopPropagation();
     if (ownedCourseIds.has(course.id)) {
       toast.success('Bạn đã mua khóa học này.');
       return;
     }
-    // Guest checkout is allowed; the account is provisioned after successful payment.
-    navigate(`/checkout/${course.id}`);
+    if (!isAuthenticated) {
+      navigate(`/checkout/${course.id}`);
+      return;
+    }
+    if (!isStudent()) {
+      toast.error('Chỉ tài khoản học viên mới được thanh toán khóa học.');
+      return;
+    }
+    try {
+      const invoice = await tuitionApi.createOnlineCheckout(course.id);
+      if (invoice.status === 'PAID' || course.isFree || course.price === 0) {
+        toast.success('Đăng ký khóa học thành công! Chúc bạn học tập tốt.');
+        navigate('/student/my-courses');
+        return;
+      }
+      try {
+        const paymentUrl = await tuitionApi.createVnpayPayment(invoice.invoiceId);
+        window.location.assign(paymentUrl);
+      } catch {
+        toast.success('Hóa đơn đã được tạo thành công! Đang chuyển đến trang Học phí để xem chi tiết.');
+        navigate('/student/tuition');
+      }
+    } catch {
+      navigate(`/checkout/${course.id}`);
+    }
   };
 
   return (
@@ -248,23 +271,29 @@ export default function CourseCatalogPage() {
                 <div
                   style={{
                     display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
+                    flexDirection: 'column',
+                    gap: 12,
                     marginTop: 'auto',
                     paddingTop: 12,
                     borderTop: '1px solid #f1f5f9',
                   }}
                 >
-                  <div>
-                    <Text type="secondary" style={{ fontSize: 12, display: 'block' }}>
-                      Học phí
-                    </Text>
-                    <Text strong style={{ color: '#1677ff', fontSize: 18 }}>
-                      <MoneyDisplay value={c.isFree ? 0 : c.price} />
-                    </Text>
-                  </div>
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                    }}
+                  >
+                    <div>
+                      <Text type="secondary" style={{ fontSize: 12, display: 'block' }}>
+                        Học phí
+                      </Text>
+                      <Text strong style={{ color: '#1677ff', fontSize: 18 }}>
+                        <MoneyDisplay value={c.isFree ? 0 : c.price} />
+                      </Text>
+                    </div>
 
-                  <Space>
                     <Button
                       size="middle"
                       icon={<EyeOutlined />}
@@ -272,36 +301,44 @@ export default function CourseCatalogPage() {
                     >
                       Chi tiết
                     </Button>
-                    {c.courseType === 'ONLINE' && !c.isFree ? (
-                      ownedCourseIds.has(c.id) ? (
-                        <Tag color="green" style={{ margin: 0, padding: '4px 10px', fontWeight: 600 }}>
-                          Đã mua
-                        </Tag>
-                      ) : (
-                        <Button
-                          type="primary"
-                          size="middle"
-                          icon={<CreditCardOutlined />}
-                          loading={ownedLoading}
-                          disabled={ownedLoading}
-                          onClick={(e) => handleOnlineCheckout(c, e)}
-                          style={{ background: '#10b981', borderColor: '#10b981', fontWeight: 600 }}
-                        >
-                          Mua khóa học
-                        </Button>
-                      )
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                    <Button
+                      size="middle"
+                      icon={<SendOutlined />}
+                      onClick={() => handleOpenConsult(c)}
+                      style={{
+                        borderColor: '#1677ff',
+                        color: '#1677ff',
+                        fontWeight: 600,
+                        borderRadius: 8,
+                      }}
+                    >
+                      Tư vấn
+                    </Button>
+                    {ownedCourseIds.has(c.id) ? (
+                      <Tag color="green" style={{ margin: 0, padding: '4px 10px', fontWeight: 600, textAlign: 'center', lineHeight: '24px' }}>
+                        Đã mua
+                      </Tag>
                     ) : (
                       <Button
                         type="primary"
                         size="middle"
-                        icon={<SendOutlined />}
-                        onClick={() => handleOpenConsult(c)}
-                        style={{ background: '#1677ff', fontWeight: 600 }}
+                        icon={<CreditCardOutlined />}
+                        loading={ownedLoading}
+                        onClick={(e) => handleOnlineCheckout(c, e)}
+                        style={{
+                          background: '#10b981',
+                          borderColor: '#10b981',
+                          fontWeight: 600,
+                          borderRadius: 8,
+                        }}
                       >
-                        Tư vấn
+                        {c.isFree ? 'Vào học' : 'Mua ngay'}
                       </Button>
                     )}
-                  </Space>
+                  </div>
                 </div>
               </Card>
             </Col>

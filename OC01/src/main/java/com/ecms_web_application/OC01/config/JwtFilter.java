@@ -119,6 +119,12 @@ public class JwtFilter extends OncePerRequestFilter {
             return;
         }
 
+        // 4b. Public POST → qua (đăng ký lead từ landing page...)
+        if ("POST".equalsIgnoreCase(method) && isPublicPostPath(path)) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
         // 5. Non-public: bắt buộc token
         if (tokenOpt.isEmpty()) {
             log.warn("🛡️ 401 {} {} — Access token not found", method, path);
@@ -167,9 +173,14 @@ public class JwtFilter extends OncePerRequestFilter {
             return isPublicPath(path);
         }
         if ("POST".equalsIgnoreCase(method)) {
-            for (String publicPost : APIURL.PUBLIC_POST_URLS) {
-                if (pathMatcher.match(publicPost, path)) return true;
-            }
+            return isPublicPostPath(path);
+        }
+        return false;
+    }
+
+    private boolean isPublicPostPath(String path) {
+        for (String publicUrl : APIURL.PUBLIC_POST_URLS) {
+            if (pathMatcher.match(publicUrl, path)) return true;
         }
         return false;
     }

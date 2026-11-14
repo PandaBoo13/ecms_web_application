@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Badge, Button, Dropdown, Empty, List, Tabs, Tag, Tooltip, Typography } from 'antd';
 import { BellOutlined, CheckOutlined, DeleteOutlined } from '@ant-design/icons';
 import toast from 'react-hot-toast';
@@ -18,6 +19,7 @@ const PRIORITY_COLOR: Record<string, string> = {
 };
 
 const NotificationDropdown = () => {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { subscribe } = useWebSocket();
 
@@ -56,12 +58,19 @@ const NotificationDropdown = () => {
     }
   }, [tab]);
 
-  // ═══ Init + subscribe WS ═══
+  // ═══ Init + subscribe WS + Polling fallback ═══
   useEffect(() => {
     mountedRef.current = true;
     fetchUnreadCount();
+
+    const interval = setInterval(fetchUnreadCount, 15000);
+    const onFocus = () => fetchUnreadCount();
+    window.addEventListener('focus', onFocus);
+
     return () => {
       mountedRef.current = false;
+      clearInterval(interval);
+      window.removeEventListener('focus', onFocus);
     };
   }, [fetchUnreadCount]);
 
@@ -127,6 +136,42 @@ const NotificationDropdown = () => {
     } catch (err) {
       const e = err as { message?: string };
       toast.error(e?.message || 'Thao tác thất bại');
+    }
+  };
+
+  const handleItemClick = async (n: NotificationResponse) => {
+    if (!n.isRead) {
+      await handleMarkRead(n);
+    }
+    setOpen(false);
+
+    // Deep link navigation theo extraData
+    if (n.extraData && typeof n.extraData === 'object' && 'url' in n.extraData && typeof n.extraData.url === 'string') {
+      navigate(n.extraData.url);
+      return;
+    }
+
+    const type = (n.notificationType || '').toUpperCase();
+    const refType = (n.referenceType || '').toUpperCase();
+
+    // Điều hướng theo loại thông báo
+    if (type === 'LEAD' || refType === 'LEAD') {
+      if (n.referenceId) {
+        navigate(`/admin/leads?leadId=${n.referenceId}`);
+      } else {
+        navigate('/admin/leads');
+      }
+      return;
+    }
+
+    if (type === 'REQUEST' || refType === 'REQUEST') {
+      navigate('/admin/requests');
+      return;
+    }
+
+    if (type === 'COURSE' || refType === 'COURSE') {
+      navigate(n.referenceId ? `/admin/courses/${n.referenceId}` : '/admin/courses');
+      return;
     }
   };
 
@@ -229,7 +274,7 @@ const NotificationDropdown = () => {
             dataSource={notifications}
             renderItem={(item) => (
               <List.Item
-                onClick={() => handleMarkRead(item)}
+                onClick={() => handleItemClick(item)}
                 style={{
                   padding: '12px 16px',
                   cursor: 'pointer',

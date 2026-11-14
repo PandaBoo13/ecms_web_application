@@ -33,10 +33,13 @@ import {
   QuestionCircleOutlined,
   TeamOutlined,
   ArrowLeftOutlined,
+  CreditCardOutlined,
+  SafetyCertificateOutlined,
 } from '@ant-design/icons';
 import toast from 'react-hot-toast';
+import { useAuth } from '@/hooks/useAuth';
 
-// 🆕 Cập nhật lại đường dẫn import API theo cấu trúc mới
+import { tuitionApi } from '@/services/api/tuition';
 import { courseApi, progressApi, resourceApi, sessionApi } from '@/services/api/course';
 // Nếu báo lỗi không tìm thấy, đổi thành import từ thư mục file tương ứng
 
@@ -53,7 +56,6 @@ import StatusTag from '@/components/common/StatusTag';
 import LeadRegistrationModal from '@/components/lead/LeadRegistrationModal';
 import LeadRegistrationForm from '@/components/lead/LeadRegistrationForm';
 import FloatingLeadButton from '@/components/lead/FloatingLeadButton';
-import { useAuth } from '@/hooks/useAuth';
 
 const { Title, Paragraph, Text } = Typography;
 
@@ -76,7 +78,7 @@ const RESOURCE_ICON_MAP: Record<ResourceType, React.ReactNode> = {
 export default function CourseDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isStudent } = useAuth();
 
   const [course, setCourse] = useState<CourseDetailResponse | null>(null);
   const [resourceTree, setResourceTree] = useState<ResourceTreeResponse[]>([]);
@@ -84,6 +86,45 @@ export default function CourseDetailPage() {
   const [loading, setLoading] = useState(true);
   const [consultModalOpen, setConsultModalOpen] = useState(false);
   const [purchaseStatus, setPurchaseStatus] = useState<'CHECKING' | 'AVAILABLE' | 'OWNED'>('CHECKING');
+  const [buying, setBuying] = useState(false);
+
+  const handleBuyOnlineCourse = async () => {
+    if (!course) return;
+
+    if (!isAuthenticated) {
+      navigate(`/checkout/${course.id}`);
+      return;
+    }
+
+    if (!isStudent()) {
+      toast.error('Chỉ tài khoản học viên mới được đăng ký mua khóa học trực tuyến.');
+      return;
+    }
+
+    setBuying(true);
+    try {
+      const invoice = await tuitionApi.createOnlineCheckout(course.id);
+
+      if (invoice.status === 'PAID' || course.isFree || course.price === 0) {
+        toast.success('Đăng ký khóa học thành công! Chúc bạn học tập tốt.');
+        navigate('/student/my-courses');
+        return;
+      }
+
+      try {
+        const paymentUrl = await tuitionApi.createVnpayPayment(invoice.invoiceId);
+        window.location.assign(paymentUrl);
+      } catch (err) {
+        console.warn('VNPAY payment fallback:', err);
+        toast.success('Hóa đơn đã được tạo thành công! Đang chuyển đến trang Học phí để xem chi tiết.');
+        navigate('/student/tuition');
+      }
+    } catch (err: any) {
+      navigate(`/checkout/${course.id}`);
+    } finally {
+      setBuying(false);
+    }
+  };
 
   useEffect(() => {
     if (!id || isNaN(Number(id))) {
@@ -658,16 +699,79 @@ export default function CourseDetailPage() {
               />
             </Card>
 
-            {/* FORM ĐĂNG KÝ TƯ VẤN TRỰC TIẾP DƯỚI CHÂN TRANG KHÓA HỌC */}
+            {/* 1. KHỐI MUA & THANH TOÁN TRỰC TUYẾN */}
+            <Card
+              id="checkout-box"
+              style={{
+                borderRadius: 16,
+                border: '1px solid #86efac',
+                background: 'linear-gradient(135deg, #f0fdf4 0%, #ffffff 100%)',
+                boxShadow: '0 4px 16px rgba(16, 185, 129, 0.1)',
+                marginBottom: 24,
+              }}
+            >
+              <Row gutter={[24, 24]} align="middle">
+                <Col xs={24} md={16}>
+                  <Tag color="success" style={{ marginBottom: 8, fontSize: 12, padding: '2px 8px' }}>
+                    {course.courseType === 'ONLINE' ? 'KHÓA HỌC TRỰC TUYẾN (ONLINE) — VÀO HỌC NGAY' : 'KHÓA HỌC TRỰC TIẾP (OFFLINE) — THANH TOÁN GIỮ CHỖ'}
+                  </Tag>
+                  <Title level={4} style={{ margin: '4px 0 8px', color: '#0f172a' }}>
+                    Đăng Ký & Mua Khóa Học Trực Tuyến
+                  </Title>
+                  <Paragraph type="secondary" style={{ marginBottom: 12, fontSize: 14 }}>
+                    Thanh toán trực tuyến an toàn qua VNPAY, mở quyền truy cập hoặc ghi danh nhanh chóng mà không cần chờ gọi điện xác nhận.
+                  </Paragraph>
+                  <Space size={16} wrap>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#16a34a', fontSize: 13 }}>
+                      <CheckCircleOutlined /> Kích hoạt tự động
+                    </span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#16a34a', fontSize: 13 }}>
+                      <SafetyCertificateOutlined /> Bảo mật cổng VNPAY
+                    </span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#16a34a', fontSize: 13 }}>
+                      <PlayCircleOutlined /> Linh hoạt tiện lợi
+                    </span>
+                  </Space>
+                </Col>
+                <Col xs={24} md={8} style={{ textAlign: 'center' }}>
+                  <div style={{ marginBottom: 8 }}>
+                    <Text type="secondary" style={{ fontSize: 13 }}>Học phí:</Text>
+                    <div style={{ fontSize: 26, fontWeight: 700, color: '#10b981' }}>
+                      <MoneyDisplay value={course.isFree ? 0 : course.price} />
+                    </div>
+                  </div>
+                  <Button
+                    type="primary"
+                    size="large"
+                    icon={course.isFree ? <PlayCircleOutlined /> : <CreditCardOutlined />}
+                    loading={buying}
+                    onClick={handleBuyOnlineCourse}
+                    block
+                    style={{
+                      height: 48,
+                      fontSize: 16,
+                      fontWeight: 700,
+                      background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                      borderColor: '#059669',
+                      boxShadow: '0 4px 14px rgba(16, 185, 129, 0.35)',
+                    }}
+                  >
+                    {course.isFree ? 'Vào học ngay miễn phí' : 'Thanh toán & Mua ngay'}
+                  </Button>
+                </Col>
+              </Row>
+            </Card>
+
+            {/* 2. KHỐI ĐĂNG KÝ TƯ VẤN TRỰC TIẾP */}
             <Card
               id="consult-form"
               title={
                 <div>
                   <Title level={4} style={{ margin: 0, color: '#0f172a' }}>
-                    Đăng Ký Tư Vấn Khóa Học Này
+                    Hoặc Đăng Ký Nhận Tư Vấn Chi Tiết
                   </Title>
                   <Text type="secondary" style={{ fontSize: 13 }}>
-                    Chuyên viên ECMS sẽ gọi điện tư vấn chi tiết lịch học, ưu đãi và xếp lịch test miễn phí
+                    Chuyên viên ECMS sẽ gọi điện tư vấn chi tiết lộ trình, giải đáp thắc mắc và hỗ trợ xếp lớp phù hợp nhất với bạn
                   </Text>
                 </div>
               }
@@ -769,35 +873,56 @@ export default function CourseDetailPage() {
                   <Button
                     type="primary"
                     size="large"
+                    icon={course.isFree ? <PlayCircleOutlined /> : <CreditCardOutlined />}
+                    loading={buying}
+                    block
+                    style={{
+                      height: 50,
+                      fontSize: 16,
+                      fontWeight: 700,
+                      background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                      borderColor: '#059669',
+                      boxShadow: '0 4px 14px rgba(16, 185, 129, 0.35)',
+                    }}
+                    onClick={handleBuyOnlineCourse}
+                  >
+                    {course.isFree ? 'Vào học ngay miễn phí' : 'Mua khóa học ngay (Thanh toán)'}
+                  </Button>
+
+                  <Button
+                    type="default"
+                    size="large"
                     icon={<SendOutlined />}
                     block
                     style={{
                       height: 48,
                       fontSize: 16,
-                      fontWeight: 700,
-                      background: 'linear-gradient(135deg, #1677ff 0%, #0958d9 100%)',
-                      boxShadow: '0 4px 12px rgba(22, 119, 255, 0.35)',
+                      fontWeight: 600,
+                      borderColor: '#1677ff',
+                      color: '#1677ff',
                     }}
                     onClick={() => setConsultModalOpen(true)}
                   >
                     Đăng ký nhận tư vấn ngay
                   </Button>
 
-                  <Button
-                    size="large"
-                    icon={<AuditOutlined />}
-                    block
-                    style={{
-                      height: 48,
-                      fontSize: 15,
-                      fontWeight: 600,
-                      borderColor: '#0284c7',
-                      color: '#0284c7',
-                    }}
-                    onClick={() => setConsultModalOpen(true)}
-                  >
-                    Đăng ký kiểm tra trình độ đầu vào
-                  </Button>
+                  {course.courseType === 'OFFLINE' && (
+                    <Button
+                      size="large"
+                      icon={<AuditOutlined />}
+                      block
+                      style={{
+                        height: 48,
+                        fontSize: 15,
+                        fontWeight: 600,
+                        borderColor: '#0284c7',
+                        color: '#0284c7',
+                      }}
+                      onClick={() => setConsultModalOpen(true)}
+                    >
+                      Đăng ký kiểm tra trình độ đầu vào
+                    </Button>
+                  )}
                 </Space>
 
                 <Divider style={{ margin: '16px 0' }} />
@@ -861,7 +986,7 @@ export default function CourseDetailPage() {
         onClose={() => setConsultModalOpen(false)}
       />
 
-      {/* FLOATING ACTION BUTTON */}
+      {/* FLOATING ACTION BUTTON (Nút tư vấn nhanh) */}
       <FloatingLeadButton onClick={() => setConsultModalOpen(true)} />
     </div>
   );

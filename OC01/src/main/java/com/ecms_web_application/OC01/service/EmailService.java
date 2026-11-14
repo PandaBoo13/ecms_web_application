@@ -9,7 +9,6 @@ public interface EmailService {
     void sendOtpEmail(String to, String otp);
     void sendPasswordChangedEmail(String to);
     void sendAccountLockedEmail(String to, String fullName, String reason, LocalDateTime lockedUntil);
-
     /** Gửi link thanh toán học phí (chuyển khoản/VNPAY) cho người nộp. */
     void sendTuitionPaymentLinkEmail(String to, String fullName, String invoiceCode, String courseTitle,
                                      java.math.BigDecimal amount, LocalDateTime dueAt, String paymentLink);
@@ -30,4 +29,7 @@ public interface EmailService {
                                 String originalInvoiceCode, String courseTitle, LocalDateTime refundedAt,
                                 java.math.BigDecimal amount, String paymentMethod,
                                 String transactionReference, String reason);
+
+    void sendStudentAccountCredentialsEmail(String to, String fullName, String studentCode, String password, String courseName, String loginUrl);
+    void sendEnrollmentNotificationEmail(String to, String fullName, String studentCode, String courseName, String loginUrl);
 }

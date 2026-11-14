@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Button,
   Space,
@@ -90,6 +91,7 @@ const LeadListPage = () => {
   const { t } = useTranslation();
   const { user, isConsultant } = useAuth();
   const isTvv = user?.roleCode === 'LEAD' || user?.roleCode === 'CONSULTANT' || Boolean(isConsultant?.());
+  const [searchParams, setSearchParams] = useSearchParams();
 
   // ══════════════════════════════════════════════════════════════
   // STATE
@@ -285,6 +287,7 @@ const LeadListPage = () => {
     try {
       const detail = await leadApi.getDetailById(leadId);
       setLeadDetail(detail);
+      setSelectedLead(detail);
     } catch (err) {
       const e = err as { message?: string };
       toast.error(e?.message || 'Không thể tải chi tiết Lead');
@@ -292,6 +295,22 @@ const LeadListPage = () => {
       setDetailLoading(false);
     }
   };
+
+  // Deep-link từ thông báo chuông (?leadId=123 hoặc ?id=123)
+  useEffect(() => {
+    const rawId = searchParams.get('leadId') || searchParams.get('id');
+    if (rawId) {
+      const leadIdNum = Number(rawId);
+      if (!isNaN(leadIdNum) && leadIdNum > 0) {
+        setDetailDrawerVisible(true);
+        loadLeadDetail(leadIdNum);
+        const newParams = new URLSearchParams(searchParams);
+        newParams.delete('leadId');
+        newParams.delete('id');
+        setSearchParams(newParams, { replace: true });
+      }
+    }
+  }, [searchParams, setSearchParams]);
 
   const handleOpenDetail = (lead: Lead) => {
     setSelectedLead(lead);

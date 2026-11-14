@@ -72,6 +72,12 @@ public class PermissionAuthorizationFilter extends OncePerRequestFilter {
             return;
         }
 
+        // ── 3b. PUBLIC POST (khách đăng ký lead từ landing page...) ──
+        if ("POST".equals(method) && matchesPath(APIURL.PUBLIC_POST_URLS, path)) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
         // ── 4. Bắt buộc đăng nhập ──
         if (!SecurityUtils.isAuthenticated()) {
             sendError(response, HttpStatus.UNAUTHORIZED, "Vui lòng đăng nhập để tiếp tục");

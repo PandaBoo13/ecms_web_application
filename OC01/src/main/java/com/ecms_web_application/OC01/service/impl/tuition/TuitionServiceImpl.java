@@ -24,6 +24,11 @@ import com.ecms_web_application.OC01.entity.enums.EnrollmentStatus;
 import com.ecms_web_application.OC01.entity.enums.InvoiceStatus;
 import com.ecms_web_application.OC01.entity.enums.InvoiceType;
 import com.ecms_web_application.OC01.entity.enums.PaymentMethod;
+import com.ecms_web_application.OC01.dto.request.StudentConvertFromLeadRequest;
+import com.ecms_web_application.OC01.dto.response.StudentResponse;
+import com.ecms_web_application.OC01.entity.Account;
+import com.ecms_web_application.OC01.entity.Lead;
+import com.ecms_web_application.OC01.entity.Student;
 import com.ecms_web_application.OC01.event.InvoicePaidEvent;
 import com.ecms_web_application.OC01.event.InvoiceExtendedEvent;
 import com.ecms_web_application.OC01.event.InvoiceRefundedEvent;
@@ -139,9 +144,6 @@ public class TuitionServiceImpl implements TuitionService {
 
     private Invoice createOrReuseOnlineCheckoutInvoice(Long courseId, OnlineCheckoutRequest request, Long accountId) {
         Course course = getCourse(courseId);
-        if (course.getCourseType() != CourseType.ONLINE) {
-            throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Checkout này chỉ áp dụng cho khóa ONLINE");
-        }
         if (course.getStatus() != CourseStatus.PUBLISHED) {
             throw new ErrorHandler(HttpStatus.CONFLICT, "Khóa học hiện chưa được mở bán");
         }

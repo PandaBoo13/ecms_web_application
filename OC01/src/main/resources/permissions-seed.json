@@ -96,6 +96,12 @@
         "description":  "Xóa resource"
     },
     {
+        "method":  "PUT",
+        "path":  "/api/courses/{courseId}/resources/reorder",
+        "module":  "resource",
+        "description":  "Sắp xếp lại thứ tự resource"
+    },
+    {
         "method":  "GET",
         "path":  "/api/courses/{courseId}/sessions",
         "module":  "session",

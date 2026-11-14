@@ -22,9 +22,12 @@ import {
   SendOutlined,
   EyeOutlined,
   UsergroupAddOutlined,
+  CreditCardOutlined,
 } from '@ant-design/icons';
+import toast from 'react-hot-toast';
 
-// 🆕 Cập nhật lại đường dẫn import API theo cấu trúc mới
+import { useAuth } from '@/hooks/useAuth';
+import { tuitionApi } from '@/services/api/tuition';
 import { courseApi } from '@/services/api/course';
 // Nếu báo lỗi không tìm thấy, đổi thành: import { courseApi } from '@/services/api/course/courseApi';
 
@@ -62,6 +65,7 @@ const features = [
 
 export default function HomePage() {
   const navigate = useNavigate();
+  const { isAuthenticated, isStudent } = useAuth();
   const [courses, setCourses] = useState<CourseResponse[]>([]);
   const [loadingCourses, setLoadingCourses] = useState(true);
 
@@ -69,24 +73,40 @@ export default function HomePage() {
   const [leadModalOpen, setLeadModalOpen] = useState(false);
   const [selectedCourseForModal, setSelectedCourseForModal] = useState<CourseResponse | null>(null);
 
-  // Tự động hiển thị popup đăng ký tư vấn sau 1.5s khi vào trang
-  // Nhưng cho phép người dùng tắt đi và không tự động hiện lại nếu đã tắt trong phiên làm việc
-  useEffect(() => {
-    const isDismissed = sessionStorage.getItem('ecms_consult_popup_dismissed');
-    if (!isDismissed) {
-      const timer = setTimeout(() => {
-        setLeadModalOpen(true);
-      }, 1500);
-      return () => clearTimeout(timer);
-    }
-  }, []);
-
   // Xử lý khi đóng popup tư vấn
   const handleCloseLeadModal = () => {
     setLeadModalOpen(false);
     setSelectedCourseForModal(null);
-    // Ghi nhận đã đóng popup để không tự động bật lại làm phiền người dùng
-    sessionStorage.setItem('ecms_consult_popup_dismissed', 'true');
+  };
+
+  const handleOnlineCheckout = async (course: CourseResponse) => {
+    if (!isAuthenticated) {
+      toast('Vui lòng đăng nhập để thanh toán và bắt đầu học');
+      navigate('/login', { state: { from: `/courses/${course.id}` } });
+      return;
+    }
+    if (!isStudent()) {
+      toast.error('Chỉ tài khoản học viên mới được thanh toán khóa học.');
+      return;
+    }
+    try {
+      const invoice = await tuitionApi.createOnlineCheckout(course.id);
+      if (invoice.status === 'PAID' || course.isFree || course.price === 0) {
+        toast.success('Đăng ký khóa học thành công! Chúc bạn học tập tốt.');
+        navigate('/student/my-courses');
+        return;
+      }
+      try {
+        const paymentUrl = await tuitionApi.createVnpayPayment(invoice.invoiceId);
+        window.location.assign(paymentUrl);
+      } catch {
+        toast.success('Hóa đơn đã được tạo thành công! Đang chuyển đến trang Học phí để xem chi tiết.');
+        navigate('/student/tuition');
+      }
+    } catch {
+      toast.error('Không tạo được thanh toán. Hãy kiểm tra mục Học phí.');
+      navigate('/student/tuition');
+    }
   };
 
   useEffect(() => {
@@ -504,23 +524,29 @@ export default function HomePage() {
                   <div
                     style={{
                       display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
+                      flexDirection: 'column',
+                      gap: 12,
                       marginTop: 'auto',
                       paddingTop: 12,
                       borderTop: '1px solid #f1f5f9',
                     }}
                   >
-                    <div>
-                      <Text type="secondary" style={{ fontSize: 12, display: 'block' }}>
-                        Học phí
-                      </Text>
-                      <Text strong style={{ color: '#1677ff', fontSize: 18 }}>
-                        <MoneyDisplay value={c.isFree ? 0 : c.price} />
-                      </Text>
-                    </div>
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                      }}
+                    >
+                      <div>
+                        <Text type="secondary" style={{ fontSize: 12, display: 'block' }}>
+                          Học phí
+                        </Text>
+                        <Text strong style={{ color: '#1677ff', fontSize: 18 }}>
+                          <MoneyDisplay value={c.isFree ? 0 : c.price} />
+                        </Text>
+                      </div>
 
-                    <Space>
                       <Button
                         size="middle"
                         icon={<EyeOutlined />}
@@ -528,16 +554,37 @@ export default function HomePage() {
                       >
                         Chi tiết
                       </Button>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                       <Button
-                        type="primary"
                         size="middle"
                         icon={<SendOutlined />}
                         onClick={() => handleOpenConsultForCourse(c)}
-                        style={{ background: '#1677ff', fontWeight: 600 }}
+                        style={{
+                          borderColor: '#1677ff',
+                          color: '#1677ff',
+                          fontWeight: 600,
+                          borderRadius: 8,
+                        }}
                       >
                         Tư vấn
                       </Button>
-                    </Space>
+                      <Button
+                        type="primary"
+                        size="middle"
+                        icon={<CreditCardOutlined />}
+                        onClick={() => handleOnlineCheckout(c)}
+                        style={{
+                          background: '#10b981',
+                          borderColor: '#10b981',
+                          fontWeight: 600,
+                          borderRadius: 8,
+                        }}
+                      >
+                        {c.isFree ? 'Vào học' : 'Mua ngay'}
+                      </Button>
+                    </div>
                   </div>
                 </Card>
               </Col>

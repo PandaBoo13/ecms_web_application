@@ -35,10 +35,9 @@ public class LeadController {
     private final LeadService leadService;
 
     /**
-     * POST /api/leads — Tạo mới Lead
+     * POST /api/leads — Tạo mới Lead (cho phép khách đăng ký từ landing page hoặc nhân viên tạo từ admin)
      */
     @PostMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'LEAD', 'INSTRUCTOR')")
     public ResponseEntity<RequestResponse> create(@Valid @RequestBody LeadCreateRequest request) {
         LeadResponse data = leadService.create(request);
         return ResponseEntity.status(HttpStatus.CREATED)
