@@ -10,6 +10,7 @@ import com.ecms_web_application.OC01.entity.enums.InvoiceType;
 import com.ecms_web_application.OC01.event.InvoicePaidEvent;
 import com.ecms_web_application.OC01.repository.CourseRepository;
 import com.ecms_web_application.OC01.repository.InvoiceRepository;
+import com.ecms_web_application.OC01.repository.LeadRepository;
 import com.ecms_web_application.OC01.repository.StudentRepository;
 import com.ecms_web_application.OC01.service.EnrollmentService;
 import com.ecms_web_application.OC01.service.NotificationService;
@@ -30,6 +31,7 @@ public class OnlineEnrollmentOnPaymentListener {
     private final InvoiceRepository invoiceRepository;
     private final CourseRepository courseRepository;
     private final StudentRepository studentRepository;
+    private final LeadRepository leadRepository;
     private final EnrollmentService enrollmentService;
     private final NotificationService notificationService;
 
@@ -38,6 +40,13 @@ public class OnlineEnrollmentOnPaymentListener {
         Invoice invoice = invoiceRepository.findById(event.invoiceId()).orElse(null);
         if (invoice == null || invoice.getType() != InvoiceType.TUITION_PAYMENT
                 || invoice.getStatus() != InvoiceStatus.PAID) return;
+
+        if (invoice.getLeadId() != null) {
+            leadRepository.findById(invoice.getLeadId()).ifPresent(lead -> {
+                lead.setNote("[MUA NGAY - ĐÃ THANH TOÁN] Khách đã thanh toán hóa đơn " + invoice.getInvoiceCode() + " (" + String.format("%,.0f đ", invoice.getAmount()) + ") & tự động ghi danh.");
+                leadRepository.save(lead);
+            });
+        }
         Course course = courseRepository.findById(invoice.getCourseId()).orElse(null);
         if (course != null && course.getCourseType() == CourseType.ONLINE) {
             try {

@@ -37,6 +37,8 @@ export interface Lead {
   status: LeadStatus;
   convertedAt?: string;
   sourceId?: number;
+  sourceName?: string;
+  channelType?: string;
   assignedConsultantId?: number;
   assignedConsultantName?: string;
   assignedConsultantEmail?: string;
@@ -108,6 +110,8 @@ export interface LeadFilterParams {
   status?: LeadStatus;
   courseId?: number;
   sourceId?: number;
+  sourceName?: string;
+  channelType?: string;
   consultantId?: number;
   inQueue?: boolean;
   hasOpenInvoice?: boolean;
@@ -123,6 +127,8 @@ export interface LeadCreatePayload {
   phone?: string;
   courseId?: number;
   sourceId?: number;
+  sourceName?: string;
+  channelType?: string;
   assignedConsultantId?: number;
   status?: LeadStatus;
   note?: string;
@@ -134,6 +140,8 @@ export interface LeadUpdatePayload {
   phone?: string;
   courseId?: number;
   sourceId?: number;
+  sourceName?: string;
+  channelType?: string;
   studentId?: number;
   assignedConsultantId?: number;
   status?: LeadStatus;

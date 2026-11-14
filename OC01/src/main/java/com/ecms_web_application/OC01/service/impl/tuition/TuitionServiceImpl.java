@@ -243,9 +243,11 @@ public class TuitionServiceImpl implements TuitionService {
         lead.setPhone(request.getPayerPhone().trim());
         lead.setCourseId(courseId);
         lead.setStatus("NEW");
-        lead.setSourceName("Website");
+        lead.setSourceName("Website - Mua ngay");
         lead.setChannelType("ONLINE");
-        lead.setNote("Khách để lại thông tin khi mua khóa học online");
+        Course course = courseRepository.findById(courseId).orElse(null);
+        String courseTitle = course != null ? course.getTitle() : "Khóa học #" + courseId;
+        lead.setNote("Khách đặt mua trực tuyến khóa học '" + courseTitle + "' (chờ thanh toán)");
         Lead saved = leadRepository.save(lead);
         sendNewLeadBuyNowNotification(saved, courseId);
         return saved;

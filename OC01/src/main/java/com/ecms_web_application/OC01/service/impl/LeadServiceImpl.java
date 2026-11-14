@@ -222,10 +222,11 @@ public class LeadServiceImpl implements LeadService {
         lead.setEmail(email);
         lead.setPhone(phone);
         lead.setCourseId(course.getId());
-        lead.setSourceName("Website");
+        lead.setSourceName("Website - Tư vấn");
         lead.setChannelType("ONLINE");
         lead.setStatus("NEW");
-        lead.setNote(emptyToNull(request.getNote()));
+        String note = emptyToNull(request.getNote());
+        lead.setNote(note != null ? note : "Khách đăng ký nhận tư vấn khóa học '" + course.getTitle() + "'");
         lead.setInteractions(new ArrayList<>());
 
         Lead saved = leadRepository.save(lead);
