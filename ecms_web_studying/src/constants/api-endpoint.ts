@@ -1,3 +1,4 @@
+// src/constants/api-endpoint.ts
 export const API_ENDPOINT = {
   // ══════════════════════════════════════════════════════════════
   // AUTH
@@ -17,9 +18,12 @@ export const API_ENDPOINT = {
   // ══════════════════════════════════════════════════════════════
   COURSES: '/api/courses',
   COURSE_DETAIL: (id: number) => `/api/courses/${id}`,
+  COURSE_MY_ENROLLED: '/api/courses/my-enrolled', // 🆕 API lấy khóa học đã đăng ký của Student
   COURSE_OFFLINE_INFO: (id: number) => `/api/courses/${id}/offline-info`,
   COURSE_SUBMIT_REVIEW: (id: number) => `/api/courses/${id}/submit-review`,
+  COURSE_WITHDRAW_REVIEW: (id: number) => `/api/courses/${id}/withdraw-review`,
   COURSE_REVIEW: (id: number) => `/api/courses/${id}/review`,
+  COURSE_FINALIZE_SCHEDULE: (id: number) => `/api/courses/${id}/finalize-schedule`,
   COURSE_ARCHIVE: (id: number) => `/api/courses/${id}/archive`,
   COURSE_CANCEL: (id: number) => `/api/courses/${id}/cancel`,
   COURSE_COPY: (id: number) => `/api/courses/${id}/copy`,
@@ -31,50 +35,38 @@ export const API_ENDPOINT = {
   // ══════════════════════════════════════════════════════════════
   RESOURCES: (courseId: number) => `/api/courses/${courseId}/resources`,
   RESOURCE_TREE: (courseId: number) => `/api/courses/${courseId}/resources/tree`,
-  RESOURCE_DETAIL: (courseId: number, id: number) =>
-    `/api/courses/${courseId}/resources/${id}`,
+  RESOURCE_DETAIL: (courseId: number, id: number) => `/api/courses/${courseId}/resources/${id}`,
   RESOURCE_REORDER: (courseId: number) => `/api/courses/${courseId}/resources/reorder`,
 
   // ══════════════════════════════════════════════════════════════
   // SESSIONS
   // ══════════════════════════════════════════════════════════════
   SESSIONS: (courseId: number) => `/api/courses/${courseId}/sessions`,
-  SESSION_DETAIL: (courseId: number, id: number) =>
-    `/api/courses/${courseId}/sessions/${id}`,
-  SESSION_CANCEL: (courseId: number, id: number) =>
-    `/api/courses/${courseId}/sessions/${id}/cancel`,
-  SESSION_TEACHER: (courseId: number, id: number) =>
-    `/api/courses/${courseId}/sessions/${id}/teacher`,
-  SESSION_GENERATE: (courseId: number) =>
-    `/api/courses/${courseId}/sessions/generate`,
-  SESSION_DONE: (courseId: number, id: number) =>
-    `/api/courses/${courseId}/sessions/${id}/done`,
-  SESSION_SUBSTITUTE_TEACHER: (courseId: number, id: number) =>
-    `/api/courses/${courseId}/sessions/${id}/substitute-teacher`,
-  SESSION_ASSISTANT: (courseId: number, id: number) =>
-    `/api/courses/${courseId}/sessions/${id}/assistant`,
+  SESSION_DETAIL: (courseId: number, id: number) => `/api/courses/${courseId}/sessions/${id}`,
+  SESSION_CANCEL: (courseId: number, id: number) => `/api/courses/${courseId}/sessions/${id}/cancel`,
+  SESSION_TEACHER: (courseId: number, id: number) => `/api/courses/${courseId}/sessions/${id}/teacher`,
+  SESSION_SUBSTITUTE_TEACHER: (courseId: number, id: number) => `/api/courses/${courseId}/sessions/${id}/substitute-teacher`,
+  SESSION_ASSISTANT: (courseId: number, id: number) => `/api/courses/${courseId}/sessions/${id}/assistant`,
+  SESSION_GENERATE: (courseId: number) => `/api/courses/${courseId}/sessions/generate`,
+  SESSION_DONE: (courseId: number, id: number) => `/api/courses/${courseId}/sessions/${id}/done`,
+  SESSION_MY_SCHEDULE: '/api/sessions/my-schedule',
+  SESSION_ATTENDANCE: (courseId: number, sessionId: number) => `/api/courses/${courseId}/sessions/${sessionId}/attendance`,
 
   // ══════════════════════════════════════════════════════════════
   // QUESTIONS
   // ══════════════════════════════════════════════════════════════
   QUESTIONS: (courseId: number) => `/api/courses/${courseId}/questions`,
-  QUESTION_DETAIL: (courseId: number, id: number) =>
-    `/api/courses/${courseId}/questions/${id}`,
+  QUESTION_DETAIL: (courseId: number, id: number) => `/api/courses/${courseId}/questions/${id}`,
 
   // ══════════════════════════════════════════════════════════════
   // QUIZZES
   // ══════════════════════════════════════════════════════════════
   QUIZZES: (courseId: number) => `/api/courses/${courseId}/quizzes`,
-  QUIZ_DETAIL: (courseId: number, id: number) =>
-    `/api/courses/${courseId}/quizzes/${id}`,
-  QUIZ_START: (courseId: number, id: number) =>
-    `/api/courses/${courseId}/quizzes/${id}/start`,
-  QUIZ_SUBMIT: (courseId: number, id: number) =>
-    `/api/courses/${courseId}/quizzes/${id}/submit`,
-  QUIZ_ATTEMPTS: (courseId: number, id: number) =>
-    `/api/courses/${courseId}/quizzes/${id}/attempts`,
-  QUIZ_ATTEMPT_DETAIL: (courseId: number, id: number, attemptId: number) =>
-    `/api/courses/${courseId}/quizzes/${id}/attempts/${attemptId}`,
+  QUIZ_DETAIL: (courseId: number, id: number) => `/api/courses/${courseId}/quizzes/${id}`,
+  QUIZ_START: (courseId: number, id: number) => `/api/courses/${courseId}/quizzes/${id}/start`,
+  QUIZ_SUBMIT: (courseId: number, id: number) => `/api/courses/${courseId}/quizzes/${id}/submit`,
+  QUIZ_ATTEMPTS: (courseId: number, id: number) => `/api/courses/${courseId}/quizzes/${id}/attempts`,
+  QUIZ_ATTEMPT_DETAIL: (courseId: number, id: number, attemptId: number) => `/api/courses/${courseId}/quizzes/${id}/attempts/${attemptId}`,
 
   // ══════════════════════════════════════════════════════════════
   // CATEGORIES
@@ -92,36 +84,34 @@ export const API_ENDPOINT = {
   ROOMS: '/api/rooms',
   ROOMS_ACTIVE: '/api/rooms/active',
   ROOM_DETAIL: (id: number) => `/api/rooms/${id}`,
+  ROOM_AVAILABILITY: (id: number) => `/api/rooms/${id}/availability`,
 
   // ══════════════════════════════════════════════════════════════
   // PROGRESS
   // ══════════════════════════════════════════════════════════════
   PROGRESS_MY_COURSES: '/api/progress/my-courses',
   PROGRESS_COURSE: (courseId: number) => `/api/progress/courses/${courseId}`,
-  PROGRESS_RESOURCES: (courseId: number) =>
-    `/api/progress/courses/${courseId}/resources`,
-  PROGRESS_UPDATE_RESOURCE: (resourceId: number) =>
-    `/api/progress/resources/${resourceId}`,
-  PROGRESS_COMPLETE_RESOURCE: (resourceId: number) =>
-    `/api/progress/resources/${resourceId}/complete`,
+  PROGRESS_RESOURCES: (courseId: number) => `/api/progress/courses/${courseId}/resources`,
+  PROGRESS_UPDATE_RESOURCE: (resourceId: number) => `/api/progress/resources/${resourceId}`,
+  PROGRESS_COMPLETE_RESOURCE: (resourceId: number) => `/api/progress/resources/${resourceId}/complete`,
 
   // ══════════════════════════════════════════════════════════════
   // INSTRUCTORS
   // ══════════════════════════════════════════════════════════════
+  INSTRUCTOR_AVAILABILITY: (accountId: number) => `/api/instructors/${accountId}/availability`,
   MY_SPECIALIZATIONS: '/api/instructors/me/specializations',
-  MY_SPECIALIZATION_DETAIL: (categoryId: number) =>
-    `/api/instructors/me/specializations/${categoryId}`,
-  MY_SPECIALIZATION_PRIMARY: (categoryId: number) =>
-    `/api/instructors/me/specializations/${categoryId}/primary`,
+  MY_SPECIALIZATION_DETAIL: (categoryId: number) => `/api/instructors/me/specializations/${categoryId}`,
+  MY_SPECIALIZATION_PRIMARY: (categoryId: number) => `/api/instructors/me/specializations/${categoryId}/primary`,
   MY_SPECIALIZATION_CLEAR_PRIMARY: '/api/instructors/me/specializations/primary',
-  INSTRUCTOR_SPECIALIZATIONS: (accountId: number) =>
-    `/api/instructors/${accountId}/specializations`,
-  INSTRUCTOR_SPECIALIZATION_PRIMARY: (accountId: number) =>
-    `/api/instructors/${accountId}/specializations/primary`,
-  INSTRUCTOR_SPECIALIZATION_DETAIL: (accountId: number, categoryId: number) =>
-    `/api/instructors/${accountId}/specializations/${categoryId}`,
-  SPECIALIZATIONS_BY_CATEGORY: (categoryId: number) =>
-    `/api/instructors/category/${categoryId}/specializations`,
+  INSTRUCTOR_SPECIALIZATIONS: (accountId: number) => `/api/instructors/${accountId}/specializations`,
+  INSTRUCTOR_SPECIALIZATION_PRIMARY: (accountId: number) => `/api/instructors/${accountId}/specializations/primary`,
+  INSTRUCTOR_SPECIALIZATION_DETAIL: (accountId: number, categoryId: number) => `/api/instructors/${accountId}/specializations/${categoryId}`,
+  SPECIALIZATIONS_BY_CATEGORY: (categoryId: number) => `/api/instructors/category/${categoryId}/specializations`,
+
+  // ══════════════════════════════════════════════════════════════
+  // INTERNAL
+  // ══════════════════════════════════════════════════════════════
+  INTERNAL_COURSE_SEATS: (id: number) => `/api/internal/courses/${id}/available-seats`,
 
   // ══════════════════════════════════════════════════════════════
   // RBAC
@@ -129,42 +119,37 @@ export const API_ENDPOINT = {
   RBAC_ROLES: '/api/rbac/roles',
   RBAC_ROLE_DETAIL: (id: number) => `/api/rbac/roles/${id}`,
   RBAC_ROLE_ACCOUNTS: (roleId: number) => `/api/rbac/roles/${roleId}/accounts`,
+  RBAC_ROLE_PERMISSIONS: (roleId: number) => `/api/rbac/roles/${roleId}/permissions`,
+  RBAC_ROLE_PERMISSIONS_BATCH: (roleId: number) => `/api/rbac/roles/${roleId}/permissions/batch`,
+  RBAC_ROLE_PERMISSION_DETAIL: (roleId: number, permissionId: number) => `/api/rbac/roles/${roleId}/permissions/${permissionId}`,
+  RBAC_ROLE_PERMISSION_ACTIVATE: (roleId: number, permissionId: number) => `/api/rbac/roles/${roleId}/permissions/${permissionId}/activate`,
+  RBAC_ROLE_PERMISSION_DEACTIVATE: (roleId: number, permissionId: number) => `/api/rbac/roles/${roleId}/permissions/${permissionId}/deactivate`,
   RBAC_PERMISSIONS: '/api/rbac/permissions',
   RBAC_PERMISSION_DETAIL: (id: number) => `/api/rbac/permissions/${id}`,
   RBAC_PERMISSIONS_ALL: '/api/rbac/permissions/all',
-  RBAC_PERMISSIONS_DEFAULT: '/api/rbac/permissions/default',
   RBAC_PERMISSIONS_MODULES: '/api/rbac/permissions/modules',
   RBAC_PERMISSIONS_SYNC: '/api/rbac/permissions/sync',
   RBAC_ACCOUNTS: '/api/rbac/accounts',
   RBAC_ACCOUNT_DETAIL: (id: number) => `/api/rbac/accounts/${id}`,
   RBAC_ACCOUNT_ROLES: (id: number) => `/api/rbac/accounts/${id}/roles`,
   RBAC_ACCOUNT_ROLE: (id: number) => `/api/rbac/accounts/${id}/role`,
-  RBAC_ACCOUNT_PERMISSIONS: (id: number) => `/api/rbac/accounts/${id}/permissions`,
-  RBAC_ACCOUNT_PERMISSIONS_CUSTOM: (id: number) =>
-    `/api/rbac/accounts/${id}/permissions/custom`,
-  RBAC_ACCOUNT_PERMISSIONS_BATCH: (id: number) =>
-    `/api/rbac/accounts/${id}/permissions/batch`,
-  RBAC_ACCOUNT_PERMISSION_DETAIL: (accountId: number, permissionId: number) =>
-    `/api/rbac/accounts/${accountId}/permissions/${permissionId}`,
-  RBAC_ACCOUNT_PERMISSION_DEACTIVATE: (accountId: number, permissionId: number) =>
-    `/api/rbac/accounts/${accountId}/permissions/${permissionId}/deactivate`,
-  RBAC_ACCOUNT_PERMISSION_ACTIVATE: (accountId: number, permissionId: number) =>
-    `/api/rbac/accounts/${accountId}/permissions/${permissionId}/activate`,
-  RBAC_ACCOUNT_PERMISSION_CHECK: (id: number) =>
-    `/api/rbac/accounts/${id}/permissions/check`,
-  RBAC_ACCOUNT_PERMISSION_CHECK_RESOURCE: (id: number) =>
-    `/api/rbac/accounts/${id}/permissions/check-resource`,
   RBAC_ACCOUNTS_TEACHERS: '/api/rbac/accounts/teachers',
   RBAC_ACCOUNT_LOCK: (id: number) => `/api/rbac/accounts/${id}/lock`,
+  RBAC_ACCOUNT_RESET_PASSWORD: (id: number) => `/api/rbac/accounts/${id}/reset-password`,
 
   // ══════════════════════════════════════════════════════════════
-  // AUDIT
+  // REQUESTS
+  // ══════════════════════════════════════════════════════════════
+  REQUESTS: '/api/requests',
+  REQUEST_DETAIL: (id: number) => `/api/requests/${id}`,
+  REQUEST_REVIEW: (id: number) => `/api/requests/${id}/review`,
+  REQUEST_CANCEL: (id: number) => `/api/requests/${id}/cancel`,
+  REQUEST_COURSE_CONFLICTS: (id: number) => `/api/requests/${id}/course-conflicts`,
+
+  // ══════════════════════════════════════════════════════════════
+  // AUDIT & FILES
   // ══════════════════════════════════════════════════════════════
   AUDIT_LOGS: '/api/audit-logs',
-
-  // ══════════════════════════════════════════════════════════════
-  // FILES
-  // ══════════════════════════════════════════════════════════════
   FILES_UPLOAD: '/api/files/upload',
 
   // ══════════════════════════════════════════════════════════════
@@ -185,13 +170,26 @@ export const API_ENDPOINT = {
   CHAT_CONVERSATION_DETAIL: (id: number) => `/api/chat/conversations/${id}`,
   CHAT_MESSAGES: (id: number) => `/api/chat/conversations/${id}/messages`,
   CHAT_MARK_READ: (id: number) => `/api/chat/conversations/${id}/read`,
-  CHAT_MESSAGE_DETAIL: (id: number) => `/api/chat/messages/${id}`,
   CHAT_USERS_SEARCH: '/api/chat/users/search',
+  CHAT_MESSAGE_EDIT: (id: number) => `/api/chat/messages/${id}`,
+  CHAT_MESSAGE_DELETE: (id: number) => `/api/chat/messages/${id}`,
+  CHAT_PARTICIPANTS: (id: number) => `/api/chat/conversations/${id}/participants`,
+  CHAT_PARTICIPANT_REMOVE: (id: number, accountId: number) => `/api/chat/conversations/${id}/participants/${accountId}`,
+  CHAT_PARTICIPANT_MUTE: (id: number, accountId: number) => `/api/chat/conversations/${id}/participants/${accountId}/mute`,
+  CHAT_PARTICIPANT_UNMUTE: (id: number, accountId: number) => `/api/chat/conversations/${id}/participants/${accountId}/unmute`,
+  CHAT_PARTICIPANT_BAN: (id: number, accountId: number) => `/api/chat/conversations/${id}/participants/${accountId}/ban`,
+  CHAT_PARTICIPANT_UNBAN: (id: number, accountId: number) => `/api/chat/conversations/${id}/participants/${accountId}/unban`,
+  CHAT_PARTICIPANT_ROLE: (id: number, accountId: number) => `/api/chat/conversations/${id}/participants/${accountId}/role`,
+  CHAT_TRANSFER_OWNERSHIP: (id: number) => `/api/chat/conversations/${id}/transfer-ownership`,
+  CHAT_RENAME: (id: number) => `/api/chat/conversations/${id}/name`,
+  CHAT_PIN: (id: number) => `/api/chat/conversations/${id}/pin`,
+  CHAT_PERMISSION: (id: number) => `/api/chat/conversations/${id}/permission`,
+  CHAT_MUTE_BY_USER: (id: number) => `/api/chat/conversations/${id}/mute-by-user`,
+  CHAT_ARCHIVE: (id: number) => `/api/chat/conversations/${id}/archive`,
 
   // ══════════════════════════════════════════════════════════════
   // LEADS
   // ══════════════════════════════════════════════════════════════
-  /** Public — form "Đăng ký tư vấn" cho guest (không cần đăng nhập) */
   LEAD_PUBLIC_REGISTER: '/api/public/leads/register',
   LEADS: '/api/leads',
   LEAD_DETAIL: (id: number) => `/api/leads/${id}`,
@@ -199,6 +197,7 @@ export const API_ENDPOINT = {
   LEAD_ASSIGN: (id: number) => `/api/leads/${id}/assign`,
   LEAD_INTERACTIONS: (id: number) => `/api/leads/${id}/interactions`,
   LEAD_PLACEMENT_TESTS: (id: number) => `/api/leads/${id}/placement-tests`,
+  LEAD_CONSULTANTS: '/api/leads/consultants',
 
   // ══════════════════════════════════════════════════════════════
   // STUDENTS
@@ -211,26 +210,56 @@ export const API_ENDPOINT = {
   STUDENT_STATUS: (id: number) => `/api/students/${id}/status`,
   STUDENT_LOCK_ACCOUNT: (id: number) => `/api/students/${id}/lock-account`,
   STUDENT_GUARDIANS: (id: number) => `/api/students/${id}/guardians`,
-  STUDENT_GUARDIAN_DETAIL: (id: number, guardianId: number) => `/api/students/${id}/guardians/${guardianId}`,
+  STUDENT_GUARDIAN_DELETE: (id: number, guardianId: number) => `/api/students/${id}/guardians/${guardianId}`,
   STUDENT_ACADEMIC_HISTORIES: (id: number) => `/api/students/${id}/academic-histories`,
 
-  // TUITION & ENROLLMENT (student self-service)
+  // ══════════════════════════════════════════════════════════════
+  // TUITION
+  // ══════════════════════════════════════════════════════════════
   TUITION_INVOICES: '/api/tuition/invoices',
+  TUITION_INVOICE_STATS: '/api/tuition/invoices/stats',
+  TUITION_ELIGIBLE_LEADS: '/api/tuition/invoices/eligible-leads',
+  TUITION_FROM_LEAD: '/api/tuition/invoices/from-lead',
+  TUITION_FROM_STUDENT: '/api/tuition/invoices/from-student',
+  TUITION_INVOICE_DETAIL: (id: number) => `/api/tuition/invoices/${id}`,
+  TUITION_PAYMENT_LINK: (id: number) => `/api/tuition/invoices/${id}/payment-link`,
+  TUITION_CASH_CONFIRMATION: (id: number) => `/api/tuition/invoices/${id}/cash-confirmation`,
+  TUITION_BANK_TRANSFER_CONFIRMATION: (id: number) => `/api/tuition/invoices/${id}/bank-transfer-confirmation`,
+  TUITION_DUE_DATE: (id: number) => `/api/tuition/invoices/${id}/due-date`,
+  TUITION_CANCEL: (id: number) => `/api/tuition/invoices/${id}/cancel`,
+  TUITION_REFUND: (id: number) => `/api/tuition/invoices/${id}/refund`,
+  TUITION_VNPAY_IPN: '/api/tuition/payments/vnpay/ipn',
   TUITION_CHECKOUT: '/api/tuition/invoices/checkout',
   TUITION_VNPAY_START: (id: number) => `/api/tuition/invoices/${id}/vnpay`,
-  TUITION_INVOICE_DETAIL: (id: number) => `/api/tuition/invoices/${id}`,
+  
+  // Public Tuition
+  PUBLIC_TUITION_CHECKOUT: '/api/public/tuition/checkout',
   PUBLIC_TUITION_PAYMENT_LINK: '/api/public/tuition/payment-links',
   PUBLIC_TUITION_PAYMENT_LINK_VNPAY: '/api/public/tuition/payment-links/vnpay',
-  PUBLIC_TUITION_CHECKOUT: '/api/public/tuition/checkout',
+  PUBLIC_TUITION_PAYMENT_LINK_REDIRECT: '/api/public/tuition/payment-links/redirect',
   PUBLIC_TUITION_VNPAY_RETURN: '/api/public/tuition/vnpay-return',
+  PUBLIC_TUITION_VNPAY_RETURN_PAGE: '/api/public/tuition/vnpay-return-page',
+
+  // ══════════════════════════════════════════════════════════════
+  // ENROLLMENTS
+  // ══════════════════════════════════════════════════════════════
   ENROLLMENTS: '/api/enrollments',
+  ENROLLMENT_SUMMARY: '/api/enrollments/summary',
+  ENROLLMENT_OFFLINE: '/api/enrollments/offline',
+  ENROLLMENT_PENDING_BULK: '/api/enrollments/pending/bulk',
+  ENROLLMENT_PENDING_ELIGIBLE: '/api/enrollments/pending/eligible',
   ENROLLMENT_DETAIL: (id: number) => `/api/enrollments/${id}`,
   ENROLLMENT_ATTENDANCE_HISTORY: (id: number) => `/api/enrollments/${id}/attendance`,
   ENROLLMENT_STATUS_HISTORY: (id: number) => `/api/enrollments/${id}/status-history`,
+  ENROLLMENT_RESERVE: (id: number) => `/api/enrollments/${id}/reserve`,
+  ENROLLMENT_RESUME: (id: number) => `/api/enrollments/${id}/resume`,
+  ENROLLMENT_TERMINATE: (id: number) => `/api/enrollments/${id}/terminate`,
+  ENROLLMENT_FINAL_SCORE: (id: number) => `/api/enrollments/${id}/final-score`,
+  ENROLLMENT_COMPLETE: (id: number) => `/api/enrollments/${id}/complete`,
+  ENROLLMENT_COMPLETE_BULK: '/api/enrollments/complete/bulk',
 
   // ══════════════════════════════════════════════════════════════
   // AI AGENT
   // ══════════════════════════════════════════════════════════════
   AI_AGENT_CHAT: '/api/ai-agent/chat',
-
 } as const;

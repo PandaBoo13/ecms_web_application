@@ -53,3 +53,4 @@ export interface SessionGenerationResult {
   skipped: Array<{ date: string; reason: string }>;
   message: string;
 }
+

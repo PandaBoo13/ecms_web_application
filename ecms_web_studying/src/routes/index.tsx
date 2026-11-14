@@ -28,6 +28,9 @@ import PaymentLinkPage from '@/pages/payment/PaymentLinkPage';
 import VnpayReturnPage from '@/pages/payment/VnpayReturnPage';
 import OnlineCheckoutPage from '@/pages/checkout/OnlineCheckoutPage';
 
+// 🆕 Import trang Lịch học
+import StudentSchedulePage from '@/pages/student/schedule/StudentSchedulePage';
+
 export default function AppRouter() {
   return (
     <Routes>
@@ -43,15 +46,21 @@ export default function AppRouter() {
         <Route path="/payment/vnpay-return" element={<VnpayReturnPage />} />
         <Route path="/checkout/:courseId" element={<OnlineCheckoutPage />} />
       </Route>
+      
       <Route element={<PublicRoute redirectIfAuthenticated />}>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       </Route>
+      
       <Route element={<StudentRoute />}>
         <Route element={<StudentLayout />}>
           <Route path="/student" element={<Navigate to="/student/dashboard" replace />} />
           <Route path="/student/dashboard" element={<StudentDashboardPage />} />
+          
+          {/* 🆕 Thêm Route Lịch học ở đây */}
+          <Route path="/student/schedule" element={<StudentSchedulePage />} />
+          
           <Route path="/student/courses" element={<MyCoursesPage />} />
           <Route path="/student/tuition" element={<TuitionPage />} />
           <Route path="/student/enrollments" element={<EnrollmentPage />} />
@@ -62,6 +71,7 @@ export default function AppRouter() {
           <Route path="/student/profile" element={<ProfilePage />} />
         </Route>
       </Route>
+      
       <Route path="/403" element={<ForbiddenPage />} />
       <Route path="*" element={<NotFoundPage />} />
     </Routes>

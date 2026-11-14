@@ -11,6 +11,7 @@ export const PUBLIC_MENU: MenuItem[] = [
 
 export const STUDENT_MENU: MenuItem[] = [
   { key: '/student/dashboard', label: 'Tổng quan', icon: 'DashboardOutlined', path: '/student/dashboard' },
+    { key: '/student/schedule', label: 'Lịch học', icon: 'CalendarOutlined', path: '/student/schedule' },
   { key: '/student/courses', label: 'Khóa học', icon: 'BookOutlined', path: '/student/courses' },
   { key: '/student/tuition', label: 'Hóa đơn', icon: 'DollarOutlined', path: '/student/tuition' },
   { key: '/student/enrollments', label: 'Ghi danh', icon: 'SolutionOutlined', path: '/student/enrollments' },
