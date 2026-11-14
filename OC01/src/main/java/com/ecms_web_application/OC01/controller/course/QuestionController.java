@@ -1,4 +1,4 @@
-package com.ecms_web_application.OC01.controller;
+package com.ecms_web_application.OC01.controller.course;
 
 import com.ecms_web_application.OC01.dto.request.course.QuestionCreateRequest;
 import com.ecms_web_application.OC01.dto.response.RequestResponse;
@@ -23,6 +23,11 @@ public class QuestionController {
 
     private final QuestionService questionService;
 
+    /**
+     * API: Tìm kiếm và phân trang danh sách câu hỏi
+     * Method: GET /api/courses/{courseId}/questions
+     * Chức năng: Lấy ngân hàng câu hỏi của khóa, lọc theo Bài học, Dạng câu hỏi, Trạng thái, Hashtag.
+     */
     @GetMapping
     public ResponseEntity<RequestResponse> search(
             @PathVariable Long courseId,
@@ -40,6 +45,11 @@ public class QuestionController {
         return ResponseEntity.ok(new RequestResponse(data, "Lấy danh sách câu hỏi thành công"));
     }
 
+    /**
+     * API: Lấy chi tiết một câu hỏi
+     * Method: GET /api/courses/{courseId}/questions/{id}
+     * Chức năng: Xem nội dung, đáp án, giải thích của một câu hỏi cụ thể.
+     */
     @GetMapping("/{id}")
     public ResponseEntity<RequestResponse> getById(
             @PathVariable Long courseId, @PathVariable Long id) {
@@ -47,6 +57,11 @@ public class QuestionController {
         return ResponseEntity.ok(new RequestResponse(data, "Lấy câu hỏi thành công"));
     }
 
+    /**
+     * API: Tạo câu hỏi mới
+     * Method: POST /api/courses/{courseId}/questions
+     * Chức năng: Giảng viên/Admin thêm câu hỏi vào ngân hàng (bắt buộc phải thuộc 1 Lesson).
+     */
     @PostMapping
     public ResponseEntity<RequestResponse> create(
             @PathVariable Long courseId,
@@ -56,6 +71,11 @@ public class QuestionController {
                 .body(new RequestResponse(data, "Tạo câu hỏi thành công"));
     }
 
+    /**
+     * API: Cập nhật câu hỏi
+     * Method: PUT /api/courses/{courseId}/questions/{id}
+     * Chức năng: Sửa nội dung, đáp án đúng, hoặc di chuyển câu hỏi sang Lesson khác.
+     */
     @PutMapping("/{id}")
     public ResponseEntity<RequestResponse> update(
             @PathVariable Long courseId,
@@ -65,6 +85,11 @@ public class QuestionController {
         return ResponseEntity.ok(new RequestResponse(data, "Cập nhật câu hỏi thành công"));
     }
 
+    /**
+     * API: Xóa câu hỏi
+     * Method: DELETE /api/courses/{courseId}/questions/{id}
+     * Chức năng: Xóa câu hỏi khỏi ngân hàng.
+     */
     @DeleteMapping("/{id}")
     public ResponseEntity<RequestResponse> delete(
             @PathVariable Long courseId, @PathVariable Long id) {

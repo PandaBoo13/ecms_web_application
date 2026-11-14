@@ -1,5 +1,6 @@
 package com.ecms_web_application.OC01.service.handler;
 
+import com.ecms_web_application.OC01.config.SecurityUtils;
 import com.ecms_web_application.OC01.dto.request.request.RequestCreateRequest;
 import com.ecms_web_application.OC01.dto.request.request.RequestReviewRequest;
 import com.ecms_web_application.OC01.dto.response.course.CourseConflictDetail;
@@ -25,14 +26,22 @@ import java.util.stream.Collectors;
 /**
  * Handler cho COURSE_REVIEW.
  *
- * 8 trạng thái COURSE giữ nguyên:
- *   DRAFT ─(onCreate)→ PENDING_REVIEW
- *         ─(onApprove ONLINE)→ PUBLISHED
- *         ─(onApprove OFFLINE)→ PLANNED ─(finalize-schedule)→ PUBLISHED
- *         ─(onReject / onCancel)→ DRAFT
+ * Phân tầng validation:
  *
- * ⚠️ OFFLINE: onApprove CHECK CONFLICT LỊCH với course active khác
- * trước khi chuyển PENDING_REVIEW → PLANNED. Nếu trùng GV/phòng → throw.
+ *   [TẦNG 1 — validateForSubmit] Kiểm tra trước khi gửi duyệt:
+ *     - Quyền sở hữu
+ *     - Status DRAFT
+ *     - title, category, price
+ *     - ONLINE: ≥1 Chapter + ≥1 Lesson
+ *     - OFFLINE: ≥1 Resource
+ *     - TEACHER phải có (cả ONLINE và OFFLINE)
+ *
+ *   [TẦNG 2 — finalizeSchedule] Kiểm tra sau khi duyệt nội dung (PLANNED → PUBLISHED):
+ *     - start_date, end_date, schedule_days
+ *     - session_start_time, session_end_time
+ *     - min_students, max_students, total_sessions_expected
+ *     - room / allowed_room_ids
+ *     - Tất cả SESSION đã được gán room + teacher
  */
 @Slf4j
 @Component
@@ -49,23 +58,48 @@ public class CourseReviewHandler implements RequestHandler {
     }
 
     // ============================================================
-    // VALIDATE — mức nhẹ (content only)
+    // VALIDATE — kiểm tra quyền + nội dung + teacher
     // ============================================================
     @Override
     public void validateCreate(RequestCreateRequest req, RequestType type) {
+        // 1. Bắt buộc đăng nhập
+        Long currentId = SecurityUtils.requireCurrentAccountId();
+
+        // 2. Course phải tồn tại
         Course c = courseRepository.findById(req.getTargetEntityId())
                 .filter(x -> x.getDeletedAt() == null)
                 .orElseThrow(() -> new ErrorHandler(HttpStatus.NOT_FOUND,
                         "Không tìm thấy khóa học"));
 
+        // 3. Chỉ ADMIN hoặc chủ sở hữu (createdBy/teacher) mới được submit
+        boolean isAdmin = SecurityUtils.hasRole("ADMIN");
+        boolean isCreator = c.getCreatedBy() != null
+                && c.getCreatedBy().getId().equals(currentId);
+        boolean isTeacher = c.getTeacher() != null
+                && c.getTeacher().getId().equals(currentId);
+        if (!isAdmin && !isCreator && !isTeacher) {
+            log.warn("[CourseReviewHandler] User {} cố submit course {} không phải của mình",
+                    currentId, c.getId());
+            throw new ErrorHandler(HttpStatus.FORBIDDEN,
+                    "Bạn không có quyền gửi duyệt khóa học này");
+        }
+
+        // 4. Chỉ DRAFT mới được submit
         if (c.getStatus() != CourseStatus.DRAFT) {
             throw new ErrorHandler(HttpStatus.CONFLICT,
                     "Chỉ submit khóa ở DRAFT (hiện tại: " + c.getStatus() + ")");
         }
+
+        // 5. Validate nội dung + teacher
         validateForSubmit(c);
     }
 
+    /**
+     * [TẦNG 1] Kiểm tra nội dung tối thiểu trước khi submit duyệt.
+     * KHÔNG kiểm tra lịch/phòng — đó là việc admin xếp sau ở giai đoạn PLANNED.
+     */
     private void validateForSubmit(Course c) {
+        // ── Nội dung cơ bản (mọi COURSE) ──
         if (!StringUtils.hasText(c.getTitle())) {
             throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Thiếu tiêu đề khóa học");
         }
@@ -78,6 +112,16 @@ public class CourseReviewHandler implements RequestHandler {
                     "Giá phải > 0 hoặc is_free = true");
         }
 
+        // ── Teacher (bắt buộc cả ONLINE và OFFLINE) ──
+        // Lý do: Admin cần biết ai dạy để duyệt nội dung; generate-session
+        // sau này cũng cần teacher. Nếu admin tạo COURSE không có teacher,
+        // phải gán qua PATCH /api/courses/{id}/teacher trước khi submit.
+        if (c.getTeacher() == null) {
+            throw new ErrorHandler(HttpStatus.BAD_REQUEST,
+                    "Cần gán giảng viên chính trước khi gửi duyệt");
+        }
+
+        // ── Nội dung theo loại COURSE ──
         if (c.getCourseType() == CourseType.ONLINE) {
             long chapters = resourceRepository
                     .countByCourse_IdAndResourceType(c.getId(), ResourceType.CHAPTER);
@@ -99,6 +143,11 @@ public class CourseReviewHandler implements RequestHandler {
                         "Khóa OFFLINE cần ít nhất 1 RESOURCE (Chapter/Lesson/Quiz)");
             }
         }
+
+        // ⚠️ KHÔNG kiểm tra start_date, end_date, schedule_days,
+        // session_start_time, session_end_time, min_students, max_students,
+        // total_sessions_expected, room_id — đó là việc của ACADEMIC_ADMIN
+        // xếp lịch ở giai đoạn PLANNED. Đã validate trong finalizeSchedule().
     }
 
     // ============================================================
@@ -135,12 +184,11 @@ public class CourseReviewHandler implements RequestHandler {
         }
 
         if (c.getCourseType() == CourseType.ONLINE) {
-            // ONLINE: không có lịch cụ thể → duyệt 1 lần là PUBLISHED
             c.setStatus(CourseStatus.PUBLISHED);
             log.info("[CourseReviewHandler] PENDING_REVIEW → PUBLISHED (ONLINE), courseId={}",
                     c.getId());
         } else {
-            // ⚠️ OFFLINE: CHECK CONFLICT tầng 1 trước khi PLANNED
+            // OFFLINE: check conflict tầng 1 (nếu INSTRUCTOR đã đề xuất lịch)
             List<CourseConflictDetail> conflicts =
                     courseConflictService.checkCourseConflict(c);
 
@@ -175,6 +223,10 @@ public class CourseReviewHandler implements RequestHandler {
             courseRepository.save(c);
             log.info("[CourseReviewHandler] PENDING_REVIEW → DRAFT (rejected), courseId={}",
                     c.getId());
+        } else {
+            log.warn("[CourseReviewHandler] onReject bỏ qua — course {} đang ở {}, " +
+                            "không phải PENDING_REVIEW",
+                    c.getId(), c.getStatus());
         }
     }
 
@@ -194,7 +246,7 @@ public class CourseReviewHandler implements RequestHandler {
     }
 
     // ============================================================
-    // HELPER — Format 1 conflict để hiển thị
+    // HELPER
     // ============================================================
     private String formatConflict(CourseConflictDetail cf) {
         String types = String.join(" + ", cf.getConflictTypes());

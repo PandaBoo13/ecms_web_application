@@ -1,3 +1,7 @@
+// ============================================================
+// FILE: ./src/main/java/com/ecms_web_application/OC01/repository/SessionRepository.java
+// (giữ nguyên toàn bộ method cũ — CHỈ thêm 2 method dưới đây)
+// ============================================================
 package com.ecms_web_application.OC01.repository;
 
 import com.ecms_web_application.OC01.entity.course.Session;
@@ -14,6 +18,20 @@ import java.util.List;
 
 @Repository
 public interface SessionRepository extends IRepository<Session, Long> {
+
+    // ════════════════════════════════════════════════════════════
+    // (CÁC METHOD CŨ — GIỮ NGUYÊN, KHÔNG SỬA)
+    // ============================================================
+    // findByCourse_IdOrderBySessionNumberAsc, findByCourse_IdAndStatus,
+    // countByCourse_Id, maxSessionNumber, findAllWithDetailsByCourse,
+    // findUpcomingSessions, findTeacherConflicts, findRoomConflicts,
+    // findTeacherConflictsExcludingCourse, findRoomConflictsExcludingCourse,
+    // findBySubstituteTeacher_IdAndStatusIn, findTeachingSchedule,
+    // findRoomBusySchedule, findScheduledSessionsWithoutSubstitute,
+    // countActiveSessions, countDoneSessions, findInstructorScheduleWithCourse,
+    // findStudentScheduleWithCourse, findScheduledToStart, findOngoingToComplete
+    // ════════════════════════════════════════════════════════════
+
     List<Session> findByCourse_IdOrderBySessionNumberAsc(Long courseId);
     List<Session> findByCourse_IdAndStatus(Long courseId, SessionStatus status);
     long countByCourse_Id(Long courseId);
@@ -56,65 +74,71 @@ public interface SessionRepository extends IRepository<Session, Long> {
     @Query("SELECT COUNT(s) FROM Session s WHERE s.course.id = :courseId AND s.status = 'COMPLETED'")
     long countDoneSessions(@Param("courseId") Long courseId);
 
-    // ============================================================
-    // [M1] Lịch giảng dạy INSTRUCTOR — có học viên (dùng cho /my-schedule)
-    // ============================================================
+    @Query("SELECT s FROM Session s JOIN FETCH s.course c WHERE s.effectiveTeacherId = :teacherId AND s.sessionDate BETWEEN :from AND :to AND s.status IN ('SCHEDULED', 'ONGOING') ORDER BY s.startTime ASC")
+    List<Session> findInstructorScheduleWithCourse(@Param("teacherId") Long teacherId, @Param("from") LocalDate from, @Param("to") LocalDate to);
+
+    @Query("""
+    SELECT DISTINCT s
+    FROM Session s
+    JOIN FETCH s.course c
+    JOIN Enrollment e ON e.courseId = c.id
+    JOIN Student st ON st.id = e.studentId
+    WHERE st.userId = :accountId
+      AND e.status IN ('PENDING', 'ACTIVE', 'RESERVED', 'COMPLETED')
+      AND s.sessionDate BETWEEN :from AND :to
+      AND s.status IN ('SCHEDULED', 'ONGOING', 'COMPLETED')
+    ORDER BY s.startTime ASC
+""")
+    List<Session> findStudentScheduleWithCourse(
+            @Param("accountId") Long accountId,
+            @Param("from") LocalDate from,
+            @Param("to") LocalDate to
+    );
+    @Query("SELECT s FROM Session s JOIN FETCH s.course c WHERE s.status = com.ecms_web_application.OC01.entity.enums.SessionStatus.SCHEDULED AND s.startTime <= :now AND c.status IN (com.ecms_web_application.OC01.entity.enums.CourseStatus.PUBLISHED, com.ecms_web_application.OC01.entity.enums.CourseStatus.ONGOING)")
+    List<Session> findScheduledToStart(@Param("now") LocalDateTime now);
+
+    @Query("SELECT s FROM Session s JOIN FETCH s.course c WHERE s.status = com.ecms_web_application.OC01.entity.enums.SessionStatus.ONGOING AND s.endTime <= :now")
+    List<Session> findOngoingToComplete(@Param("now") LocalDateTime now);
+
+    // ════════════════════════════════════════════════════════════
+    // 🆕 BỔ SUNG — phục vụ availability check theo LocalDateTime
+    // ════════════════════════════════════════════════════════════
+
+    /**
+     * SESSION đang chiếm ROOM trong khoảng [from, to).
+     * Chỉ xét SCHEDULED + ONGOING (bỏ DRAFT/CANCELLED/COMPLETED).
+     * Overlap: session.startTime < to AND session.endTime > from.
+     */
+    @Query("""
+        SELECT s FROM Session s
+        JOIN FETCH s.course c
+        WHERE s.effectiveRoomId = :roomId
+          AND s.status IN ('SCHEDULED', 'ONGOING')
+          AND s.startTime < :to
+          AND s.endTime > :from
+        ORDER BY s.startTime ASC
+    """)
+    List<Session> findRoomBusySessionsInRange(
+            @Param("roomId") Long roomId,
+            @Param("from") LocalDateTime from,
+            @Param("to") LocalDateTime to);
+
+    /**
+     * SESSION đang chiếm INSTRUCTOR trong khoảng [from, to).
+     * Chỉ xét SCHEDULED + ONGOING.
+     * Overlap: session.startTime < to AND session.endTime > from.
+     */
     @Query("""
         SELECT s FROM Session s
         JOIN FETCH s.course c
         WHERE s.effectiveTeacherId = :teacherId
-          AND s.sessionDate BETWEEN :from AND :to
           AND s.status IN ('SCHEDULED', 'ONGOING')
+          AND s.startTime < :to
+          AND s.endTime > :from
         ORDER BY s.startTime ASC
     """)
-    List<Session> findInstructorScheduleWithCourse(
+    List<Session> findTeacherBusySessionsInRange(
             @Param("teacherId") Long teacherId,
-            @Param("from") LocalDate from,
-            @Param("to") LocalDate to);
-
-    // ============================================================
-    // [M2] Lịch học STUDENT — dựa vào ENROLLMENT còn hiệu lực
-    // ============================================================
-    @Query("""
-        SELECT s FROM Session s
-        JOIN FETCH s.course c
-        WHERE s.course.id IN (
-            SELECT e.courseId FROM Enrollment e
-            WHERE e.studentId IN (
-                SELECT st.id FROM Student st WHERE st.userId = :accountId
-            )
-            AND e.status IN ('PENDING','ACTIVE','RESERVED','COMPLETED')
-        )
-          AND s.sessionDate BETWEEN :from AND :to
-          AND s.status IN ('SCHEDULED', 'ONGOING', 'COMPLETED')
-        ORDER BY s.startTime ASC
-    """)
-    List<Session> findStudentScheduleWithCourse(
-            @Param("accountId") Long accountId,
-            @Param("from") LocalDate from,
-            @Param("to") LocalDate to);
-
-    // ============================================================
-    // [M7] Scheduler SCHEDULED → ONGOING
-    // ============================================================
-    @Query("""
-        SELECT s FROM Session s
-        JOIN FETCH s.course c
-        WHERE s.status = com.ecms_web_application.OC01.entity.enums.SessionStatus.SCHEDULED
-          AND s.startTime <= :now
-          AND c.status IN (com.ecms_web_application.OC01.entity.enums.CourseStatus.PUBLISHED,
-                           com.ecms_web_application.OC01.entity.enums.CourseStatus.ONGOING)
-    """)
-    List<Session> findScheduledToStart(@Param("now") LocalDateTime now);
-
-    // ============================================================
-    // [M8] Scheduler ONGOING → COMPLETED
-    // ============================================================
-    @Query("""
-        SELECT s FROM Session s
-        JOIN FETCH s.course c
-        WHERE s.status = com.ecms_web_application.OC01.entity.enums.SessionStatus.ONGOING
-          AND s.endTime <= :now
-    """)
-    List<Session> findOngoingToComplete(@Param("now") LocalDateTime now);
+            @Param("from") LocalDateTime from,
+            @Param("to") LocalDateTime to);
 }

@@ -1,4 +1,4 @@
-package com.ecms_web_application.OC01.controller;
+package com.ecms_web_application.OC01.controller.course;
 
 import com.ecms_web_application.OC01.config.SecurityUtils;
 import com.ecms_web_application.OC01.dto.response.RequestResponse;
@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -21,16 +22,19 @@ import java.time.LocalDate;
  */
 @RestController
 @RequestMapping("/api/sessions")
+@PreAuthorize("hasAnyRole('INSTRUCTOR', 'STUDENT')")
 @RequiredArgsConstructor
 public class SessionScheduleController {
 
     private final SessionService sessionService;
 
     /**
-     * GET /api/sessions/my-schedule?from=yyyy-MM-dd&to=yyyy-MM-dd
-     * - INSTRUCTOR: trả lịch giảng dạy + danh sách học viên trong mỗi buổi
-     * - STUDENT: trả lịch học các course đã ghi danh
-     * Mặc định: from = hôm nay - 7 ngày, to = hôm nay + 30 ngày.
+     * API: Lấy lịch cá nhân (Dạy/Học)
+     * Method: GET /api/sessions/my-schedule?from=yyyy-MM-dd&to=yyyy-MM-dd
+     * Chức năng:
+     * - Nếu là Giảng viên (INSTRUCTOR): Trả về lịch dạy + danh sách học viên của từng buổi.
+     * - Nếu là Học viên (STUDENT): Trả về lịch học các khóa đã đăng ký.
+     * (Mặc định lấy từ 7 ngày trước đến 30 ngày sau).
      */
     @GetMapping("/my-schedule")
     public ResponseEntity<RequestResponse> getMySchedule(

@@ -1,9 +1,14 @@
-package com.ecms_web_application.OC01.controller;
+// ============================================================
+// FILE: ./src/main/java/com/ecms_web_application/OC01/controller/CourseController.java
+// ============================================================
+package com.ecms_web_application.OC01.controller.course;
 
+import com.ecms_web_application.OC01.config.SecurityUtils;
 import com.ecms_web_application.OC01.dto.request.course.*;
 import com.ecms_web_application.OC01.dto.response.RequestResponse;
 import com.ecms_web_application.OC01.dto.response.course.CourseDetailResponse;
 import com.ecms_web_application.OC01.dto.response.course.CourseResponse;
+import com.ecms_web_application.OC01.dto.response.course.EnrolledCourseResponse;
 import com.ecms_web_application.OC01.service.CourseService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -16,6 +21,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.security.access.prepost.PreAuthorize;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/courses")
@@ -44,6 +51,16 @@ public class CourseController {
         return ResponseEntity.ok(new RequestResponse(data, "Lấy danh sách khóa học thành công"));
     }
 
+    // 🆕 BẮT BUỘC PHẢI NẰM TRÊN HÀM /{id}
+    @GetMapping("/my-enrolled")
+    @PreAuthorize("hasRole('STUDENT')")
+    public ResponseEntity<RequestResponse> getMyEnrolledCourses() {
+        Long accountId = SecurityUtils.requireCurrentAccountId();
+        List<EnrolledCourseResponse> data = courseService.getMyEnrolledCourses(accountId);
+        return ResponseEntity.ok(new RequestResponse(data, "Lấy danh sách khóa học đã đăng ký thành công"));
+    }
+
+    // HÀM NÀY PHẢI NẰM DƯỚI HÀM /my-enrolled
     @GetMapping("/{id}")
     public ResponseEntity<RequestResponse> getById(@PathVariable Long id) {
         CourseDetailResponse data = courseService.getById(id);
@@ -77,6 +94,13 @@ public class CourseController {
     public ResponseEntity<RequestResponse> submitForReview(@PathVariable Long id) {
         CourseResponse data = courseService.submitForReview(id);
         return ResponseEntity.ok(new RequestResponse(data, "Đã gửi duyệt"));
+    }
+
+    @PostMapping("/{id}/withdraw-review")
+    public ResponseEntity<RequestResponse> withdrawReview(@PathVariable Long id) {
+        courseService.withdrawReviewRequest(id);
+        return ResponseEntity.ok(new RequestResponse(
+                "Đã thu hồi yêu cầu kiểm duyệt. Khóa học trở về DRAFT và có thể chỉnh sửa."));
     }
 
     @PostMapping("/{id}/review")
@@ -119,7 +143,6 @@ public class CourseController {
                 .body(new RequestResponse(data, "Copy khóa học thành công"));
     }
 
-    /** FR_CRS_009B: đổi GV chính của khóa. Chỉ ADMIN. */
     @PatchMapping("/{id}/teacher")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<RequestResponse> changeTeacher(

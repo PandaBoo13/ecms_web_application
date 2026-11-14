@@ -153,4 +153,24 @@ public interface CourseRepository extends IRepository<Course, Long> {
       @Param("excludeId") Long excludeId,
       @Param("startDate") LocalDate startDate,
       @Param("endDate") LocalDate endDate);
+
+  @Query(value = """
+    SELECT 
+        e.enrollment_id AS enrollmentId,
+        c.id AS courseId,
+        c.code AS courseCode,
+        c.title AS courseTitle,
+        c.thumbnail_url AS thumbnailUrl,
+        e.status AS enrollmentStatus,
+        e.enrolled_at AS enrolledAt,
+        p.progress_percentage AS progressPercentage
+    FROM enrollments e
+    JOIN course c ON e.course_id = c.id
+    JOIN students s ON e.student_id = s.id
+    LEFT JOIN progress p ON p.enrollment_id = e.enrollment_id AND p.progress_type = 'COURSE'
+    WHERE s.user_id = :accountId
+      AND e.status IN ('PENDING', 'ACTIVE', 'RESERVED', 'COMPLETED')
+    ORDER BY e.enrolled_at DESC
+""", nativeQuery = true)
+  List<Object[]> findMyEnrolledCourses(@Param("accountId") Long accountId);
 }

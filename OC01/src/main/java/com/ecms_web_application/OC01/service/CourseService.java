@@ -1,11 +1,17 @@
+// ============================================================
+// FILE: ./src/main/java/com/ecms_web_application/OC01/service/CourseService.java
+// ============================================================
 package com.ecms_web_application.OC01.service;
 
 import com.ecms_web_application.OC01.dto.request.course.*;
 import com.ecms_web_application.OC01.dto.response.course.CourseDetailResponse;
 import com.ecms_web_application.OC01.dto.response.course.CourseResponse;
+import com.ecms_web_application.OC01.dto.response.course.EnrolledCourseResponse;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
 
 public interface CourseService {
     CourseResponse create(CourseCreateRequest request);
@@ -25,4 +31,12 @@ public interface CourseService {
 
     @Transactional
     CourseResponse finalizeSchedule(Long courseId);
+
+    /**
+     * Thu hồi yêu cầu kiểm duyệt đang PENDING cho COURSE.
+     * Người gửi (requester) hoặc ADMIN được phép gọi.
+     * Sau khi thu hồi: request → CANCELLED, COURSE → DRAFT, có thể chỉnh sửa tiếp.
+     */
+    void withdrawReviewRequest(Long courseId);
+    List<EnrolledCourseResponse> getMyEnrolledCourses(Long accountId);
 }
