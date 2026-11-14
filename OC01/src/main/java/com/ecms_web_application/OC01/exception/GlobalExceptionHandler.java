@@ -38,7 +38,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ExceptionResponse> handleErrorHandler(ErrorHandler ex) {
         log.warn("Business error: {} - {}", ex.getStatus(), ex.getMessage());
 
-        ExceptionResponse response = new ExceptionResponse(ex.getMessage());
+        ExceptionResponse response = new ExceptionResponse(ex.getMessage(), ex.getCode());
         return ResponseEntity
                 .status(ex.getStatus())
                 .contentType(MediaType.APPLICATION_JSON)
@@ -252,12 +252,14 @@ public class GlobalExceptionHandler {
     // Đây là handler quan trọng nhất
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ExceptionResponse> handleGenericException(Exception ex) {
-        // Log đầy đủ stack trace cho dev
         log.error("Unhandled exception: ", ex);
 
-        // Response thân thiện — user biết là lỗi hệ thống
+        String detail = ex.getMessage();
+        if (ex.getCause() != null && ex.getCause().getMessage() != null) {
+            detail += " -> " + ex.getCause().getMessage();
+        }
         ExceptionResponse response = new ExceptionResponse(
-                "Lỗi hệ thống. Vui lòng thử lại sau hoặc liên hệ hỗ trợ."
+                detail != null ? detail : "Lỗi hệ thống. Vui lòng thử lại sau hoặc liên hệ hỗ trợ."
         );
         return ResponseEntity
                 .status(HttpStatus.INTERNAL_SERVER_ERROR)

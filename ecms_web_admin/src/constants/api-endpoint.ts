@@ -25,7 +25,7 @@ export const API_ENDPOINT = {
   COURSE_COPY: (id: number) => `/api/courses/${id}/copy`,
   COURSE_HARD_DELETE: (id: number) => `/api/courses/${id}/hard`,
   COURSE_CHANGE_TEACHER: (id: number) => `/api/courses/${id}/teacher`,
-
+COURSE_FINALIZE_SCHEDULE: (id: number) => `/api/courses/${id}/finalize-schedule`,
   // ══════════════════════════════════════════════════════════════
   // RESOURCES
   // ══════════════════════════════════════════════════════════════
@@ -224,18 +224,24 @@ export const API_ENDPOINT = {
 
   // TUITION & ENROLLMENT
   TUITION_INVOICES: '/api/tuition/invoices',
+  TUITION_INVOICE_STATS: '/api/tuition/invoices/stats',
+  TUITION_ELIGIBLE_LEADS: '/api/tuition/invoices/eligible-leads',
+  TUITION_FROM_LEAD: '/api/tuition/invoices/from-lead',
+  TUITION_FROM_STUDENT: '/api/tuition/invoices/from-student',
+  TUITION_PAYMENT_LINK: (id: number) => `/api/tuition/invoices/${id}/payment-link`,
   TUITION_CHECKOUT: '/api/tuition/invoices/checkout',
   TUITION_VNPAY_START: (id: number) => `/api/tuition/invoices/${id}/vnpay`,
   TUITION_INVOICE_DETAIL: (id: number) => `/api/tuition/invoices/${id}`,
   TUITION_CASH_CONFIRMATION: (id: number) => `/api/tuition/invoices/${id}/cash-confirmation`,
+  TUITION_BANK_TRANSFER_CONFIRMATION: (id: number) => `/api/tuition/invoices/${id}/bank-transfer-confirmation`,
   TUITION_DUE_DATE: (id: number) => `/api/tuition/invoices/${id}/due-date`,
   TUITION_CANCEL: (id: number) => `/api/tuition/invoices/${id}/cancel`,
   TUITION_REFUND: (id: number) => `/api/tuition/invoices/${id}/refund`,
   ENROLLMENTS: '/api/enrollments',
   ENROLLMENT_SUMMARY: '/api/enrollments/summary',
   ENROLLMENT_OFFLINE: '/api/enrollments/offline',
-  ENROLLMENT_OFFLINE_BULK: '/api/enrollments/offline/bulk',
-  ENROLLMENT_OFFLINE_ELIGIBLE: '/api/enrollments/offline/eligible',
+  ENROLLMENT_PENDING_BULK: '/api/enrollments/pending/bulk',
+  ENROLLMENT_PENDING_ELIGIBLE: '/api/enrollments/pending/eligible',
   ENROLLMENT_DETAIL: (id: number) => `/api/enrollments/${id}`,
   ENROLLMENT_ATTENDANCE_HISTORY: (id: number) => `/api/enrollments/${id}/attendance`,
   ENROLLMENT_STATUS_HISTORY: (id: number) => `/api/enrollments/${id}/status-history`,
@@ -247,8 +253,6 @@ export const API_ENDPOINT = {
   ENROLLMENT_COMPLETE_BULK: '/api/enrollments/complete/bulk',
   SESSION_ATTENDANCE: (courseId: number, sessionId: number) =>
     `/api/courses/${courseId}/sessions/${sessionId}/attendance`,
-  SESSION_ABSENCES: (courseId: number, sessionId: number) =>
-    `/api/courses/${courseId}/sessions/${sessionId}/attendance/absences`,
 
   // ══════════════════════════════════════════════════════════════
   // AI AGENT

@@ -4,16 +4,14 @@ import {
   Switch, Select, Popconfirm, Tooltip,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { PlusOutlined, DeleteOutlined, ReloadOutlined } from '@ant-design/icons';
+import { PlusOutlined, DeleteOutlined, ReloadOutlined, EyeOutlined } from '@ant-design/icons';
 import toast from 'react-hot-toast';
 
 import DateDisplay from '@/components/common/DateDisplay';
 import InlineEdit from '@/components/common/InlineEdit';
+import QuizAttemptsModal from '@/components/course/QuizAttemptsModal'; // 🆕 Import component xem bài làm
 
-// 🆕 Cập nhật lại đường dẫn import API theo cấu trúc mới
 import { quizApi } from '@/services/api/course';
-// Nếu báo lỗi không tìm thấy, đổi thành: import { quizApi } from '@/services/api/course/quizApi';
-
 import type { QuizResponse, QuizCreateRequest } from '@/services/types/course';
 
 interface Props {
@@ -27,6 +25,10 @@ const QuizListCard = ({ courseId }: Props) => {
   const [createOpen, setCreateOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [form] = Form.useForm<QuizCreateRequest>();
+
+  // 🆕 State cho Modal xem lịch sử làm bài
+  const [attemptModalOpen, setAttemptModalOpen] = useState(false);
+  const [selectedQuiz, setSelectedQuiz] = useState<QuizResponse | null>(null);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -92,6 +94,11 @@ const QuizListCard = ({ courseId }: Props) => {
     }
   };
 
+  const openAttempts = (quiz: QuizResponse) => {
+    setSelectedQuiz(quiz);
+    setAttemptModalOpen(true);
+  };
+
   const columns: ColumnsType<QuizResponse> = [
     { title: 'ID', dataIndex: 'id', width: 70, align: 'center' },
     {
@@ -145,37 +152,41 @@ const QuizListCard = ({ courseId }: Props) => {
       render: (v?: number) => (v ? `${v} phút` : '—'),
     },
     {
-      title: 'Hashtag filter',
-      dataIndex: 'hashtagFilter',
-      width: 160,
-      ellipsis: true,
-      render: (v?: string) => v || <span style={{ color: '#bfbfbf' }}>—</span>,
-    },
-    {
       title: 'Ngày tạo',
       dataIndex: 'createdAt',
       width: 130,
       render: (v: string) => <DateDisplay value={v} />,
     },
     {
-      title: '',
+      title: 'Thao tác',
       key: 'actions',
-      width: 60,
+      width: 110,
       align: 'center',
       fixed: 'right',
       render: (_, record) => (
-        <Popconfirm
-          title="Xóa quiz này?"
-          description="Không thể hoàn tác"
-          okText="Xóa"
-          cancelText="Hủy"
-          okButtonProps={{ danger: true }}
-          onConfirm={() => handleDelete(record.id)}
-        >
-          <Tooltip title="Xóa">
-            <Button type="text" danger icon={<DeleteOutlined />} />
+        <Space size={2}>
+          {/* 🆕 Nút Xem lịch sử làm bài */}
+          <Tooltip title="Xem lịch sử làm bài">
+            <Button
+              type="text"
+              icon={<EyeOutlined className="text-blue-500" />}
+              onClick={() => openAttempts(record)}
+            />
           </Tooltip>
-        </Popconfirm>
+          
+          <Popconfirm
+            title="Xóa quiz này?"
+            description="Không thể hoàn tác"
+            okText="Xóa"
+            cancelText="Hủy"
+            okButtonProps={{ danger: true }}
+            onConfirm={() => handleDelete(record.id)}
+          >
+            <Tooltip title="Xóa">
+              <Button type="text" danger icon={<DeleteOutlined />} />
+            </Tooltip>
+          </Popconfirm>
+        </Space>
       ),
     },
   ];
@@ -211,6 +222,7 @@ const QuizListCard = ({ courseId }: Props) => {
         />
       </Card>
 
+      {/* Modal Tạo Quiz */}
       <Modal
         title="Tạo Quiz mới"
         open={createOpen}
@@ -273,6 +285,17 @@ const QuizListCard = ({ courseId }: Props) => {
           </Form.Item>
         </Form>
       </Modal>
+
+      {/* 🆕 Modal Xem lịch sử làm bài */}
+      {selectedQuiz && (
+        <QuizAttemptsModal
+          open={attemptModalOpen}
+          onClose={() => setAttemptModalOpen(false)}
+          courseId={courseId}
+          quizId={selectedQuiz.id}
+          quizTitle={selectedQuiz.title}
+        />
+      )}
     </>
   );
 };

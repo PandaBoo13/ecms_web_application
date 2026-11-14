@@ -36,14 +36,21 @@ public class Invoice {
     @Column(name = "original_invoice_id", unique = true)
     private Long originalInvoiceId;
 
-    @Column(name = "account_id")
-    private Long accountId;
-
     @Column(name = "student_id")
     private Long studentId;
 
     @Column(name = "lead_id")
     private Long leadId;
+
+    /** Checkout contact snapshot; separate from the owning account's login/profile details. */
+    @Column(name = "payer_name", length = 150)
+    private String payerName;
+
+    @Column(name = "payer_email", length = 255)
+    private String payerEmail;
+
+    @Column(name = "payer_phone", length = 20)
+    private String payerPhone;
 
     @Column(name = "course_id", nullable = false)
     private Long courseId;
@@ -79,7 +86,12 @@ public class Invoice {
     @Column(columnDefinition = "text")
     private String reason;
 
-    @Column(name = "created_by", nullable = false)
+    /** Ảnh chứng từ thu tiền mặt (đường dẫn tương đối do FileStorageService trả về). */
+    @Column(name = "payment_proof_url", columnDefinition = "text")
+    private String paymentProofUrl;
+
+    /** NULL khi hóa đơn được tạo từ checkout công khai (khách chưa có tài khoản). */
+    @Column(name = "created_by")
     private Long createdBy;
 
     @PrePersist

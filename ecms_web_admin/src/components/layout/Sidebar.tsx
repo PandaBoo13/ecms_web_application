@@ -1,3 +1,4 @@
+// src/components/layout/Sidebar.tsx
 import { Layout, Menu, Drawer, Grid } from 'antd';
 import type { MenuProps } from 'antd';
 import {
@@ -12,6 +13,7 @@ import {
   FolderOutlined,
   DollarOutlined,
   SolutionOutlined,
+  HomeOutlined, // 🆕 Import icon Phòng học
 } from '@ant-design/icons';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
@@ -37,6 +39,7 @@ const ICON_MAP: Record<string, React.ReactNode> = {
   FolderOutlined: <FolderOutlined />,
   DollarOutlined: <DollarOutlined />,
   SolutionOutlined: <SolutionOutlined />,
+  HomeOutlined: <HomeOutlined />, // 🆕 Thêm vào map
 };
 
 const MENU_KEY_TRANSLATION_MAP: Record<string, string> = {
@@ -45,13 +48,16 @@ const MENU_KEY_TRANSLATION_MAP: Record<string, string> = {
   '/admin/leads': 'menu.leadList',
   'students': 'menu.students',
   '/admin/students': 'menu.studentList',
-  'tuition': 'Học phí',
-  '/admin/tuition': 'Quản lý học phí',
+  'tuition': 'Tài chính',
+  '/admin/tuition': 'Quản lý hóa đơn',
+  '/admin/refunds': 'Hoàn tiền',
   'enrollment': 'Ghi danh',
   '/admin/enrollments': 'Danh sách ghi danh',
+  '/admin/enrollments/pending': 'Chờ ghi danh',
   'courses': 'menu.courses',
   '/admin/courses': 'menu.courseList',
   '/admin/categories': 'menu.categories',
+  '/admin/rooms': 'Phòng học', // 🆕 Thêm key dịch cho phòng học
   'users': 'menu.users',
   '/admin/users': 'menu.userList',
   'system': 'menu.system',

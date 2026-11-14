@@ -15,6 +15,7 @@ import com.ecms_web_application.OC01.service.EnrollmentService;
 import com.ecms_web_application.OC01.service.NotificationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
@@ -24,6 +25,7 @@ import java.util.List;
 @Slf4j
 @Component
 @RequiredArgsConstructor
+@Order(2)
 public class OnlineEnrollmentOnPaymentListener {
     private final InvoiceRepository invoiceRepository;
     private final CourseRepository courseRepository;
@@ -31,14 +33,21 @@ public class OnlineEnrollmentOnPaymentListener {
     private final EnrollmentService enrollmentService;
     private final NotificationService notificationService;
 
-    @TransactionalEventListener(phase = TransactionPhase.BEFORE_COMMIT)
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void createEnrollmentWhenPaid(InvoicePaidEvent event) {
         Invoice invoice = invoiceRepository.findById(event.invoiceId()).orElse(null);
         if (invoice == null || invoice.getType() != InvoiceType.TUITION_PAYMENT
                 || invoice.getStatus() != InvoiceStatus.PAID) return;
         Course course = courseRepository.findById(invoice.getCourseId()).orElse(null);
         if (course != null && course.getCourseType() == CourseType.ONLINE) {
-            enrollmentService.createOnlineFromPaidInvoice(invoice.getId());
+            try {
+                enrollmentService.createOnlineFromPaidInvoice(invoice.getId());
+            } catch (Exception ex) {
+                // A failed enrollment must not roll back a successful payment. The paid invoice
+                // remains available for admin reconciliation/retry.
+                log.error("Không thể tự động ghi danh ONLINE từ hóa đơn {}: {}",
+                        invoice.getInvoiceCode(), ex.getMessage(), ex);
+            }
         }
     }
 
@@ -53,11 +62,9 @@ public class OnlineEnrollmentOnPaymentListener {
 
     private void sendPaymentNotification(Invoice invoice, Course course) {
         try {
-            Long recipientAccountId = invoice.getAccountId();
-            if (recipientAccountId == null && invoice.getStudentId() != null) {
-                recipientAccountId = studentRepository.findById(invoice.getStudentId())
-                        .map(Student::getUserId).orElse(null);
-            }
+            Long recipientAccountId = invoice.getStudentId() == null ? null
+                    : studentRepository.findById(invoice.getStudentId())
+                            .map(Student::getUserId).orElse(null);
             if (recipientAccountId == null) return;
 
             String courseName = course != null ? course.getTitle() : "Khóa học #" + invoice.getCourseId();

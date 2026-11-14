@@ -41,6 +41,8 @@ export interface Lead {
   assignedConsultantName?: string;
   assignedConsultantEmail?: string;
   note?: string;
+  /** Lead đang có hóa đơn học phí ở trạng thái PENDING/PAID/OVERDUE. */
+  hasOpenInvoice?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -108,6 +110,7 @@ export interface LeadFilterParams {
   sourceId?: number;
   consultantId?: number;
   inQueue?: boolean;
+  hasOpenInvoice?: boolean;
   page?: number;
   size?: number;
   sortBy?: string;

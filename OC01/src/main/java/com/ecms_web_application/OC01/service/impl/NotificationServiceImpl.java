@@ -138,6 +138,8 @@ public class NotificationServiceImpl implements NotificationService {
                     return toIds(accountRepo.findByRoleCode("STUDENT"));
                 case "ALL_TEACHERS", "ALL_INSTRUCTORS":
                     return toIds(accountRepo.findByRoleCode("INSTRUCTOR"));
+                case "ALL_ADMINS":
+                    return toIds(accountRepo.findByRoleCode("ADMIN"));
                 case "ALL_USERS":
                     return accountRepo.findAll().stream()
                             .filter(a -> Boolean.TRUE.equals(a.getIsActive()) && a.getDeletedAt() == null)

@@ -1,6 +1,6 @@
 package com.ecms_web_application.OC01.controller;
 
-import com.ecms_web_application.OC01.dto.request.enrollment.ReplaceSessionAbsencesRequest;
+import com.ecms_web_application.OC01.dto.request.enrollment.SaveSessionAttendanceRequest;
 import com.ecms_web_application.OC01.dto.response.RequestResponse;
 import com.ecms_web_application.OC01.service.EnrollmentService;
 import jakarta.validation.Valid;
@@ -20,11 +20,11 @@ public class EnrollmentAttendanceController {
                 "Lấy danh sách điểm danh thành công"));
     }
 
-    @PostMapping("/absences")
-    public ResponseEntity<RequestResponse> recordAbsences(@PathVariable Long courseId,
-            @PathVariable Long sessionId, @Valid @RequestBody ReplaceSessionAbsencesRequest request) {
+    @PutMapping
+    public ResponseEntity<RequestResponse> saveAttendance(@PathVariable Long courseId,
+            @PathVariable Long sessionId, @Valid @RequestBody SaveSessionAttendanceRequest request) {
         return ResponseEntity.ok(new RequestResponse(
-                enrollmentService.replaceSessionAbsences(courseId, sessionId, request),
-                "Đã ghi nhận các trường hợp vắng mặt mới; dữ liệu vắng trước đó được giữ nguyên"));
+                enrollmentService.saveSessionAttendance(courseId, sessionId, request),
+                "Đã lưu trạng thái điểm danh"));
     }
 }

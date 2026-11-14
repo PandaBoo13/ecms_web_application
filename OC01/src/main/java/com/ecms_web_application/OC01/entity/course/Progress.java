@@ -1,6 +1,6 @@
 package com.ecms_web_application.OC01.entity.course;
-import com.ecms_web_application.OC01.entity.Account;
 
+import com.ecms_web_application.OC01.entity.Enrollment;
 import com.ecms_web_application.OC01.entity.enums.ProgressScope;
 import com.ecms_web_application.OC01.entity.enums.ProgressStatus;
 import jakarta.persistence.*;
@@ -17,14 +17,15 @@ import java.util.Map;
 @Table(name = "progress",
     uniqueConstraints = @UniqueConstraint(
         name = "uk_progress",
-        columnNames = {"account_id", "course_id", "progress_type", "reference_id"}))
+        columnNames = {"enrollment_id", "course_id", "progress_type", "reference_id"}))
 public class Progress {
 
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "account_id", nullable = false) private Account account;
+    @JoinColumn(name = "enrollment_id", nullable = false) 
+    private Enrollment enrollment;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "course_id", nullable = false) private Course course;

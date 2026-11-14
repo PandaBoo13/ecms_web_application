@@ -56,7 +56,7 @@ public class LeadTools {
             @ToolParam(description = "Từ khóa tìm kiếm (số điện thoại hoặc tên khách hàng)") String keyword) {
 
         var page = leadService.search(
-                keyword, null, null, null, null, null,
+                keyword, null, null, null, null, null, null,
                 PageRequest.of(0, 5));
 
         if (page.isEmpty()) {

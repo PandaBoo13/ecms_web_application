@@ -4,18 +4,24 @@ import com.ecms_web_application.OC01.dto.request.course.SessionCancelRequest;
 import com.ecms_web_application.OC01.dto.request.course.SessionCreateRequest;
 import com.ecms_web_application.OC01.dto.response.course.SessionGenerationResult;
 import com.ecms_web_application.OC01.dto.response.course.SessionResponse;
+import com.ecms_web_application.OC01.dto.response.course.SessionScheduleResponse;
 import com.ecms_web_application.OC01.entity.Account;
+import com.ecms_web_application.OC01.entity.Enrollment;
+import com.ecms_web_application.OC01.entity.Student;
 import com.ecms_web_application.OC01.entity.course.Course;
 import com.ecms_web_application.OC01.entity.course.Room;
 import com.ecms_web_application.OC01.entity.course.Session;
 import com.ecms_web_application.OC01.entity.enums.CourseType;
+import com.ecms_web_application.OC01.entity.enums.EnrollmentStatus;
 import com.ecms_web_application.OC01.entity.enums.SessionStatus;
 import com.ecms_web_application.OC01.exception.ErrorHandler;
 import com.ecms_web_application.OC01.generic.validator.SessionValidator;
 import com.ecms_web_application.OC01.repository.AccountRepository;
 import com.ecms_web_application.OC01.repository.CourseRepository;
+import com.ecms_web_application.OC01.repository.EnrollmentRepository;
 import com.ecms_web_application.OC01.repository.RoomRepository;
 import com.ecms_web_application.OC01.repository.SessionRepository;
+import com.ecms_web_application.OC01.repository.StudentRepository;
 import com.ecms_web_application.OC01.service.AuditLogService;
 import com.ecms_web_application.OC01.service.ProgressCalculationService;
 import com.ecms_web_application.OC01.service.SessionService;
@@ -46,6 +52,8 @@ public class SessionServiceImpl implements SessionService {
     private final AuditLogService auditLogService;
     private final ProgressCalculationService progressCalculationService;
     private final SessionValidator sessionValidator;
+    private final EnrollmentRepository enrollmentRepository;
+    private final StudentRepository studentRepository;
 
     @Override
     @Transactional(readOnly = true)
@@ -177,7 +185,7 @@ public class SessionServiceImpl implements SessionService {
             throw new ErrorHandler(HttpStatus.CONFLICT, "Session đã hủy");
         }
         if (s.getStatus() == SessionStatus.COMPLETED) {
-            return toResponse(s); // idempotent
+            return toResponse(s);
         }
         s.setStatus(SessionStatus.COMPLETED);
         Session saved = sessionRepository.save(s);
@@ -198,7 +206,7 @@ public class SessionServiceImpl implements SessionService {
         if (substituteTeacherId == null) {
             s.setSubstituteTeacher(null);
         } else if (s.getTeacher() != null && substituteTeacherId.equals(s.getTeacher().getId())) {
-            s.setSubstituteTeacher(null); // normalize về null (BA §5.10)
+            s.setSubstituteTeacher(null);
         } else {
             Account sub = accountRepository.findById(substituteTeacherId)
                     .orElseThrow(() -> new ErrorHandler(HttpStatus.NOT_FOUND,
@@ -269,10 +277,6 @@ public class SessionServiceImpl implements SessionService {
                 String.format("oldTeacher=%s, newTeacher=%s, sessionsSynced=%d",
                         oldTeacher != null ? oldTeacher.getId() : null,
                         newTeacherId, scheduled.size()));
-        log.info("Đổi GV chính course {}: {} → {}, sync {} session",
-                courseId,
-                oldTeacher != null ? oldTeacher.getId() : null,
-                newTeacherId, scheduled.size());
     }
 
     @Override
@@ -286,9 +290,6 @@ public class SessionServiceImpl implements SessionService {
         auditLogService.log("DELETE", "SESSION", id, null);
     }
 
-    // ============================================================
-    // GENERATE SESSIONS — sinh DRAFT, đủ total_sessions_expected
-    // ============================================================
     @Override
     @Transactional
     public SessionGenerationResult generateSessions(Long courseId) {
@@ -296,7 +297,6 @@ public class SessionServiceImpl implements SessionService {
                 .orElseThrow(() -> new ErrorHandler(HttpStatus.NOT_FOUND,
                         "Khóa học không tồn tại"));
 
-        // ── 1. Validate course ──
         if (course.getCourseType() != CourseType.OFFLINE) {
             throw new ErrorHandler(HttpStatus.BAD_REQUEST,
                     "Chỉ sinh session cho khóa OFFLINE");
@@ -307,8 +307,7 @@ public class SessionServiceImpl implements SessionService {
         }
         if (course.getEndDate().isBefore(course.getStartDate())) {
             throw new ErrorHandler(HttpStatus.BAD_REQUEST,
-                    "end_date phải >= start_date (start=" + course.getStartDate()
-                            + ", end=" + course.getEndDate() + ")");
+                    "end_date phải >= start_date");
         }
         if (course.getScheduleDays() == null || course.getScheduleDays().isEmpty()) {
             throw new ErrorHandler(HttpStatus.BAD_REQUEST,
@@ -324,11 +323,11 @@ public class SessionServiceImpl implements SessionService {
         }
         if (course.getTeacher() == null) {
             throw new ErrorHandler(HttpStatus.BAD_REQUEST,
-                    "Course chưa có teacher_id — không thể sinh session");
+                    "Course chưa có teacher_id");
         }
         if (course.getRoom() == null) {
             throw new ErrorHandler(HttpStatus.BAD_REQUEST,
-                    "Course chưa có room_id — không thể sinh session");
+                    "Course chưa có room_id");
         }
 
         Integer expected = course.getTotalSessionsExpected();
@@ -337,11 +336,10 @@ public class SessionServiceImpl implements SessionService {
                     "Course chưa cấu hình total_sessions_expected (> 0)");
         }
 
-        // ── 2. Quét ngày khớp schedule_days ──
         List<LocalDate> matchedDates = new ArrayList<>();
         LocalDate cur = course.getStartDate();
         while (!cur.isAfter(course.getEndDate())) {
-            int dow = (cur.getDayOfWeek().getValue() % 7) + 1; // 1=CN..7=T7
+            int dow = (cur.getDayOfWeek().getValue() % 7) + 1;
             if (course.getScheduleDays().contains(dow)) {
                 matchedDates.add(cur);
             }
@@ -352,18 +350,11 @@ public class SessionServiceImpl implements SessionService {
             throw new ErrorHandler(HttpStatus.BAD_REQUEST,
                     "Khoảng [" + course.getStartDate() + " → " + course.getEndDate()
                             + "] chỉ có " + matchedDates.size()
-                            + " buổi khớp schedule_days, nhưng cần " + expected
-                            + " buổi. Vui lòng mở rộng end_date hoặc thêm thứ.");
+                            + " buổi khớp schedule_days, nhưng cần " + expected + " buổi.");
         }
 
-        // Cắt đúng expected buổi (N buổi đầu)
         List<LocalDate> targetDates = matchedDates.subList(0, expected);
-        if (matchedDates.size() > expected) {
-            log.info("[Generate] Cắt {} buổi dư (matched={}, expected={})",
-                    matchedDates.size() - expected, matchedDates.size(), expected);
-        }
 
-        // ── 3. Session đã có (không tính CANCELLED) ──
         List<Session> existing = sessionRepository
                 .findByCourse_IdOrderBySessionNumberAsc(courseId);
         Set<LocalDate> existingDates = existing.stream()
@@ -372,7 +363,6 @@ public class SessionServiceImpl implements SessionService {
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
 
-        // ── 4. Ngày cần sinh thêm ──
         List<LocalDate> datesToGenerate = targetDates.stream()
                 .filter(d -> !existingDates.contains(d))
                 .toList();
@@ -387,7 +377,6 @@ public class SessionServiceImpl implements SessionService {
                     .build();
         }
 
-        // ── 5. Sinh DRAFT + conflict check (exclude course hiện tại) ──
         List<Session> toSave = new ArrayList<>();
         List<SessionGenerationResult.SkippedDate> skipped = new ArrayList<>();
         int nextNumber = existing.stream()
@@ -424,8 +413,7 @@ public class SessionServiceImpl implements SessionService {
             s.setEndTime(end);
             s.setSessionDate(date);
             s.setTeacher(course.getTeacher());
-            s.setRoom(null); // kế thừa course.room_id
-            // FR_CRS_006 + State Transition dòng 1: sinh DRAFT, admin gán room/teacher xong mới finalize
+            s.setRoom(null);
             s.setStatus(SessionStatus.DRAFT);
             toSave.add(s);
         }
@@ -433,7 +421,7 @@ public class SessionServiceImpl implements SessionService {
         if (toSave.isEmpty()) {
             throw new ErrorHandler(HttpStatus.CONFLICT,
                     "Tất cả " + datesToGenerate.size()
-                            + " ngày đều conflict — không sinh được session nào. Chi tiết: " + skipped);
+                            + " ngày đều conflict — không sinh được session nào.");
         }
 
         sessionRepository.saveAll(toSave);
@@ -457,12 +445,106 @@ public class SessionServiceImpl implements SessionService {
     }
 
     // ============================================================
+    // [M1] Lịch giảng dạy INSTRUCTOR
+    // ============================================================
+    @Override
+    @Transactional(readOnly = true)
+    public List<SessionScheduleResponse> getMyInstructorSchedule(Long teacherId, LocalDate from, LocalDate to) {
+        List<Session> sessions = sessionRepository.findInstructorScheduleWithCourse(teacherId, from, to);
+        if (sessions.isEmpty()) return List.of();
+
+        // Batch load students của các COURSE (chỉ ACTIVE) để attach vào session
+        Set<Long> courseIds = sessions.stream()
+                .map(s -> s.getCourse().getId())
+                .collect(Collectors.toSet());
+
+        // Map<courseId, List<StudentInfo>>
+        java.util.Map<Long, List<SessionScheduleResponse.StudentInfo>> studentsByCourse =
+                new java.util.HashMap<>();
+
+        for (Long courseId : courseIds) {
+            List<Enrollment> enrollments = enrollmentRepository
+                    .findByCourseIdAndStatus(courseId, EnrollmentStatus.ACTIVE);
+            if (enrollments.isEmpty()) {
+                studentsByCourse.put(courseId, List.of());
+                continue;
+            }
+            Set<Long> studentIds = enrollments.stream()
+                    .map(Enrollment::getStudentId)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toSet());
+            List<Student> students = studentRepository.findAllById(studentIds);
+            studentsByCourse.put(courseId, students.stream()
+                    .map(st -> new SessionScheduleResponse.StudentInfo(
+                            st.getId(), st.getStudentCode(), st.getFullName(),
+                            st.getEmail(), st.getPhone()))
+                    .toList());
+        }
+
+        List<SessionScheduleResponse> result = new ArrayList<>();
+        for (Session s : sessions) {
+            SessionScheduleResponse r = toScheduleResponse(s);
+            r.setStudents(studentsByCourse.getOrDefault(s.getCourse().getId(), List.of()));
+            result.add(r);
+        }
+        return result;
+    }
+
+    // ============================================================
+    // [M2] Lịch học STUDENT
+    // ============================================================
+    @Override
+    @Transactional(readOnly = true)
+    public List<SessionScheduleResponse> getMyStudentSchedule(Long accountId, LocalDate from, LocalDate to) {
+        List<Session> sessions = sessionRepository.findStudentScheduleWithCourse(accountId, from, to);
+        return sessions.stream().map(this::toScheduleResponse).toList();
+    }
+
+    // ============================================================
     // HELPERS
     // ============================================================
     private Session getOrThrow(Long id) {
         return sessionRepository.findById(id)
                 .orElseThrow(() -> new ErrorHandler(HttpStatus.NOT_FOUND,
                         "Session không tồn tại"));
+    }
+
+    private SessionScheduleResponse toScheduleResponse(Session s) {
+        SessionScheduleResponse r = new SessionScheduleResponse();
+        // Copy các field cơ bản từ SessionResponse
+        SessionResponse base = toResponse(s);
+        r.setId(base.getId());
+        r.setCourseId(base.getCourseId());
+        r.setSessionNumber(base.getSessionNumber());
+        r.setTitle(base.getTitle());
+        r.setDescription(base.getDescription());
+        r.setStartTime(base.getStartTime());
+        r.setEndTime(base.getEndTime());
+        r.setSessionDate(base.getSessionDate());
+        r.setTeacherId(base.getTeacherId());
+        r.setTeacherName(base.getTeacherName());
+        r.setAssistantId(base.getAssistantId());
+        r.setAssistantName(base.getAssistantName());
+        r.setRoomId(base.getRoomId());
+        r.setRoomName(base.getRoomName());
+        r.setStatus(base.getStatus());
+        r.setCancelReason(base.getCancelReason());
+        r.setNote(base.getNote());
+        r.setRescheduledFromId(base.getRescheduledFromId());
+        r.setCreatedAt(base.getCreatedAt());
+        r.setUpdatedAt(base.getUpdatedAt());
+        r.setSubstituteTeacherId(base.getSubstituteTeacherId());
+        r.setSubstituteTeacherName(base.getSubstituteTeacherName());
+        r.setEffectiveTeacherId(base.getEffectiveTeacherId());
+        r.setEffectiveTeacherName(base.getEffectiveTeacherName());
+        r.setEffectiveRoomId(base.getEffectiveRoomId());
+        r.setEffectiveRoomName(base.getEffectiveRoomName());
+
+        if (s.getCourse() != null) {
+            r.setCourseCode(s.getCourse().getCode());
+            r.setCourseTitle(s.getCourse().getTitle());
+        }
+        return r;
     }
 
     private SessionResponse toResponse(Session s) {

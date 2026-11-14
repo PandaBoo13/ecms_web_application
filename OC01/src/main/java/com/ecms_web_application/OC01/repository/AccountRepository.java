@@ -9,76 +9,75 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
 @Repository
 public interface AccountRepository extends IRepository<Account, Long> {
 
-    Optional<Account> findByEmail(String email);
-    boolean existsByEmail(String email);
+        Optional<Account> findByEmail(String email);
 
-    Optional<Account> findByProviderAndProviderId(AuthProvider provider, String providerId);
+        boolean existsByEmail(String email);
 
-    @Query("SELECT a FROM Account a " +
-            "LEFT JOIN FETCH a.role " +
-            "LEFT JOIN FETCH a.userProfile " +
-            "WHERE a.email = :email")
-    Optional<Account> findByEmailWithRole(@Param("email") String email);
+        Optional<Account> findByProviderAndProviderId(AuthProvider provider, String providerId);
 
-    List<Account> findByRoleId(Long roleId);
-    List<Account> findByRoleCode(String roleCode);
+        @Query("SELECT a FROM Account a " +
+                        "LEFT JOIN FETCH a.role " +
+                        "LEFT JOIN FETCH a.userProfile " +
+                        "WHERE a.email = :email")
+        Optional<Account> findByEmailWithRole(@Param("email") String email);
 
-    @Query("SELECT a FROM Account a " +
-            "LEFT JOIN FETCH a.role r " +
-            "LEFT JOIN FETCH a.userProfile up " +
-            "WHERE a.id = :id AND a.deletedAt IS NULL")
-    Optional<Account> findByIdWithRoleAndProfile(@Param("id") Long id);
+        List<Account> findByRoleId(Long roleId);
 
-    @Query(
-            value = "SELECT a FROM Account a " +
-                    "LEFT JOIN FETCH a.role r " +
-                    "LEFT JOIN FETCH a.userProfile up " +
-                    "WHERE a.deletedAt IS NULL AND r.id = :roleId " +
-                    "ORDER BY a.createdAt DESC",
-            countQuery = "SELECT COUNT(a) FROM Account a " +
-                    "JOIN a.role r " +
-                    "WHERE a.deletedAt IS NULL AND r.id = :roleId"
-    )
-    Page<Account> findByRoleIdPageable(@Param("roleId") Long roleId, Pageable pageable);
+        List<Account> findByRoleCode(String roleCode);
 
-    // ══════════════════════════════════════════════════════════════
-    // FIX PostgreSQL lower(bytea):
-    // - String params: dùng `= ''` thay vì `IS NULL`
-    // - Service PHẢI truyền "" (empty string), không phải null
-    // ══════════════════════════════════════════════════════════════
-    @Query(
-            value = "SELECT a FROM Account a " +
-                    "LEFT JOIN FETCH a.role r " +
-                    "LEFT JOIN FETCH a.userProfile up " +
-                    "WHERE a.deletedAt IS NULL " +
-                    "  AND (:roleCode = '' OR r.code = :roleCode) " +
-                    "  AND (:isActive IS NULL OR a.isActive = :isActive) " +
-                    "  AND (:search = '' " +
-                    "       OR LOWER(a.email)       LIKE LOWER(CONCAT('%', :search, '%')) " +
-                    "       OR LOWER(up.fullName)   LIKE LOWER(CONCAT('%', :search, '%')) " +
-                    "       OR LOWER(up.phone)      LIKE LOWER(CONCAT('%', :search, '%'))) " +
-                    "ORDER BY a.createdAt DESC",
-            countQuery = "SELECT COUNT(a) FROM Account a " +
-                    "LEFT JOIN a.role r " +
-                    "LEFT JOIN a.userProfile up " +
-                    "WHERE a.deletedAt IS NULL " +
-                    "  AND (:roleCode = '' OR r.code = :roleCode) " +
-                    "  AND (:isActive IS NULL OR a.isActive = :isActive) " +
-                    "  AND (:search = '' " +
-                    "       OR LOWER(a.email)       LIKE LOWER(CONCAT('%', :search, '%')) " +
-                    "       OR LOWER(up.fullName)   LIKE LOWER(CONCAT('%', :search, '%')) " +
-                    "       OR LOWER(up.phone)      LIKE LOWER(CONCAT('%', :search, '%')))"
-    )
-    Page<Account> searchAccounts(
-            @Param("roleCode") String roleCode,
-            @Param("isActive") Boolean isActive,
-            @Param("search") String search,
-            Pageable pageable
-    );
+        @Query("SELECT a FROM Account a " +
+                        "LEFT JOIN FETCH a.role r " +
+                        "LEFT JOIN FETCH a.userProfile up " +
+                        "WHERE a.id = :id AND a.deletedAt IS NULL")
+        Optional<Account> findByIdWithRoleAndProfile(@Param("id") Long id);
+
+        @Query("SELECT a FROM Account a LEFT JOIN FETCH a.userProfile WHERE a.id IN :ids")
+        List<Account> findAllWithProfileByIds(@Param("ids") Collection<Long> ids);
+
+        @Query(value = "SELECT a FROM Account a " +
+                        "LEFT JOIN FETCH a.role r " +
+                        "LEFT JOIN FETCH a.userProfile up " +
+                        "WHERE a.deletedAt IS NULL AND r.id = :roleId " +
+                        "ORDER BY a.createdAt DESC", countQuery = "SELECT COUNT(a) FROM Account a " +
+                                        "JOIN a.role r " +
+                                        "WHERE a.deletedAt IS NULL AND r.id = :roleId")
+        Page<Account> findByRoleIdPageable(@Param("roleId") Long roleId, Pageable pageable);
+
+        // ══════════════════════════════════════════════════════════════
+        // FIX PostgreSQL lower(bytea):
+        // - String params: dùng `= ''` thay vì `IS NULL`
+        // - Service PHẢI truyền "" (empty string), không phải null
+        // ══════════════════════════════════════════════════════════════
+        @Query(value = "SELECT a FROM Account a " +
+                        "LEFT JOIN FETCH a.role r " +
+                        "LEFT JOIN FETCH a.userProfile up " +
+                        "WHERE a.deletedAt IS NULL " +
+                        "  AND (:roleCode = '' OR r.code = :roleCode) " +
+                        "  AND (:isActive IS NULL OR a.isActive = :isActive) " +
+                        "  AND (:search = '' " +
+                        "       OR LOWER(a.email)       LIKE LOWER(CONCAT('%', :search, '%')) " +
+                        "       OR LOWER(up.fullName)   LIKE LOWER(CONCAT('%', :search, '%')) " +
+                        "       OR LOWER(up.phone)      LIKE LOWER(CONCAT('%', :search, '%'))) " +
+                        "ORDER BY a.createdAt DESC", countQuery = "SELECT COUNT(a) FROM Account a " +
+                                        "LEFT JOIN a.role r " +
+                                        "LEFT JOIN a.userProfile up " +
+                                        "WHERE a.deletedAt IS NULL " +
+                                        "  AND (:roleCode = '' OR r.code = :roleCode) " +
+                                        "  AND (:isActive IS NULL OR a.isActive = :isActive) " +
+                                        "  AND (:search = '' " +
+                                        "       OR LOWER(a.email)       LIKE LOWER(CONCAT('%', :search, '%')) " +
+                                        "       OR LOWER(up.fullName)   LIKE LOWER(CONCAT('%', :search, '%')) " +
+                                        "       OR LOWER(up.phone)      LIKE LOWER(CONCAT('%', :search, '%')))")
+        Page<Account> searchAccounts(
+                        @Param("roleCode") String roleCode,
+                        @Param("isActive") Boolean isActive,
+                        @Param("search") String search,
+                        Pageable pageable);
 }

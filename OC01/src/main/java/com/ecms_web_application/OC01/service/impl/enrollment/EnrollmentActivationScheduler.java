@@ -30,8 +30,7 @@ public class EnrollmentActivationScheduler {
         int activated = 0;
         for (Enrollment enrollment : enrollmentRepository.findByStatus(EnrollmentStatus.PENDING)) {
             Course course = courseRepository.findById(enrollment.getCourseId()).orElse(null);
-            if (enrollment.getEnrollmentType() != com.ecms_web_application.OC01.entity.enums.EnrollmentType.OFFLINE
-                    || course == null || course.getCourseType() != CourseType.OFFLINE
+            if (course == null || course.getCourseType() != CourseType.OFFLINE
                     || course.getStartDate() == null || course.getStartDate().isAfter(LocalDate.now())) {
                 continue;
             }
