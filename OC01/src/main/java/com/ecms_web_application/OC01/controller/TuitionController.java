@@ -4,8 +4,6 @@ import com.ecms_web_application.OC01.dto.request.tuition.CancelInvoiceRequest;
 import com.ecms_web_application.OC01.dto.request.tuition.CashConfirmationRequest;
 import com.ecms_web_application.OC01.dto.request.tuition.BankTransferConfirmationRequest;
 import com.ecms_web_application.OC01.dto.request.tuition.CreateInvoiceFromLeadRequest;
-import com.ecms_web_application.OC01.dto.request.tuition.CreateInvoiceFromStudentRequest;
-import com.ecms_web_application.OC01.dto.request.tuition.CreateInvoiceRequest;
 import com.ecms_web_application.OC01.dto.request.tuition.ExtendInvoiceDueDateRequest;
 import com.ecms_web_application.OC01.dto.request.tuition.OnlineCheckoutRequest;
 import com.ecms_web_application.OC01.dto.request.tuition.RefundInvoiceRequest;
@@ -34,12 +32,6 @@ public class TuitionController {
     private final TuitionPaymentLinkService paymentLinkService;
     private final VnpayGatewayService vnpayGatewayService;
 
-    @PostMapping
-    public ResponseEntity<RequestResponse> createOffline(@Valid @RequestBody CreateInvoiceRequest request) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(new RequestResponse(
-                tuitionService.createOfflineInvoice(request), "Tạo hóa đơn học phí thành công"));
-    }
-
     @PostMapping("/checkout")
     public ResponseEntity<RequestResponse> checkoutOnline(@RequestParam Long courseId,
                                                            @Valid @RequestBody OnlineCheckoutRequest request) {
@@ -65,14 +57,6 @@ public class TuitionController {
             @Valid @RequestBody CreateInvoiceFromLeadRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(new RequestResponse(
                 tuitionService.createInvoiceFromLead(request), "Tạo hóa đơn học phí thành công"));
-    }
-
-    /** Tạo hóa đơn học phí cho học viên hiện có (học viên cũ đăng ký thêm khóa). */
-    @PostMapping("/from-student")
-    public ResponseEntity<RequestResponse> createFromStudent(
-            @Valid @RequestBody CreateInvoiceFromStudentRequest request) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(new RequestResponse(
-                tuitionService.createInvoiceFromStudent(request), "Tạo hóa đơn học phí thành công"));
     }
 
     /** Gửi (hoặc gửi lại) link thanh toán qua email cho hóa đơn PENDING. Email được gửi nền sau commit. */
@@ -160,11 +144,28 @@ public class TuitionController {
                 "Hủy hóa đơn thành công"));
     }
 
-    @PostMapping("/{invoiceId}/refund")
-    public ResponseEntity<RequestResponse> refund(
+    @PostMapping("/{invoiceId}/refund-approval")
+    public ResponseEntity<RequestResponse> submitRefundApprovalRequest(
+            @PathVariable Long invoiceId,
+            @Valid @RequestBody com.ecms_web_application.OC01.dto.request.tuition.SubmitRefundApprovalRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(new RequestResponse(
+                tuitionService.submitRefundApprovalRequest(invoiceId, request),
+                "Đã gửi yêu cầu duyệt hoàn tiền, chờ phê duyệt"));
+    }
+
+    @GetMapping("/{invoiceId}/refund-approval")
+    public ResponseEntity<RequestResponse> getRefundApprovalStatus(@PathVariable Long invoiceId) {
+        return ResponseEntity.ok(new RequestResponse(
+                tuitionService.getRefundApprovalStatus(invoiceId),
+                "Lấy trạng thái duyệt hoàn tiền thành công"));
+    }
+
+    @PostMapping("/{invoiceId}/refund-record")
+    public ResponseEntity<RequestResponse> recordApprovedRefund(
             @PathVariable Long invoiceId,
             @Valid @RequestBody RefundInvoiceRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(new RequestResponse(
-                tuitionService.refund(invoiceId, request), "Tạo chứng từ hoàn tiền thành công"));
+                tuitionService.recordApprovedRefund(invoiceId, request),
+                "Ghi nhận hoàn tiền thành công"));
     }
 }

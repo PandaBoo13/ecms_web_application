@@ -5,13 +5,16 @@ import com.ecms_web_application.OC01.entity.enums.AttendanceStatus;
 import com.ecms_web_application.OC01.generic.IRepository;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
 @Repository
 public interface AttendanceRecordRepository extends IRepository<AttendanceRecord, Long> {
     List<AttendanceRecord> findBySessionIdOrderByEnrollmentIdAsc(Long sessionId);
+    List<AttendanceRecord> findBySessionIdInOrderByEnrollmentIdAsc(Collection<Long> sessionIds);
     List<AttendanceRecord> findByEnrollmentIdOrderByCreatedAtDesc(Long enrollmentId);
+    List<AttendanceRecord> findByEnrollmentIdAndSessionIdIn(Long enrollmentId, Collection<Long> sessionIds);
     Optional<AttendanceRecord> findByEnrollmentIdAndSessionId(Long enrollmentId, Long sessionId);
     long countByEnrollmentIdAndStatus(Long enrollmentId, AttendanceStatus status);
 }

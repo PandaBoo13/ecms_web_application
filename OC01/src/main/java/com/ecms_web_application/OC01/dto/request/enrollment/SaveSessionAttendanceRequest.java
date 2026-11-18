@@ -6,7 +6,6 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
-import java.time.LocalDateTime;
 import java.util.List;
 
 @Data
@@ -22,8 +21,6 @@ public class SaveSessionAttendanceRequest {
 
         @NotNull
         private AttendanceStatus status;
-
-        private LocalDateTime checkInAt;
 
         @Size(max = 2000)
         private String note;

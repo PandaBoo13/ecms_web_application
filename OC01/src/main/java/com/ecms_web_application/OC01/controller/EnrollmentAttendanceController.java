@@ -27,4 +27,12 @@ public class EnrollmentAttendanceController {
                 enrollmentService.saveSessionAttendance(courseId, sessionId, request),
                 "Đã lưu trạng thái điểm danh"));
     }
+
+    /** Lịch sử thay đổi điểm danh của buổi (audit log). */
+    @GetMapping("/history")
+    public ResponseEntity<RequestResponse> history(@PathVariable Long courseId, @PathVariable Long sessionId) {
+        return ResponseEntity.ok(new RequestResponse(
+                enrollmentService.getSessionAttendanceHistory(courseId, sessionId),
+                "Lấy lịch sử điểm danh thành công"));
+    }
 }

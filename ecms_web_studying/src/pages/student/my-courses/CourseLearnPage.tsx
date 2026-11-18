@@ -69,8 +69,8 @@ const CourseLearnPage = () => {
     return (
       <Result
         status="warning"
-        title="Ghi danh đã kết thúc"
-        subTitle="Bạn không còn quyền truy cập nội dung khóa học này. Lịch sử điểm danh và hóa đơn vẫn được lưu trong mục Ghi danh."
+        title="Quyền học đã kết thúc"
+        subTitle="Bạn không còn quyền truy cập nội dung khóa học này. Lịch sử điểm danh và hóa đơn vẫn được lưu trong mục Khóa học của tôi."
         extra={
           <Button type="primary" onClick={() => navigate('/student/courses')}>
             Về khóa học của tôi

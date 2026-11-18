@@ -53,9 +53,6 @@ public interface InvoiceRepository extends IRepository<Invoice, Long>, JpaSpecif
     boolean existsByLeadIdAndCourseIdAndTypeAndStatusIn(
             Long leadId, Long courseId, InvoiceType type, java.util.Collection<InvoiceStatus> statuses);
 
-    boolean existsByStudentIdAndCourseIdAndTypeAndStatusIn(
-            Long studentId, Long courseId, InvoiceType type, java.util.Collection<InvoiceStatus> statuses);
-
     /** Lấy nhanh danh sách leadId đang có hóa đơn học phí ở các trạng thái đang mở. */
     @Query("""
             SELECT DISTINCT i.leadId FROM Invoice i
@@ -109,6 +106,15 @@ public interface InvoiceRepository extends IRepository<Invoice, Long>, JpaSpecif
               AND i.status = :status
               AND (:courseType IS NULL OR EXISTS (
                   SELECT c.id FROM Course c WHERE c.id = i.courseId AND c.courseType = :courseType))
+              AND EXISTS (
+                  SELECT s.id FROM Student s
+                  WHERE s.id = i.studentId
+                     OR s.leadId = i.leadId
+                     OR EXISTS (
+                         SELECT l.id FROM Lead l WHERE l.id = i.leadId
+                           AND (l.studentId = s.id OR LOWER(l.email) = LOWER(s.email))
+                     )
+              )
               AND (:search = '' OR LOWER(i.invoiceCode) LIKE LOWER(CONCAT('%', :search, '%'))
                 OR LOWER(i.payerName) LIKE LOWER(CONCAT('%', :search, '%'))
                 OR LOWER(i.payerEmail) LIKE LOWER(CONCAT('%', :search, '%'))
@@ -138,6 +144,15 @@ public interface InvoiceRepository extends IRepository<Invoice, Long>, JpaSpecif
               AND i.status = :status
               AND (:courseType IS NULL OR EXISTS (
                   SELECT c.id FROM Course c WHERE c.id = i.courseId AND c.courseType = :courseType))
+              AND EXISTS (
+                  SELECT s.id FROM Student s
+                  WHERE s.id = i.studentId
+                     OR s.leadId = i.leadId
+                     OR EXISTS (
+                         SELECT l.id FROM Lead l WHERE l.id = i.leadId
+                           AND (l.studentId = s.id OR LOWER(l.email) = LOWER(s.email))
+                     )
+              )
               AND (:search = '' OR LOWER(i.invoiceCode) LIKE LOWER(CONCAT('%', :search, '%'))
                 OR LOWER(i.payerName) LIKE LOWER(CONCAT('%', :search, '%'))
                 OR LOWER(i.payerEmail) LIKE LOWER(CONCAT('%', :search, '%'))

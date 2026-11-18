@@ -315,6 +315,7 @@ export const vi = {
   'request.subtitle': 'Xem xét, duyệt hoặc từ chối các yêu cầu từ người dùng',
 
   'request.tab.all': 'Tất cả',
+  'request.group.grade_review': 'Kiểm duyệt điểm',
   'request.group.course': 'Kiểm duyệt khóa học',
   'request.group.schedule': 'Lịch & buổi học',
   'request.group.finance': 'Tài chính',
@@ -368,6 +369,7 @@ export const vi = {
   'request.review.approveSuccess': 'Đã duyệt yêu cầu',
   'request.review.rejectSuccess': 'Đã từ chối yêu cầu',
   'request.review.blockedByConflict': 'Không thể duyệt — có xung đột lịch',
+  'request.review.leaveManagedByInstructor': 'Đơn nghỉ phép do giảng viên xử lý tại buổi điểm danh.',
 
   'request.conflict.title': 'Cảnh báo trùng lịch',
   'request.conflict.noneMessage': 'Không phát hiện trùng lịch với khóa học khác',

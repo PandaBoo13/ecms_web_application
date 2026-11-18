@@ -44,4 +44,5 @@ public class CourseResponse {
     private LocalDateTime updatedAt;
     private String learningMode;
     private List<Long> allowedRoomIds;
+    private Integer maxFinalScore;
 }

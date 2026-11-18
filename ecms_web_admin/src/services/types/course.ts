@@ -92,6 +92,8 @@ export interface CourseResponse {
   copiedFromCourseId?: number;
   createdAt: string;
   updatedAt: string;
+  /** Thang điểm cuối khóa: 100 mặc định, 990 với khóa TOEIC. */
+  maxFinalScore?: number;
 }
 
 export interface CourseDetailResponse extends CourseResponse {

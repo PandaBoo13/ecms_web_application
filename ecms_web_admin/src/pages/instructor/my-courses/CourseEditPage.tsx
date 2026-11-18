@@ -37,6 +37,7 @@ import CourseProgressCharts from '@/components/course/CourseProgressCharts';
 import { courseApi } from '@/services/api/course';
 import { requestApi } from '@/services/api/request/requestApi';
 import type { CourseDetailResponse } from '@/services/types/course';
+import { resolveMaxFinalScore } from '@/utils/courseScore';
 
 const { Text } = Typography;
 
@@ -206,6 +207,7 @@ const CourseEditPage = () => {
           courseId={courseId}
           courseType={course.courseType}
           courseStatus={course.status}
+          maxScore={resolveMaxFinalScore(course)}
         />
       ),
     },
@@ -222,7 +224,7 @@ const CourseEditPage = () => {
     },
   ];
 
-  // Nếu là khóa OFFLINE, chèn thêm tab Buổi học vào vị trí số 2
+  // Nếu là khóa OFFLINE, chèn thêm tab Buổi học.
   if (course.courseType === 'OFFLINE') {
     tabItems.splice(2, 0, {
       key: 'sessions',

@@ -5,6 +5,8 @@ import com.ecms_web_application.OC01.dto.request.course.SessionCreateRequest;
 import com.ecms_web_application.OC01.dto.response.course.SessionGenerationResult;
 import com.ecms_web_application.OC01.dto.response.course.SessionResponse;
 import com.ecms_web_application.OC01.dto.response.course.SessionScheduleResponse;
+import com.ecms_web_application.OC01.dto.response.course.InstructorAttendanceSessionResponse;
+import com.ecms_web_application.OC01.dto.response.course.InstructorAttendanceCourseResponse;
 import com.ecms_web_application.OC01.entity.Account;
 import com.ecms_web_application.OC01.entity.Enrollment;
 import com.ecms_web_application.OC01.entity.Student;
@@ -488,6 +490,47 @@ public class SessionServiceImpl implements SessionService {
             result.add(r);
         }
         return result;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<InstructorAttendanceSessionResponse> getMyAttendanceSessions(
+            Long accountId, LocalDate from, LocalDate to) {
+        return sessionRepository.findAttendanceSessionsForInstructor(accountId, from, to).stream()
+                .map(session -> new InstructorAttendanceSessionResponse(
+                        session.getId(),
+                        session.getCourse().getId(),
+                        session.getCourse().getCode(),
+                        session.getCourse().getTitle(),
+                        session.getSessionNumber(),
+                        session.getTitle(),
+                        session.getSessionDate(),
+                        session.getStartTime(),
+                        session.getEndTime(),
+                        session.getStatus().name()))
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<InstructorAttendanceCourseResponse> getMyAttendanceCourses(Long accountId) {
+        java.util.LinkedHashMap<Long, InstructorAttendanceCourseResponse> courses = new java.util.LinkedHashMap<>();
+        LocalDate today = LocalDate.now();
+        sessionRepository.findCurrentAttendanceAssignmentsForInstructor(accountId)
+                .forEach(session -> {
+                    var course = session.getCourse();
+                    boolean isFinished = course.getStatus() == com.ecms_web_application.OC01.entity.enums.CourseStatus.FINISHED
+                            || (course.getEndDate() != null && course.getEndDate().isBefore(today));
+                    courses.compute(course.getId(), (id, current) -> current == null
+                            ? new InstructorAttendanceCourseResponse(
+                                    id, course.getCode(), course.getTitle(), 1,
+                                    course.getStatus(), course.getStartDate(), course.getEndDate(), isFinished)
+                            : new InstructorAttendanceCourseResponse(
+                                    id, current.courseCode(), current.courseTitle(),
+                                    current.assignedSessionCount() + 1,
+                                    current.courseStatus(), current.startDate(), current.endDate(), current.isFinished()));
+                });
+        return List.copyOf(courses.values());
     }
 
     // ============================================================

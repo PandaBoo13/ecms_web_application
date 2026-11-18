@@ -11,6 +11,8 @@ import java.time.LocalDateTime;
 public class RequestSearchRequest {
 
     private String requestType;
+    /** Loại yêu cầu cần loại khỏi kết quả (vd LEAVE_FEEDBACK — Admin chỉ xem ở buổi điểm danh). */
+    private String excludeRequestType;
     private String status;
     private Long requesterId;
 
