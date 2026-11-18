@@ -53,7 +53,6 @@ const MENU_KEY_TRANSLATION_MAP: Record<string, string> = {
   '/admin/refunds': 'Hoàn tiền',
   'enrollment': 'Ghi danh',
   '/admin/enrollments': 'Danh sách ghi danh',
-  '/admin/enrollments/pending': 'Chờ ghi danh',
   'courses': 'menu.courses',
   '/admin/courses': 'menu.courseList',
   '/admin/categories': 'menu.categories',

@@ -30,9 +30,6 @@ public class AttendanceRecord {
     @Column(name = "status", nullable = false, length = 20)
     private AttendanceStatus status = AttendanceStatus.NOT_MARKED;
 
-    @Column(name = "check_in_at")
-    private LocalDateTime checkInAt;
-
     @Column(name = "note", columnDefinition = "TEXT")
     private String note;
 

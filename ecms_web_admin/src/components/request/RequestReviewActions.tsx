@@ -18,6 +18,27 @@ const RequestReviewActions = ({ request, hasConflict, onSuccess }: Props) => {
   const [rejectReason, setRejectReason] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
+  // §2.3: Admin không duyệt đơn nghỉ buổi học — chỉ giảng viên trong buổi điểm danh.
+  // Guard này đề phòng drawer được mở từ nơi khác (list đã ẩn loại request này).
+  if (request.requestType === 'LEAVE_FEEDBACK') {
+    return (
+      <div
+        style={{
+          paddingTop: 16,
+          borderTop: '1px solid #f0f0f0',
+          marginTop: 16,
+        }}
+      >
+        <Typography.Text type="secondary">
+          {t(
+            'request.review.leaveManagedByInstructor',
+            'Đơn nghỉ phép do giảng viên xử lý tại buổi điểm danh.',
+          )}
+        </Typography.Text>
+      </div>
+    );
+  }
+
   // Nếu đã xử lý xong → không cho thao tác
   if (request.status !== 'PENDING') {
     return (

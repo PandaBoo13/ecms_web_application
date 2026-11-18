@@ -7,6 +7,7 @@ import DateDisplay from '@/components/common/DateDisplay';
 import RequestStatusTag from '@/components/request/RequestStatusTag';
 import CourseConflictAlert from '@/components/request/CourseConflictAlert';
 import RequestReviewActions from '@/components/request/RequestReviewActions';
+import GradeApprovalPanel from '@/components/request/GradeApprovalPanel';
 
 interface Props {
   open: boolean;
@@ -106,6 +107,11 @@ const RequestDetailDrawer = ({ open, request, onClose, onRefresh }: Props) => {
           onConflictChange={setHasConflict}
         />
       </div>
+
+      {/* Bảng điểm chi tiết — chỉ hiện với COURSE_GRADE_APPROVAL */}
+      {request.requestType === 'COURSE_GRADE_APPROVAL' && (
+        <GradeApprovalPanel request={request} />
+      )}
 
       {/* Actions duyệt / từ chối — chỉ hiện khi PENDING */}
       <RequestReviewActions

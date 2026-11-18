@@ -21,6 +21,7 @@ public enum RequestType {
     COURSE_DELETE          ("COURSE_DELETE",           "Xóa khóa học",               "COURSE",     "ADMIN"),
     COURSE_PRICE_CHANGE    ("COURSE_PRICE_CHANGE",     "Đổi học phí",                "COURSE",     "ACADEMIC_ADMIN"),
     COURSE_TEACHER_CHANGE  ("COURSE_TEACHER_CHANGE",   "Đổi giảng viên chính",       "COURSE",     "ACADEMIC_ADMIN"),
+    COURSE_GRADE_APPROVAL  ("COURSE_GRADE_APPROVAL",   "Phê duyệt bảng điểm",        "COURSE",     "ACADEMIC_ADMIN"),
 
     // ===== SESSION =====
     SCHEDULE_CHANGE        ("SCHEDULE_CHANGE",         "Đổi lịch dạy",               "SESSION",    "ACADEMIC_ADMIN"),

@@ -4,10 +4,12 @@ export interface EnrollmentResponse {
   courseId: number;
   invoiceId: number;
   status: 'PENDING' | 'ACTIVE' | 'RESERVED' | 'TERMINATED' | 'COMPLETED';
+  completionResult?: 'PASSED' | 'FAILED' | null;
   enrolledAt: string;
   absences: number;
   finalScore: number | null;
   completedAt: string | null;
+  courseCode?: string | null;
   studentName?: string | null;
   studentCode?: string | null;
   studentEmail?: string | null;
@@ -16,10 +18,10 @@ export interface EnrollmentResponse {
   invoiceCode?: string | null;
 }
 
-export type AttendanceStatus = 'NOT_MARKED' | 'PRESENT' | 'LATE' | 'ABSENT' | 'EXCUSED';
+export type AttendanceStatus = 'NOT_MARKED' | 'PRESENT' | 'ABSENT' | 'EXCUSED';
 
 export interface AttendanceRecordResponse {
-  attendanceId: number;
+  attendanceId: number | null;
   enrollmentId: number;
   sessionId: number;
   sessionNumber: number | null;
@@ -27,7 +29,6 @@ export interface AttendanceRecordResponse {
   sessionDate: string | null;
   sessionStartTime: string | null;
   status: AttendanceStatus;
-  checkInAt: string | null;
   note: string | null;
   studentName: string | null;
   studentCode: string | null;
@@ -35,6 +36,9 @@ export interface AttendanceRecordResponse {
   markedBy: number | null;
   updatedAt: string | null;
   updatedBy: number | null;
+  leaveRequestId?: number | null;
+  leaveRequestStatus?: string | null;
+  leaveRequestReason?: string | null;
 }
 
 export interface EnrollmentStatusLogResponse {

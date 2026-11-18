@@ -1,41 +1,54 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   Alert, Button, DatePicker, Descriptions, Divider, Form, Input, InputNumber, Modal, Popconfirm,
-  Select, Space, Table, Tag, Tooltip, Typography,
+  Select, Space, Table, Tabs, Tag, Tooltip, Typography, Upload,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { EditOutlined, EyeOutlined, HistoryOutlined } from '@ant-design/icons';
-import { Link, useSearchParams } from 'react-router-dom';
+import { CheckCircleOutlined, ClockCircleOutlined, CloseCircleOutlined, DownloadOutlined, EditOutlined, EyeOutlined, FileExcelOutlined, FormOutlined, HistoryOutlined, LockOutlined, SendOutlined } from '@ant-design/icons';
+import { useSearchParams } from 'react-router-dom';
 import dayjs from 'dayjs';
 import toast from 'react-hot-toast';
 import { enrollmentApi } from '@/services/api/enrollment';
 import EnrollmentStatusTag from '@/components/enrollment/EnrollmentStatusTag';
-import { ENROLLMENT_STATUS_LABEL } from '@/constants/enrollment';
+import { ENROLLMENT_STATUS_FILTER_OPTIONS, ENROLLMENT_STATUS_LABEL } from '@/constants/enrollment';
+import type { EnrollmentStatusFilter } from '@/constants/enrollment';
 import { showError } from '@/utils/errorHelper';
+import { requestApi } from '@/services/api/request/requestApi';
+import { useAuth } from '@/hooks/useAuth';
 import type { CourseStatus, CourseType } from '@/services/types/course/enums';
-import type { EnrollmentResponse, EnrollmentStatus, EnrollmentStatusLogResponse } from '@/services/types/enrollment';
+import type { EnrollmentResponse, EnrollmentStatusLogResponse, GradeReviewStatusResponse } from '@/services/types/enrollment';
 
 const { Text } = Typography;
-const enrollmentStatuses: EnrollmentStatus[] = ['PENDING', 'ACTIVE', 'RESERVED', 'TERMINATED', 'COMPLETED'];
+const enrollmentStatuses: EnrollmentStatusFilter[] = ['PENDING', 'ACTIVE', 'RESERVED', 'TERMINATED', 'COMPLETED', 'COMPLETED_PASSED', 'COMPLETED_FAILED'];
 
 interface CourseEnrollmentListProps {
   courseId: number;
   courseType: CourseType;
   courseStatus: CourseStatus;
+  maxScore?: number;
 }
 
 /** Tab học viên trong khóa học; thao tác vòng đời được thực hiện trong ngữ cảnh khóa này. */
-export default function CourseEnrollmentList({ courseId, courseType, courseStatus }: CourseEnrollmentListProps) {
+export default function CourseEnrollmentList({ courseId, courseType, courseStatus, maxScore = 100 }: CourseEnrollmentListProps) {
   const isOnline = courseType === 'ONLINE';
+  const { isAdmin, isInstructor } = useAuth();
+  // ADMIN: full quyền. INSTRUCTOR: chỉ xem + thao tác trên khóa OFFLINE mình dạy.
+  // Khóa ONLINE với INSTRUCTOR là read-only hoàn toàn.
+  const canEditEnrollment = isAdmin();
+  const canManageScores = isInstructor() && !isOnline;
+  const canComplete = isInstructor() && !isOnline;
+  const canExportRoster = (isAdmin() || isInstructor()) && !isOnline;
+  const showActions = canEditEnrollment || (isInstructor() && !isOnline);
   const [searchParams, setSearchParams] = useSearchParams();
-  const studentId = searchParams.get('studentId') || undefined;
-  const accountId = searchParams.get('accountId') || undefined;
-  const isFilteredToStudent = Boolean(studentId || accountId);
-  const requestedStatus = searchParams.get('status') as EnrollmentStatus | null;
+  const highlightParam = searchParams.get('highlight');
+  const highlightId = highlightParam ? Number(highlightParam) : undefined;
+
+  const requestedStatus = searchParams.get('status') as EnrollmentStatusFilter | null;
 
   const [rows, setRows] = useState<EnrollmentResponse[]>([]);
   const [loading, setLoading] = useState(false);
-  const [activeStatus, setActiveStatus] = useState<EnrollmentStatus | undefined>(
+  const [exportingRoster, setExportingRoster] = useState(false);
+  const [activeStatus, setActiveStatus] = useState<EnrollmentStatusFilter | undefined>(
     requestedStatus && enrollmentStatuses.includes(requestedStatus) ? requestedStatus : undefined,
   );
   const [searchInput, setSearchInput] = useState('');
@@ -51,25 +64,90 @@ export default function CourseEnrollmentList({ courseId, courseType, courseStatu
   const [historyLoading, setHistoryLoading] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [scoreSaving, setScoreSaving] = useState(false);
+  const [importingScores, setImportingScores] = useState(false);
+  const [scoreOpen, setScoreOpen] = useState(false);
+  const [importResult, setImportResult] = useState<Awaited<ReturnType<typeof enrollmentApi.importFinalScores>> | null>(null);
+  // Auto-completion state
+  const [completionModalOpen, setCompletionModalOpen] = useState(false);
+  const [analyzingCompletion, setAnalyzingCompletion] = useState(false);
+  const [minPassScore, setMinPassScore] = useState<number>(50);
+  const [classifiedStudents, setClassifiedStudents] = useState<Array<{
+    enrollmentId: number;
+    studentCode: string;
+    studentName: string;
+    studentEmail: string;
+    finalScore: number | null;
+    conductedSessions: number;
+    absences: number;
+    absencePercent: number;
+    unmarkedSessions: number;
+    suggestedResult: 'PASSED' | 'FAILED';
+    eligible: boolean;
+    reason: string;
+  }>>([]);
+  const [selectedPassIds, setSelectedPassIds] = useState<number[]>([]);
+  const [selectedFailIds, setSelectedFailIds] = useState<number[]>([]);
+  // Grade review approval state
+  const [gradeReviewStatus, setGradeReviewStatus] = useState<GradeReviewStatusResponse | null>(null);
+  const [submittingGradeReview, setSubmittingGradeReview] = useState(false);
   const [selectedCompleteIds, setSelectedCompleteIds] = useState<number[]>([]);
   const [completing, setCompleting] = useState(false);
   const [form] = Form.useForm();
+  const [scoreForm] = Form.useForm();
   const editAction = Form.useWatch('editAction', form);
 
-  const filteredStudentName = rows[0]?.studentName
-    || (studentId ? `Học viên #${studentId}` : `Tài khoản #${accountId}`);
-  const filteredStudentCode = rows[0]?.studentCode;
+
+
+
+
+  const loadGradeReviewStatus = useCallback(async () => {
+    if (isOnline) return;
+    try {
+      const status = await enrollmentApi.getGradeReviewStatus(courseId);
+      setGradeReviewStatus(status);
+    } catch {
+      // fallback
+    }
+  }, [courseId, isOnline]);
+
+  const handleSubmitGradeReview = async () => {
+    setSubmittingGradeReview(true);
+    try {
+      const res = await enrollmentApi.submitGradeReview(courseId);
+      setGradeReviewStatus(res);
+      toast.success('Đã gửi yêu cầu phê duyệt bảng điểm tới Quản trị viên');
+    } catch (err) {
+      showError(err, 'Không thể gửi duyệt bảng điểm');
+    } finally {
+      setSubmittingGradeReview(false);
+    }
+  };
+
+  const handleAdminReviewGrades = async (approved: boolean) => {
+    if (!gradeReviewStatus?.requestId) return;
+    try {
+      await requestApi.review(gradeReviewStatus.requestId, { approved });
+      toast.success(approved ? 'Đã duyệt bảng điểm' : 'Đã từ chối bảng điểm');
+      await loadGradeReviewStatus();
+      await loadEnrollments();
+    } catch (err) {
+      showError(err, 'Thao tác phê duyệt bảng điểm thất bại');
+    }
+  };
 
   const loadEnrollments = useCallback(async () => {
     setLoading(true);
     try {
       const page = await enrollmentApi.search({
         courseId, page: pageNumber, size: pageSize,
-        status: activeStatus,
+        status: activeStatus === 'COMPLETED_PASSED' || activeStatus === 'COMPLETED_FAILED' ? 'COMPLETED' : activeStatus,
+        completionResult: activeStatus === 'COMPLETED_PASSED' ? 'PASSED'
+          : activeStatus === 'COMPLETED_FAILED' ? 'FAILED' : undefined,
         search: search || undefined,
-        studentId: studentId ? Number(studentId) : undefined,
-        accountId: accountId ? Number(accountId) : undefined,
-        includeCompletionEligibility: courseStatus === 'FINISHED' && !isOnline,
+
+
+        includeCompletionEligibility: !isOnline,
       });
       setRows(page.content ?? []);
       setTotal(page.totalElements ?? 0);
@@ -78,15 +156,27 @@ export default function CourseEnrollmentList({ courseId, courseType, courseStatu
     } finally {
       setLoading(false);
     }
-  }, [accountId, activeStatus, courseId, courseStatus, isOnline, pageNumber, pageSize, search, studentId]);
+  }, [activeStatus, courseId, courseStatus, isOnline, pageNumber, pageSize, search]);
 
   useEffect(() => {
     void loadEnrollments();
-  }, [loadEnrollments]);
+    void loadGradeReviewStatus();
+  }, [loadEnrollments, loadGradeReviewStatus]);
 
   useEffect(() => {
     setSelectedCompleteIds([]);
   }, [courseId, courseStatus]);
+
+  useEffect(() => {
+    if (!highlightId || rows.length === 0) return;
+    const timer = setTimeout(() => {
+      const el = document.querySelector(`[data-row-key="${highlightId}"]`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [highlightId, rows]);
 
   useEffect(() => {
     if (requestedStatus && enrollmentStatuses.includes(requestedStatus)) {
@@ -104,29 +194,10 @@ export default function CourseEnrollmentList({ courseId, courseType, courseStatu
     setDetailOpen(true);
   };
 
-  const clearStudentFilter = () => {
-    const nextParams = new URLSearchParams(searchParams);
-    nextParams.delete('studentId');
-    nextParams.delete('accountId');
-    nextParams.delete('status');
-    setSearchParams(nextParams, { replace: true });
-    setActiveStatus(undefined);
-    setSearch('');
-    setSearchInput('');
-    setPageNumber(0);
-    setSelectedCompleteIds([]);
-  };
-
   const submitSearch = (value: string) => {
     setSearch(value.trim());
     setPageNumber(0);
     setSelectedCompleteIds([]);
-    if (isFilteredToStudent) {
-      const nextParams = new URLSearchParams(searchParams);
-      nextParams.delete('studentId');
-      nextParams.delete('accountId');
-      setSearchParams(nextParams, { replace: true });
-    }
   };
 
   const openHistory = async () => {
@@ -152,8 +223,13 @@ export default function CourseEnrollmentList({ courseId, courseType, courseStatu
         : enrollment.status === 'ACTIVE' && !isOnline ? 'reserve' : 'terminate',
       startDate: dayjs(),
       endDate: dayjs().add(1, 'month'),
-      finalScore: enrollment.finalScore ?? undefined,
     });
+  };
+
+  const openScoreEditor = (enrollment: EnrollmentResponse) => {
+    setSelectedEnrollment(enrollment);
+    setScoreOpen(true);
+    scoreForm.setFieldsValue({ finalScore: enrollment.finalScore ?? undefined });
   };
 
   const saveEdit = async (values: Record<string, unknown>) => {
@@ -169,8 +245,6 @@ export default function CourseEnrollmentList({ courseId, courseType, courseStatu
         });
       } else if (selectedAction === 'resume') {
         await enrollmentApi.resume(selectedEnrollment.enrollmentId);
-      } else if (selectedAction === 'score') {
-        await enrollmentApi.recordFinalScore(selectedEnrollment.enrollmentId, { finalScore: Number(values.finalScore) });
       } else {
         await enrollmentApi.terminate(selectedEnrollment.enrollmentId, { reason: String(values.reason ?? '').trim() });
       }
@@ -186,20 +260,222 @@ export default function CourseEnrollmentList({ courseId, courseType, courseStatu
     }
   };
 
-  const completeSelected = async () => {
-    if (!selectedCompleteIds.length) return;
-    setCompleting(true);
+  const saveScore = async (values: { finalScore: number }) => {
+    if (!selectedEnrollment) return;
+    setScoreSaving(true);
     try {
-      const result = await enrollmentApi.completeBatch(courseId, selectedCompleteIds);
-      setSelectedCompleteIds([]);
-      if (result.completed > 0) toast.success(`Đã hoàn thành ${result.completed} học viên`);
-      if (result.failed > 0) {
-        const message = result.results.find((item) => !item.success)?.message;
-        toast.error(`${result.failed} học viên chưa hoàn thành${message ? `: ${message}` : ''}`);
-      }
+      await enrollmentApi.recordFinalScore(selectedEnrollment.enrollmentId, { finalScore: Number(values.finalScore) });
+      toast.success('Đã cập nhật điểm cuối khóa');
+      setScoreOpen(false);
+      setSelectedEnrollment(null);
       await loadEnrollments();
     } catch (err) {
-      showError(err, 'Không thể cập nhật hoàn thành hàng loạt');
+      showError(err, 'Không thể cập nhật điểm cuối khóa');
+    } finally {
+      setScoreSaving(false);
+    }
+  };
+
+  const exportRoster = async () => {
+    setExportingRoster(true);
+    try {
+      const blob = await enrollmentApi.exportCourseRoster(courseId);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `course-${courseId}-roster.xlsx`;
+      link.click();
+      URL.revokeObjectURL(url);
+      toast.success('Đã tải danh sách Excel');
+    } catch (err) {
+      showError(err, 'Không thể xuất danh sách Excel');
+    } finally {
+      setExportingRoster(false);
+    }
+  };
+
+  const importScores = async (file: File) => {
+    setImportingScores(true);
+    try {
+      const result = await enrollmentApi.importFinalScores(courseId, file);
+      setImportResult(result);
+      await loadEnrollments();
+      if (result.issues.length === 0) toast.success(`Đã nhập điểm cho ${result.updated} học viên`);
+    } catch (err) {
+      showError(err, 'Không thể nhập bảng điểm');
+    } finally {
+      setImportingScores(false);
+    }
+  };
+
+  const openCompletionModal = async () => {
+    setCompletionModalOpen(true);
+    setAnalyzingCompletion(true);
+    try {
+      const res = await enrollmentApi.search({
+        courseId,
+        status: 'ACTIVE',
+        size: 100,
+        includeCompletionEligibility: !isOnline,
+      });
+      let activeStudents = res.content ?? [];
+      if (selectedCompleteIds.length > 0) {
+        activeStudents = activeStudents.filter((s) => selectedCompleteIds.includes(s.enrollmentId));
+      }
+
+      let matrix: Awaited<ReturnType<typeof enrollmentApi.courseAttendanceMatrix>> | null = null;
+      if (!isOnline) {
+        try {
+          matrix = await enrollmentApi.courseAttendanceMatrix(courseId);
+        } catch {
+          matrix = null;
+        }
+      }
+
+      const conducted = matrix?.conductedSessions ?? 0;
+      const maxAbsencePct = matrix?.rules?.maxAbsencePercent ?? 20;
+
+      const validScores = activeStudents
+        .map((s) => s.finalScore)
+        .filter((s): s is number => s !== null && s !== undefined);
+      const isScale10 = validScores.length > 0 && Math.max(...validScores) <= 10;
+      const defaultPassScore = isScale10 ? 5.0 : Math.round(maxScore / 2);
+      setMinPassScore(defaultPassScore);
+
+      const classified = activeStudents.map((s) => {
+        const studentMatrixRow = matrix?.students?.find((m) => m.enrollmentId === s.enrollmentId);
+        const absences = studentMatrixRow?.summary?.absent ?? s.absences ?? 0;
+        const unmarked = studentMatrixRow?.summary?.notMarked ?? 0;
+        const absencePct = conducted > 0 ? (absences * 100) / conducted : 0;
+        const score = s.finalScore;
+
+        let eligible = true;
+        let reason = '';
+        let suggestedResult: 'PASSED' | 'FAILED' = 'FAILED';
+
+        if (score === null || score === undefined) {
+          eligible = false;
+          reason = 'Chưa có điểm cuối khóa';
+        } else if (!isOnline && unmarked > 0) {
+          eligible = false;
+          reason = `Còn ${unmarked} buổi chưa điểm danh`;
+        } else {
+          const isScorePass = score >= defaultPassScore;
+          const isAttendancePass = isOnline || absencePct <= maxAbsencePct;
+          if (isScorePass && isAttendancePass) {
+            suggestedResult = 'PASSED';
+            reason = 'Đủ điều kiện (Điểm đạt & Chuyên cần đạt)';
+          } else {
+            suggestedResult = 'FAILED';
+            if (!isScorePass && !isAttendancePass) {
+              reason = `Điểm ${score} (< ${defaultPassScore}) & vắng ${absencePct.toFixed(1)}% (> ${maxAbsencePct}%)`;
+            } else if (!isScorePass) {
+              reason = `Điểm ${score} (< ${defaultPassScore})`;
+            } else {
+              reason = `Vắng ${absences}/${conducted} buổi (${absencePct.toFixed(1)}% > ${maxAbsencePct}%)`;
+            }
+          }
+        }
+
+        return {
+          enrollmentId: s.enrollmentId,
+          studentCode: s.studentCode || '—',
+          studentName: s.studentName || `Ghi danh #${s.enrollmentId}`,
+          studentEmail: s.studentEmail || '—',
+          finalScore: score,
+          conductedSessions: conducted,
+          absences,
+          absencePercent: absencePct,
+          unmarkedSessions: unmarked,
+          suggestedResult,
+          eligible,
+          reason,
+        };
+      });
+
+      setClassifiedStudents(classified);
+      setSelectedPassIds(classified.filter((c) => c.eligible && c.suggestedResult === 'PASSED').map((c) => c.enrollmentId));
+      setSelectedFailIds(classified.filter((c) => c.eligible && c.suggestedResult === 'FAILED').map((c) => c.enrollmentId));
+    } catch (err) {
+      showError(err, 'Không thể phân tích dữ liệu hoàn thành khóa học');
+    } finally {
+      setAnalyzingCompletion(false);
+    }
+  };
+
+  const recalculateClassification = (newPassScore: number) => {
+    setMinPassScore(newPassScore);
+    setClassifiedStudents((prev) => {
+      const updated = prev.map((s) => {
+        if (!s.eligible && (s.finalScore === null || s.unmarkedSessions > 0)) {
+          return s;
+        }
+        const isScorePass = (s.finalScore ?? 0) >= newPassScore;
+        const isAttendancePass = isOnline || s.absencePercent <= 20;
+        const suggestedResult: 'PASSED' | 'FAILED' = isScorePass && isAttendancePass ? 'PASSED' : 'FAILED';
+        let reason = '';
+        if (isScorePass && isAttendancePass) {
+          reason = 'Đủ điều kiện (Điểm đạt & Chuyên cần đạt)';
+        } else if (!isScorePass && !isAttendancePass) {
+          reason = `Điểm ${s.finalScore} (< ${newPassScore}) và vắng ${s.absencePercent.toFixed(1)}% (> 20%)`;
+        } else if (!isScorePass) {
+          reason = `Điểm ${s.finalScore} (< ${newPassScore})`;
+        } else {
+          reason = `Vắng ${s.absencePercent.toFixed(1)}% (> 20%)`;
+        }
+        return {
+          ...s,
+          eligible: true,
+          suggestedResult,
+          reason,
+        };
+      });
+      setSelectedPassIds(updated.filter((c) => c.eligible && c.suggestedResult === 'PASSED').map((c) => c.enrollmentId));
+      setSelectedFailIds(updated.filter((c) => c.eligible && c.suggestedResult === 'FAILED').map((c) => c.enrollmentId));
+      return updated;
+    });
+  };
+
+  const handleConfirmAutoCompletion = async () => {
+    const totalToComplete = selectedPassIds.length + selectedFailIds.length;
+    if (totalToComplete === 0) {
+      toast.error('Vui lòng chọn ít nhất 1 học viên để hoàn thành');
+      return;
+    }
+    setCompleting(true);
+    try {
+      let passedCount = 0;
+      let failedCount = 0;
+      const issues: string[] = [];
+
+      if (selectedPassIds.length > 0) {
+        const res = await enrollmentApi.completeBatch(courseId, selectedPassIds, 'PASSED');
+        passedCount = res.completed;
+        if (res.failed > 0) {
+          res.results.filter((r) => !r.success).forEach((r) => issues.push(r.message));
+        }
+      }
+
+      if (selectedFailIds.length > 0) {
+        const res = await enrollmentApi.completeBatch(courseId, selectedFailIds, 'FAILED');
+        failedCount = res.completed;
+        if (res.failed > 0) {
+          res.results.filter((r) => !r.success).forEach((r) => issues.push(r.message));
+        }
+      }
+
+      if (passedCount > 0 || failedCount > 0) {
+        toast.success(`Đã hoàn thành ${passedCount} học viên (Đạt) và ${failedCount} học viên (Không đạt)`);
+      }
+      if (issues.length > 0) {
+        toast.error(`Một số học viên chưa hoàn thành: ${issues[0]}`);
+      }
+
+      setCompletionModalOpen(false);
+      setSelectedCompleteIds([]);
+      await loadEnrollments();
+    } catch (err) {
+      showError(err, 'Lỗi khi thực hiện hoàn thành khóa học');
     } finally {
       setCompleting(false);
     }
@@ -236,9 +512,40 @@ export default function CourseEnrollmentList({ courseId, courseType, courseStatu
       title: 'Trạng thái',
       dataIndex: 'status',
       width: 150,
-      render: (status) => <EnrollmentStatusTag status={status} />,
+      render: (status, row) => (
+        <Space orientation="vertical" size={2}>
+          {status === 'COMPLETED' && row.completionResult
+            ? <Tag color="purple">Hoàn thành ({row.completionResult === 'PASSED' ? 'Đạt' : 'Không đạt'})</Tag>
+            : <EnrollmentStatusTag status={status} />}
+        </Space>
+      ),
     },
-    {
+  ];
+
+  if (!isOnline) {
+    columns.splice(4, 0, {
+      title: 'Điểm cuối khóa',
+      dataIndex: 'finalScore',
+      width: 160,
+      render: (score: number | null) => (
+        <Space size={6}>
+          {score !== null && score !== undefined ? (
+            <span className="font-semibold text-slate-800">{score}</span>
+          ) : (
+            <Text type="secondary">Chưa cập nhật</Text>
+          )}
+          {score !== null && gradeReviewStatus?.status !== 'APPROVED' && (
+            <Tag color="orange" bordered={false} className="!mr-0 text-[10px]">
+              Chờ duyệt
+            </Tag>
+          )}
+        </Space>
+      ),
+    });
+  }
+
+  if (showActions) {
+    columns.push({
       title: 'Thao tác',
       fixed: 'right',
       width: 125,
@@ -247,59 +554,36 @@ export default function CourseEnrollmentList({ courseId, courseType, courseStatu
           <Tooltip title="Xem chi tiết">
             <Button size="small" aria-label="Xem chi tiết" icon={<EyeOutlined />} onClick={() => openDetails(row)} />
           </Tooltip>
-          {!isOnline && !['TERMINATED', 'COMPLETED'].includes(row.status) && (
+          {canManageScores && !isOnline && row.status === 'ACTIVE' && (
+            gradeReviewStatus?.status === 'APPROVED' ? (
+              <Tooltip title="Bảng điểm đã được duyệt & công bố, không thể sửa">
+                <Button size="small" aria-label="Bảng điểm đã chốt" icon={<LockOutlined />} disabled />
+              </Tooltip>
+            ) : (
+              <Tooltip title="Cập nhật điểm cuối khóa">
+                <Button size="small" aria-label="Cập nhật điểm cuối khóa" icon={<FormOutlined />} onClick={() => openScoreEditor(row)} />
+              </Tooltip>
+            )
+          )}
+          {canEditEnrollment && !isOnline && !['TERMINATED', 'COMPLETED'].includes(row.status) && (
             <Tooltip title="Chỉnh sửa">
               <Button size="small" aria-label="Chỉnh sửa" icon={<EditOutlined />} onClick={() => openEdit(row)} />
             </Tooltip>
           )}
         </Space>
       ),
-    },
-  ];
-
-  const statusLabels: Record<EnrollmentStatus, string> = {
-    PENDING: ENROLLMENT_STATUS_LABEL.PENDING,
-    ACTIVE: ENROLLMENT_STATUS_LABEL.ACTIVE,
-    RESERVED: ENROLLMENT_STATUS_LABEL.RESERVED,
-    TERMINATED: 'Đã chấm dứt',
-    COMPLETED: ENROLLMENT_STATUS_LABEL.COMPLETED,
-  };
+    });
+  }
 
   return (
     <Space orientation="vertical" size="middle" className="w-full">
-      {isFilteredToStudent && (
-        <Alert
-          type="info"
-          showIcon
-          message={
-            <Space size={6} wrap>
-              <span>Đang lọc theo học viên:</span>
-              <Text strong>{filteredStudentName}</Text>
-              {filteredStudentCode && <Text type="secondary">({filteredStudentCode})</Text>}
-              {activeStatus && <EnrollmentStatusTag status={activeStatus} />}
-            </Space>
-          }
-          description="Bảng bên dưới chỉ hiển thị học viên này. Bấm “Xem tất cả học viên” hoặc chọn bộ lọc trạng thái khác để bỏ bộ lọc."
-          action={
-            <Space orientation="vertical" size={4}>
-              <Button type="primary" size="small" onClick={clearStudentFilter}>
-                Xem tất cả học viên
-              </Button>
-              <Link to="/admin/enrollments" style={{ textAlign: 'center', fontSize: 12 }}>
-                ← Danh sách ghi danh
-              </Link>
-            </Space>
-          }
-          closable
-          onClose={(event) => { event.preventDefault(); clearStudentFilter(); }}
-        />
-      )}
-      {courseStatus === 'FINISHED' && (
+
+      {canComplete && courseStatus === 'FINISHED' && !isOnline && (
         <Alert
           type="warning"
           showIcon
           message="Khóa học đã kết thúc"
-          description="Chọn các học viên đủ điều kiện trong bảng bên dưới để cập nhật hoàn thành hàng loạt."
+          description="Chọn các học viên đủ điều kiện trong bảng bên dưới để cập nhật hoàn thành hàng loạt. Học viên không đủ điều kiện sẽ bị khóa chọn; rê chuột lên ô chọn để xem lý do."
         />
       )}
       <div className="flex flex-wrap items-center justify-end gap-3">
@@ -314,12 +598,11 @@ export default function CourseEnrollmentList({ courseId, courseType, courseStatu
           }}
           onSearch={submitSearch}
         />
-        {!isOnline && (
-          <Select
+        {!isOnline && <Select
             style={{ width: 200 }}
             value={activeStatus ?? ''}
             onChange={(key) => {
-              const nextStatus = key ? key as EnrollmentStatus : undefined;
+              const nextStatus = key ? key as EnrollmentStatusFilter : undefined;
               setActiveStatus(nextStatus);
               setPageNumber(0);
               setSelectedCompleteIds([]);
@@ -333,31 +616,132 @@ export default function CourseEnrollmentList({ courseId, courseType, courseStatu
             }}
             options={[
               { value: '', label: 'Tất cả trạng thái' },
-              ...enrollmentStatuses.map((status) => ({ value: status, label: statusLabels[status] })),
+              ...ENROLLMENT_STATUS_FILTER_OPTIONS,
             ]}
-          />
+        />}
+        {!isOnline && (
+          <div className="flex items-center gap-2">
+            {gradeReviewStatus?.status === 'APPROVED' ? (
+              <Tag color="success" icon={<CheckCircleOutlined />} className="py-1 px-2.5">
+                Bảng điểm: Đã duyệt & Công bố
+              </Tag>
+            ) : gradeReviewStatus?.status === 'PENDING_APPROVAL' ? (
+              <Space size={6}>
+                <Tag color="warning" icon={<ClockCircleOutlined />} className="py-1 px-2.5">
+                  Bảng điểm: Chờ duyệt
+                </Tag>
+                {isAdmin() && (
+                  <Space size={4}>
+                    <Popconfirm
+                      title="Duyệt bảng điểm này và công bố cho học viên?"
+                      onConfirm={() => void handleAdminReviewGrades(true)}
+                      okText="Duyệt"
+                      cancelText="Hủy"
+                    >
+                      <Button size="small" type="primary" className="!bg-emerald-600">
+                        Duyệt
+                      </Button>
+                    </Popconfirm>
+                    <Popconfirm
+                      title="Từ chối bảng điểm này?"
+                      onConfirm={() => void handleAdminReviewGrades(false)}
+                      okText="Từ chối"
+                      cancelText="Hủy"
+                    >
+                      <Button size="small" danger>
+                        Từ chối
+                      </Button>
+                    </Popconfirm>
+                  </Space>
+                )}
+              </Space>
+            ) : gradeReviewStatus?.status === 'REJECTED' ? (
+              <Space size={6}>
+                <Tooltip title={gradeReviewStatus.rejectReason ? `Lý do: ${gradeReviewStatus.rejectReason}` : undefined}>
+                  <Tag color="error" icon={<CloseCircleOutlined />} className="py-1 px-2.5 cursor-help">
+                    Bảng điểm: Bị từ chối
+                  </Tag>
+                </Tooltip>
+                {canManageScores && (
+                  <Popconfirm
+                    title="Gửi lại bảng điểm này để Quản trị viên duyệt?"
+                    onConfirm={() => void handleSubmitGradeReview()}
+                    okText="Gửi duyệt"
+                    cancelText="Hủy"
+                  >
+                    <Button icon={<SendOutlined />} size="small" loading={submittingGradeReview}>
+                      Gửi duyệt lại
+                    </Button>
+                  </Popconfirm>
+                )}
+              </Space>
+            ) : (
+              <Space size={6}>
+                <Tag color="default" className="py-1 px-2.5">
+                  Bảng điểm: Bản nháp
+                </Tag>
+                {canManageScores && (
+                  <Popconfirm
+                    title="Gửi bảng điểm này để Quản trị viên duyệt trước khi công bố cho học viên?"
+                    onConfirm={() => void handleSubmitGradeReview()}
+                    okText="Gửi duyệt"
+                    cancelText="Hủy"
+                  >
+                    <Button icon={<SendOutlined />} size="small" loading={submittingGradeReview}>
+                      Gửi duyệt bảng điểm
+                    </Button>
+                  </Popconfirm>
+                )}
+              </Space>
+            )}
+          </div>
         )}
-        {courseStatus === 'FINISHED' && !isOnline && (
-          <Popconfirm
-            title={`Hoàn thành ${selectedCompleteIds.length} học viên?`}
-            okText="Hoàn thành"
-            cancelText="Hủy"
-            disabled={selectedCompleteIds.length === 0}
-            onConfirm={() => void completeSelected()}
+        {canComplete && !isOnline && (
+          <Tooltip
+            title={
+              courseStatus !== 'FINISHED'
+                ? 'Chỉ xét hoàn thành sau khi khóa học kết thúc.'
+                : gradeReviewStatus?.status !== 'APPROVED'
+                ? 'Cần bảng điểm được Quản trị viên phê duyệt trước khi xét hoàn thành.'
+                : undefined
+            }
           >
-            <Button type="primary" disabled={selectedCompleteIds.length === 0} loading={completing}>
-              Hoàn thành đã chọn ({selectedCompleteIds.length})
+            <Button
+              type="primary"
+              icon={<CheckCircleOutlined />}
+              disabled={courseStatus !== 'FINISHED' || gradeReviewStatus?.status !== 'APPROVED'}
+              onClick={() => void openCompletionModal()}
+            >
+              {selectedCompleteIds.length > 0 ? `Xét hoàn thành (${selectedCompleteIds.length})` : 'Xét hoàn thành khóa học'}
             </Button>
-          </Popconfirm>
+          </Tooltip>
+        )}
+        {canExportRoster && (
+          <Button icon={<DownloadOutlined />} loading={exportingRoster} onClick={() => void exportRoster()}>
+            Xuất Excel
+          </Button>
+        )}
+        {canManageScores && !isOnline && (
+          <Tooltip title={gradeReviewStatus?.status === 'APPROVED' ? 'Bảng điểm đã được duyệt & công bố, không thể nhập lại' : undefined}>
+            <Upload
+              accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              showUploadList={false}
+              disabled={gradeReviewStatus?.status === 'APPROVED'}
+              beforeUpload={(file) => { void importScores(file); return false; }}
+            >
+              <Button loading={importingScores} icon={<FileExcelOutlined />} disabled={gradeReviewStatus?.status === 'APPROVED'}>Nhập bảng điểm</Button>
+            </Upload>
+          </Tooltip>
         )}
         <Button onClick={() => void loadEnrollments()}>Tải lại</Button>
       </div>
       <Table
         rowKey="enrollmentId"
+        rowClassName={(record) => (highlightId && record.enrollmentId === highlightId ? 'highlight-enrollment-row' : '')}
         columns={columns}
         dataSource={rows}
         loading={loading}
-        rowSelection={courseStatus === 'FINISHED' && !isOnline ? {
+        rowSelection={canComplete && !isOnline ? {
           selectedRowKeys: selectedCompleteIds,
           preserveSelectedRowKeys: true,
           onChange: (keys) => setSelectedCompleteIds(keys as number[]),
@@ -384,7 +768,7 @@ export default function CourseEnrollmentList({ courseId, courseType, courseStatu
             setPageSize(size);
           },
         }}
-        scroll={{ x: isOnline ? 900 : 1050 }}
+        scroll={{ x: isOnline ? 1000 : 1150 }}
       />
 
       <Modal
@@ -416,15 +800,14 @@ export default function CourseEnrollmentList({ courseId, courseType, courseStatu
                 {selectedEnrollment.enrolledAt ? dayjs(selectedEnrollment.enrolledAt).format('DD/MM/YYYY HH:mm') : '—'}
               </Descriptions.Item>
               <Descriptions.Item label="Trạng thái">
-                <EnrollmentStatusTag status={selectedEnrollment.status} />
+                {selectedEnrollment.status === 'COMPLETED' && selectedEnrollment.completionResult
+                  ? <Tag color="purple">Hoàn thành ({selectedEnrollment.completionResult === 'PASSED' ? 'Đạt' : 'Không đạt'})</Tag>
+                  : <EnrollmentStatusTag status={selectedEnrollment.status} />}
               </Descriptions.Item>
               {!isOnline && (
-                <>
-                  <Descriptions.Item label="Số buổi vắng">{selectedEnrollment.absences}</Descriptions.Item>
-                  <Descriptions.Item label="Điểm cuối khóa">
-                    {selectedEnrollment.finalScore ?? 'Chưa cập nhật'}
-                  </Descriptions.Item>
-                </>
+                <Descriptions.Item label="Điểm cuối khóa">
+                  {selectedEnrollment.finalScore ?? 'Chưa cập nhật'}
+                </Descriptions.Item>
               )}
               <Descriptions.Item label="Hóa đơn" span={2}>
                 {selectedEnrollment.invoiceCode || (selectedEnrollment.invoiceId ? `#${selectedEnrollment.invoiceId}` : '—')}
@@ -485,22 +868,20 @@ export default function CourseEnrollmentList({ courseId, courseType, courseStatu
             <Descriptions.Item label="Mã học viên">{selectedEnrollment.studentCode || '—'}</Descriptions.Item>
             <Descriptions.Item label="Email">{selectedEnrollment.studentEmail || '—'}</Descriptions.Item>
             <Descriptions.Item label="Điện thoại">{selectedEnrollment.studentPhone || '—'}</Descriptions.Item>
-            <Descriptions.Item label="Trạng thái hiện tại"><EnrollmentStatusTag status={selectedEnrollment.status} /></Descriptions.Item>
-            <Descriptions.Item label="Số buổi vắng">{selectedEnrollment.absences}</Descriptions.Item>
-            <Descriptions.Item label="Điểm cuối khóa">{selectedEnrollment.finalScore ?? 'Chưa cập nhật'}</Descriptions.Item>
+            <Descriptions.Item label="Trạng thái hiện tại">
+              {selectedEnrollment.status === 'COMPLETED' && selectedEnrollment.completionResult
+                ? <Tag color="purple">Hoàn thành ({selectedEnrollment.completionResult === 'PASSED' ? 'Đạt' : 'Không đạt'})</Tag>
+                : <EnrollmentStatusTag status={selectedEnrollment.status} />}
+            </Descriptions.Item>
           </Descriptions>
         )}
         <Form form={form} layout="vertical" onFinish={(values) => void saveEdit(values)}>
-          <Form.Item name="editAction" label="Cập nhật trạng thái / điểm cuối khóa" rules={[{ required: true }]}>
+          <Form.Item name="editAction" label="Cập nhật trạng thái" rules={[{ required: true }]}>
             <Select options={[
               { value: 'reserve', label: 'Bảo lưu học viên', disabled: selectedEnrollment?.status !== 'ACTIVE' },
               { value: 'resume', label: 'Cho học viên quay lại học', disabled: selectedEnrollment?.status !== 'RESERVED' },
-              { value: 'score', label: 'Cập nhật điểm cuối khóa', disabled: selectedEnrollment?.status !== 'ACTIVE' },
               { value: 'terminate', label: 'Chấm dứt ghi danh' },
-            ]} onChange={(value) => {
-              form.setFieldValue('reason', undefined);
-              if (value === 'score') form.setFieldValue('finalScore', selectedEnrollment?.finalScore ?? undefined);
-            }} />
+            ]} onChange={() => form.setFieldValue('reason', undefined)} />
           </Form.Item>
           {editAction === 'reserve' && <>
             <Form.Item name="startDate" label="Bảo lưu từ ngày" rules={[{ required: true, message: 'Chọn ngày bắt đầu' }]}>
@@ -515,15 +896,278 @@ export default function CourseEnrollmentList({ courseId, courseType, courseStatu
               <Input.TextArea rows={3} />
             </Form.Item>
           )}
-          {editAction === 'score' && (
-            <Form.Item name="finalScore" label="Điểm cuối khóa (0–100)" rules={[{ required: true, message: 'Nhập điểm cuối khóa' }]}>
-              <InputNumber min={0} max={100} step={0.1} className="w-full" />
-            </Form.Item>
-          )}
           {editAction === 'resume' && <Alert type="info" showIcon message="Học viên sẽ chuyển từ Bảo lưu sang Đang học." />}
-          {editAction === 'terminate' && <Alert type="warning" showIcon message="Ghi danh sẽ chuyển sang Đã kết thúc và không thể tiếp tục học." />}
+          {editAction === 'terminate' && <Alert type="warning" showIcon message="Ghi danh sẽ chuyển sang Bỏ học và không thể tiếp tục học." />}
           {selectedEnrollment?.status === 'PENDING' && <Alert className="mt-3" type="info" showIcon message="PENDING tự chuyển sang Đang học vào ngày khai giảng." />}
         </Form>
+      </Modal>
+
+      <Modal
+        title="Cập nhật điểm cuối khóa"
+        open={scoreOpen}
+        confirmLoading={scoreSaving}
+        okText="Lưu điểm"
+        cancelText="Hủy"
+        onCancel={() => { setScoreOpen(false); setSelectedEnrollment(null); scoreForm.resetFields(); }}
+        onOk={() => scoreForm.submit()}
+        destroyOnHidden
+      >
+        {selectedEnrollment && <Alert
+          className="mb-4"
+          type="info"
+          showIcon
+          message={selectedEnrollment.studentName || `Ghi danh #${selectedEnrollment.enrollmentId}`}
+          description={`Điểm từ 0 đến ${maxScore}, tối đa 2 chữ số thập phân.`}
+        />}
+        <Form form={scoreForm} layout="vertical" onFinish={(values: { finalScore: number }) => void saveScore(values)}>
+          <Form.Item
+            name="finalScore"
+            label="Điểm cuối khóa"
+            rules={[{ required: true, message: 'Nhập điểm cuối khóa' }]}
+          >
+            <InputNumber min={0} max={maxScore} step={0.1} precision={2} className="w-full" />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        title="Kết quả nhập bảng điểm"
+        open={Boolean(importResult)}
+        footer={<Button type="primary" onClick={() => setImportResult(null)}>Đóng</Button>}
+        onCancel={() => setImportResult(null)}
+        width={720}
+      >
+        {importResult && <>
+          <Alert
+            type={importResult.issues.length ? 'warning' : 'success'}
+            showIcon
+            message={`Đã cập nhật ${importResult.updated} học viên; bỏ qua ${importResult.skipped} dòng trống.`}
+            description={importResult.issues.length ? `${importResult.issues.length} dòng cần kiểm tra bên dưới.` : 'Không phát hiện dòng lỗi.'}
+            className="mb-4"
+          />
+          {importResult.issues.length > 0 && <Table
+            size="small"
+            rowKey={(issue: { row: number; enrollmentId: number | null }) => `${issue.row}-${issue.enrollmentId ?? 'unknown'}`}
+            pagination={{ pageSize: 8 }}
+            dataSource={importResult.issues}
+            columns={[
+              { title: 'Dòng Excel', dataIndex: 'row', width: 100, render: (row: number) => row === 0 ? 'Thiếu dòng' : row },
+              { title: 'Mã ghi danh', dataIndex: 'enrollmentId', width: 130, render: (id) => id ?? '—' },
+              { title: 'Cảnh báo', dataIndex: 'message' },
+            ]}
+          />}
+        </>}
+      </Modal>
+      {/* Modal Tự động phân loại Xét hoàn thành khóa học */}
+      <Modal
+        title={
+          <div className="flex items-center justify-between pr-6">
+            <span className="font-semibold text-base flex items-center gap-2">
+              <CheckCircleOutlined className="text-emerald-500" /> Xét hoàn thành khóa học (Tự động phân loại)
+            </span>
+            <Space size={6} className="text-sm font-normal">
+              <span className="text-slate-500">Điểm chuẩn đạt:</span>
+              <InputNumber
+                min={0}
+                max={maxScore}
+                step={minPassScore <= 10 ? 0.5 : 5}
+                value={minPassScore}
+                onChange={(val) => {
+                  if (val !== null && val !== undefined) {
+                    recalculateClassification(val);
+                  }
+                }}
+                className="w-20"
+              />
+            </Space>
+          </div>
+        }
+        open={completionModalOpen}
+        onCancel={() => setCompletionModalOpen(false)}
+        width={850}
+        destroyOnHidden
+        footer={[
+          <Button key="cancel" onClick={() => setCompletionModalOpen(false)}>
+            Hủy
+          </Button>,
+          <Button
+            key="submit"
+            type="primary"
+            icon={<CheckCircleOutlined />}
+            loading={completing}
+            disabled={selectedPassIds.length + selectedFailIds.length === 0}
+            onClick={() => void handleConfirmAutoCompletion()}
+          >
+            Xác nhận hoàn thành ({selectedPassIds.length + selectedFailIds.length} học viên)
+          </Button>,
+        ]}
+      >
+        <div className="grid grid-cols-3 gap-3 mb-4 mt-2">
+          <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-center">
+            <div className="text-xs text-emerald-700 font-medium">Đủ điều kiện ĐẠT</div>
+            <div className="text-2xl font-bold text-emerald-600 mt-1">
+              {classifiedStudents.filter((s) => s.eligible && s.suggestedResult === 'PASSED').length}
+            </div>
+            <div className="text-[11px] text-emerald-600 mt-0.5">
+              Đã chọn: {selectedPassIds.length}
+            </div>
+          </div>
+          <div className="bg-rose-50 border border-rose-200 rounded-lg p-3 text-center">
+            <div className="text-xs text-rose-700 font-medium">KHÔNG ĐẠT</div>
+            <div className="text-2xl font-bold text-rose-600 mt-1">
+              {classifiedStudents.filter((s) => s.eligible && s.suggestedResult === 'FAILED').length}
+            </div>
+            <div className="text-[11px] text-rose-600 mt-0.5">
+              Đã chọn: {selectedFailIds.length}
+            </div>
+          </div>
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-center">
+            <div className="text-xs text-amber-700 font-medium">Chưa đủ điều kiện</div>
+            <div className="text-2xl font-bold text-amber-600 mt-1">
+              {classifiedStudents.filter((s) => !s.eligible).length}
+            </div>
+            <div className="text-[11px] text-amber-600 mt-0.5">
+              Thiếu điểm / Chưa ĐD
+            </div>
+          </div>
+        </div>
+
+        <Tabs
+          defaultActiveKey="passed"
+          items={[
+            {
+              key: 'passed',
+              label: (
+                <span>
+                  Đạt ({classifiedStudents.filter((s) => s.eligible && s.suggestedResult === 'PASSED').length})
+                </span>
+              ),
+              children: (
+                <Table
+                  size="small"
+                  rowKey="enrollmentId"
+                  loading={analyzingCompletion}
+                  pagination={{ pageSize: 6 }}
+                  dataSource={classifiedStudents.filter((s) => s.eligible && s.suggestedResult === 'PASSED')}
+                  rowSelection={{
+                    selectedRowKeys: selectedPassIds,
+                    onChange: (keys) => setSelectedPassIds(keys as number[]),
+                  }}
+                  columns={[
+                    { title: 'Mã HV', dataIndex: 'studentCode', width: 110 },
+                    { title: 'Họ tên', dataIndex: 'studentName' },
+                    {
+                      title: 'Điểm',
+                      dataIndex: 'finalScore',
+                      width: 90,
+                      render: (v: number | null) => <strong>{v ?? '—'}</strong>,
+                    },
+                    {
+                      title: 'Vắng',
+                      dataIndex: 'absences',
+                      width: 110,
+                      render: (_, r) => `${r.absences}/${r.conductedSessions} (${r.absencePercent.toFixed(0)}%)`,
+                    },
+                    {
+                      title: 'Kết quả',
+                      width: 140,
+                      render: () => <Tag color="success">Hoàn thành (Đạt)</Tag>,
+                    },
+                  ]}
+                />
+              ),
+            },
+            {
+              key: 'failed',
+              label: (
+                <span>
+                  Không đạt ({classifiedStudents.filter((s) => s.eligible && s.suggestedResult === 'FAILED').length})
+                </span>
+              ),
+              children: (
+                <Table
+                  size="small"
+                  rowKey="enrollmentId"
+                  loading={analyzingCompletion}
+                  pagination={{ pageSize: 6 }}
+                  dataSource={classifiedStudents.filter((s) => s.eligible && s.suggestedResult === 'FAILED')}
+                  rowSelection={{
+                    selectedRowKeys: selectedFailIds,
+                    onChange: (keys) => setSelectedFailIds(keys as number[]),
+                  }}
+                  columns={[
+                    { title: 'Mã HV', dataIndex: 'studentCode', width: 110 },
+                    { title: 'Họ tên', dataIndex: 'studentName' },
+                    {
+                      title: 'Điểm',
+                      dataIndex: 'finalScore',
+                      width: 90,
+                      render: (v: number | null) => <span className="text-rose-600 font-semibold">{v ?? '—'}</span>,
+                    },
+                    {
+                      title: 'Vắng',
+                      dataIndex: 'absences',
+                      width: 110,
+                      render: (_, r) => `${r.absences}/${r.conductedSessions} (${r.absencePercent.toFixed(0)}%)`,
+                    },
+                    {
+                      title: 'Lý do',
+                      dataIndex: 'reason',
+                      render: (reason: string) => <span className="text-xs text-rose-600">{reason}</span>,
+                    },
+                    {
+                      title: 'Kết quả',
+                      width: 160,
+                      render: () => <Tag color="error">Hoàn thành (Không đạt)</Tag>,
+                    },
+                  ]}
+                />
+              ),
+            },
+            ...(classifiedStudents.some((s) => !s.eligible)
+              ? [
+                  {
+                    key: 'ineligible',
+                    label: (
+                      <span>
+                        Chưa đủ ĐK ({classifiedStudents.filter((s) => !s.eligible).length})
+                      </span>
+                    ),
+                    children: (
+                      <Table
+                        size="small"
+                        rowKey="enrollmentId"
+                        loading={analyzingCompletion}
+                        pagination={{ pageSize: 6 }}
+                        dataSource={classifiedStudents.filter((s) => !s.eligible)}
+                        columns={[
+                          { title: 'Mã HV', dataIndex: 'studentCode', width: 110 },
+                          { title: 'Họ tên', dataIndex: 'studentName' },
+                          {
+                            title: 'Điểm',
+                            dataIndex: 'finalScore',
+                            width: 90,
+                            render: (v: number | null) => v ?? <Tag color="orange">Chưa nhập</Tag>,
+                          },
+                          {
+                            title: 'Điểm danh',
+                            dataIndex: 'unmarkedSessions',
+                            width: 120,
+                            render: (v: number) => (v > 0 ? <Tag color="warning">Còn ${v} buổi</Tag> : <Tag color="success">Đủ</Tag>),
+                          },
+                          {
+                            title: 'Nguyên nhân chặn',
+                            dataIndex: 'reason',
+                            render: (reason: string) => <span className="text-xs text-amber-700 font-medium">{reason}</span>,
+                          },
+                        ]}
+                      />
+                    ),
+                  },
+                ]
+              : []),
+          ]}
+        />
       </Modal>
     </Space>
   );

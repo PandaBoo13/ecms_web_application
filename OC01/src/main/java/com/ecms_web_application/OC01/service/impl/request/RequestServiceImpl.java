@@ -137,6 +137,9 @@ public class RequestServiceImpl implements RequestService {
 
         RequestType type = (filter.getRequestType() == null || filter.getRequestType().isBlank())
                 ? null : RequestType.fromCode(filter.getRequestType());
+        RequestType excludeType =
+                (filter.getExcludeRequestType() == null || filter.getExcludeRequestType().isBlank())
+                        ? null : RequestType.fromCode(filter.getExcludeRequestType());
         RequestStatus status = (filter.getStatus() == null || filter.getStatus().isBlank())
                 ? null : RequestStatus.fromCode(filter.getStatus());
         String keyword = (filter.getKeyword() == null) ? "" : filter.getKeyword().trim();
@@ -151,7 +154,7 @@ public class RequestServiceImpl implements RequestService {
                 : java.time.LocalDateTime.of(9999, 12, 31, 23, 59, 59);
 
         Page<Request> page = requestRepository.search(
-                type, status,
+                type, excludeType, status,
                 filter.getRequesterId(),
                 filter.getTargetEntityType(),
                 filter.getTargetEntityId(),
@@ -360,6 +363,13 @@ public class RequestServiceImpl implements RequestService {
         Account acc = accountRepository.findByIdWithRoleAndProfile(accountId)
                 .orElseThrow(() -> new ErrorHandler(HttpStatus.UNAUTHORIZED,
                         "Account không tồn tại"));
+
+        // §2.3: đơn xin nghỉ buổi học chỉ do GIẢNG VIÊN xử lý.
+        // Khác với các loại yêu cầu khác, ADMIN KHÔNG được bypass luồng này.
+        if (type == RequestType.LEAVE_FEEDBACK && !acc.isInstructor()) {
+            throw new ErrorHandler(HttpStatus.FORBIDDEN,
+                    "Chỉ giảng viên phụ trách buổi học mới được duyệt đơn nghỉ");
+        }
 
         if (acc.isAdmin()) return;
 

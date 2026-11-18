@@ -13,12 +13,14 @@ import CourseDetailActions from '@/components/course/CourseDetailActions';
 import CourseOverviewTab from '@/components/course/CourseOverviewTab';
 import ResourceManager from '@/components/course/ResourceManager';
 import CourseSessionList from '@/components/course/CourseSessionList';
+import CourseAttendanceMatrix from '@/components/course/CourseAttendanceMatrix';
 import CourseQuestionList from '@/components/course/CourseQuestionList';
 import QuizListCard from '@/components/course/QuizListCard';
 import CourseEnrollmentList from '@/components/course/CourseEnrollmentList';
 
 import { courseApi } from '@/services/api/course';
 import type { CourseDetailResponse } from '@/services/types/course';
+import { resolveMaxFinalScore } from '@/utils/courseScore';
 
 const { Text } = Typography;
 
@@ -112,6 +114,7 @@ const CourseDetailPage = () => {
           courseId={courseId}
           courseType={course.courseType}
           courseStatus={course.status}
+          maxScore={resolveMaxFinalScore(course)}
         />
       ),
     },
@@ -128,6 +131,11 @@ const CourseDetailPage = () => {
           onRefresh={handleSilentRefresh}
         />
       ),
+    });
+    tabItems.splice(3, 0, {
+      key: 'attendance',
+      label: 'Điểm danh',
+      children: <CourseAttendanceMatrix courseId={courseId} />,
     });
   }
 

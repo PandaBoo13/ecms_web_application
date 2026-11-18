@@ -228,6 +228,9 @@ export const API_ENDPOINT = {
   ENROLLMENT_ATTENDANCE_HISTORY: (id: number) => `/api/enrollments/${id}/attendance`,
   ENROLLMENT_STATUS_HISTORY: (id: number) => `/api/enrollments/${id}/status-history`,
 
+  // REQUEST
+  REQUESTS: '/api/requests',
+
   // ══════════════════════════════════════════════════════════════
   // AI AGENT
   // ══════════════════════════════════════════════════════════════

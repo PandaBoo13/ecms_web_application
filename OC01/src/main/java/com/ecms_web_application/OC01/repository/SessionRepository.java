@@ -41,6 +41,64 @@ public interface SessionRepository extends IRepository<Session, Long> {
 
     List<Session> findBySubstituteTeacher_IdAndStatusIn(Long substituteTeacherId, Collection<SessionStatus> statuses);
 
+    @Query("""
+        SELECT s FROM Session s JOIN FETCH s.course c
+        LEFT JOIN c.teacher courseTeacher
+        LEFT JOIN s.teacher teacher
+        LEFT JOIN s.substituteTeacher substituteTeacher
+        LEFT JOIN s.assistant assistant
+        WHERE c.courseType = 'OFFLINE'
+          AND s.sessionDate BETWEEN :from AND :to
+          AND s.status IN ('SCHEDULED', 'ONGOING', 'COMPLETED')
+          AND (courseTeacher.id = :accountId
+               OR teacher.id = :accountId
+               OR substituteTeacher.id = :accountId
+               OR assistant.id = :accountId)
+        ORDER BY s.startTime ASC
+    """)
+    List<Session> findAttendanceSessionsForInstructor(
+            @Param("accountId") Long accountId,
+            @Param("from") LocalDate from,
+            @Param("to") LocalDate to);
+
+    @Query("""
+        SELECT s FROM Session s JOIN FETCH s.course c
+        LEFT JOIN c.teacher courseTeacher
+        LEFT JOIN s.teacher teacher
+        LEFT JOIN s.substituteTeacher substituteTeacher
+        LEFT JOIN s.assistant assistant
+        WHERE c.courseType = 'OFFLINE'
+          AND s.status IN ('SCHEDULED', 'ONGOING', 'COMPLETED')
+          AND c.status IN ('PLANNED', 'PUBLISHED', 'ONGOING', 'FINISHED')
+          AND (courseTeacher.id = :accountId
+               OR teacher.id = :accountId
+               OR substituteTeacher.id = :accountId
+               OR assistant.id = :accountId)
+        ORDER BY c.title ASC, s.startTime ASC
+    """)
+    List<Session> findCurrentAttendanceAssignmentsForInstructor(
+            @Param("accountId") Long accountId);
+
+    @Query("""
+        SELECT CASE WHEN COUNT(s) > 0 THEN TRUE ELSE FALSE END
+        FROM Session s
+        LEFT JOIN s.course c
+        LEFT JOIN c.teacher courseTeacher
+        LEFT JOIN s.teacher teacher
+        LEFT JOIN s.substituteTeacher substituteTeacher
+        LEFT JOIN s.assistant assistant
+        WHERE s.course.id = :courseId
+          AND s.course.courseType = 'OFFLINE'
+          AND s.status IN ('SCHEDULED', 'ONGOING', 'COMPLETED')
+          AND (courseTeacher.id = :accountId
+               OR teacher.id = :accountId
+               OR substituteTeacher.id = :accountId
+               OR assistant.id = :accountId)
+    """)
+    boolean existsAttendanceAssignment(
+            @Param("courseId") Long courseId,
+            @Param("accountId") Long accountId);
+
     @Query("SELECT s FROM Session s WHERE s.effectiveTeacherId = :teacherId AND s.sessionDate BETWEEN :from AND :to AND s.status IN ('SCHEDULED', 'ONGOING') ORDER BY s.startTime ASC")
     List<Session> findTeachingSchedule(@Param("teacherId") Long teacherId, @Param("from") LocalDate from, @Param("to") LocalDate to);
 
@@ -55,6 +113,27 @@ public interface SessionRepository extends IRepository<Session, Long> {
 
     @Query("SELECT COUNT(s) FROM Session s WHERE s.course.id = :courseId AND s.status = 'COMPLETED'")
     long countDoneSessions(@Param("courseId") Long courseId);
+
+    /** Các buổi đã kết thúc (không tính buổi hủy) — dùng cho ngưỡng vắng/hoàn thành. */
+    @Query("""
+        SELECT s FROM Session s
+        WHERE s.course.id = :courseId
+          AND s.status <> com.ecms_web_application.OC01.entity.enums.SessionStatus.CANCELLED
+          AND s.endTime <= :now
+        ORDER BY s.sessionNumber ASC
+    """)
+    List<Session> findConductedSessions(
+            @Param("courseId") Long courseId,
+            @Param("now") LocalDateTime now);
+
+    /** Toàn bộ buổi không bị hủy của khóa — dùng cho ma trận điểm danh. */
+    @Query("""
+        SELECT s FROM Session s
+        WHERE s.course.id = :courseId
+          AND s.status <> com.ecms_web_application.OC01.entity.enums.SessionStatus.CANCELLED
+        ORDER BY s.sessionNumber ASC
+    """)
+    List<Session> findAttendanceSessionsByCourse(@Param("courseId") Long courseId);
 
     // ============================================================
     // [M1] Lịch giảng dạy INSTRUCTOR — có học viên (dùng cho /my-schedule)

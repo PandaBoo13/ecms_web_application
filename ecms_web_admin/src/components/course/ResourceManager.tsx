@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Card, Button, Modal, Form, Input, Select, InputNumber, Switch, Space, Typography, Tabs } from 'antd';
+import { Card, Button, Modal, Form, Input, Select, InputNumber, Switch, Space, Typography } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import toast from 'react-hot-toast';
 import { resourceApi } from '@/services/api/course';
@@ -98,17 +98,6 @@ const ResourceManager = ({ courseId, resources, onRefresh }: Props) => {
       toast.error((err as { message?: string })?.message || 'Đổi thứ tự thất bại');
     } finally {
       onRefresh();
-    }
-  };
-
-  const handleToggleStatus = async (id: number, status: string) => {
-    const nextStatus = status === 'PUBLISHED' ? 'HIDDEN' : 'PUBLISHED';
-    try {
-      await resourceApi.update(courseId, id, { status: nextStatus });
-      toast.success('Đã cập nhật trạng thái');
-      onRefresh();
-    } catch (err) {
-      toast.error((err as { message?: string })?.message || 'Cập nhật thất bại');
     }
   };
 

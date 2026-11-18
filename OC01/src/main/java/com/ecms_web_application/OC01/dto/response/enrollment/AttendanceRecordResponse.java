@@ -17,14 +17,17 @@ public record AttendanceRecordResponse(
         LocalDate sessionDate,
         LocalDateTime sessionStartTime,
         AttendanceStatus status,
-        LocalDateTime checkInAt,
         String note,
         String studentName,
         String studentCode,
         LocalDateTime markedAt,
         Long markedBy,
         LocalDateTime updatedAt,
-        Long updatedBy
+        Long updatedBy,
+        // Đơn xin nghỉ phép (LEAVE_FEEDBACK request) liên kết với bản ghi này
+        Long leaveRequestId,
+        String leaveRequestStatus,
+        String leaveRequestReason
 ) {
     public static AttendanceRecordResponse from(AttendanceRecord record, Session session, Student student) {
         return new AttendanceRecordResponse(
@@ -33,9 +36,25 @@ public record AttendanceRecordResponse(
                 session == null ? null : session.getTitle(),
                 session == null ? null : session.getSessionDate(),
                 session == null ? null : session.getStartTime(),
-                record.getStatus(), record.getCheckInAt(), record.getNote(),
+                record.getStatus(), record.getNote(),
                 student == null ? null : student.getFullName(),
                 student == null ? null : student.getStudentCode(),
-                record.getMarkedAt(), record.getMarkedBy(), record.getUpdatedAt(), record.getUpdatedBy());
+                record.getMarkedAt(), record.getMarkedBy(), record.getUpdatedAt(), record.getUpdatedBy(),
+                null, null, null);
+    }
+
+    public static AttendanceRecordResponse from(AttendanceRecord record, Session session, Student student,
+            Long leaveRequestId, String leaveRequestStatus, String leaveRequestReason) {
+        return new AttendanceRecordResponse(
+                record.getId(), record.getEnrollmentId(), record.getSessionId(),
+                session == null ? null : session.getSessionNumber(),
+                session == null ? null : session.getTitle(),
+                session == null ? null : session.getSessionDate(),
+                session == null ? null : session.getStartTime(),
+                record.getStatus(), record.getNote(),
+                student == null ? null : student.getFullName(),
+                student == null ? null : student.getStudentCode(),
+                record.getMarkedAt(), record.getMarkedBy(), record.getUpdatedAt(), record.getUpdatedBy(),
+                leaveRequestId, leaveRequestStatus, leaveRequestReason);
     }
 }

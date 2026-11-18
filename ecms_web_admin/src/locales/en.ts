@@ -319,6 +319,7 @@ export const en: Record<keyof typeof vi, string> = {
   'request.subtitle': 'Review, approve, or reject user requests',
 
   'request.tab.all': 'All',
+  'request.group.grade_review': 'Grade Review',
   'request.group.course': 'Course Review',
   'request.group.schedule': 'Schedule & Sessions',
   'request.group.finance': 'Finance',
@@ -372,6 +373,7 @@ export const en: Record<keyof typeof vi, string> = {
   'request.review.approveSuccess': 'Request approved',
   'request.review.rejectSuccess': 'Request rejected',
   'request.review.blockedByConflict': 'Cannot approve — schedule conflict',
+  'request.review.leaveManagedByInstructor': 'Leave requests are reviewed by the instructor in the attendance session.',
 
   'request.conflict.title': 'Schedule Conflict Warning',
   'request.conflict.noneMessage': 'No schedule conflict detected',
