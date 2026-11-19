@@ -135,6 +135,24 @@ public interface NotificationRecipientRepository
 
     @Modifying
     @Query("""
+        UPDATE NotificationRecipient r
+        SET r.deletedAt = CURRENT_TIMESTAMP
+        WHERE r.accountId != :claimedConsultantId
+          AND r.notificationId IN (
+              SELECT n.id FROM Notification n
+              WHERE (n.referenceType = 'LEAD' OR n.notificationType = 'LEAD')
+                AND n.referenceId = :leadId
+          )
+          AND r.accountId NOT IN (
+              SELECT a.id FROM Account a WHERE a.role.code = 'ADMIN'
+          )
+    """)
+    int dismissLeadNotificationForOtherConsultants(
+            @Param("leadId") Long leadId,
+            @Param("claimedConsultantId") Long claimedConsultantId);
+
+    @Modifying
+    @Query("""
         DELETE FROM NotificationRecipient r
         WHERE r.notificationId IN (
             SELECT n.id FROM Notification n

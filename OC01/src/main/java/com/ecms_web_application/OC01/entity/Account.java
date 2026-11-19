@@ -58,6 +58,9 @@ public class Account implements UserDetails {
     @Column(name = "failed_login_count", nullable = false)
     private Integer failedLoginCount = 0;
 
+    @Column(name = "work_status", length = 50)
+    private String workStatus = "AVAILABLE";
+
     @Column(name = "locked_until")
     private LocalDateTime lockedUntil;
 

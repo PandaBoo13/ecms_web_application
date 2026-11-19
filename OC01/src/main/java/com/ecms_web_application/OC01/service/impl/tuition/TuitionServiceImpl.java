@@ -56,6 +56,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -90,6 +91,7 @@ public class TuitionServiceImpl implements TuitionService {
     private final TuitionPaymentLinkService paymentLinkService;
     private final AuditLogService auditLogService;
     private final NotificationService notificationService;
+    private final SimpMessagingTemplate messagingTemplate;
     private final RequestService requestService;
     private final RequestRepository requestRepository;
 
@@ -240,6 +242,24 @@ public class TuitionServiceImpl implements TuitionService {
                     .extraData(Map.of("url", "/admin/leads?leadId=" + lead.getId()))
                     .build();
             notificationService.sendNotification(noti);
+
+            // Bắn WebSocket Fast-Claim trực tiếp đến topic để TVV nhận ngay
+            Map<String, Object> fastClaimPayload = Map.of(
+                    "type", "FAST_CLAIM_NEW_LEAD",
+                    "leadId", lead.getId(),
+                    "fullName", lead.getFullName(),
+                    "phone", lead.getPhone() != null ? lead.getPhone() : "",
+                    "courseName", courseTitle,
+                    "source", "Website - Mua ngay (Chờ thanh toán)",
+                    "note", lead.getNote() != null ? lead.getNote() : "",
+                    "timestamp", System.currentTimeMillis()
+            );
+            try {
+                messagingTemplate.convertAndSend("/topic/leads/fast-claim", fastClaimPayload);
+            } catch (Exception ex) {
+                log.warn("[FastClaim] Lỗi broadcast FAST_CLAIM_NEW_LEAD: {}", ex.getMessage());
+            }
+
             log.info("[BuyNowNotification] Đã gửi thông báo cho Lead mua ngay id={}", lead.getId());
         } catch (Exception e) {
             log.warn("[BuyNowNotification] Không thể gửi thông báo cho Lead mua ngay: {}", e.getMessage());

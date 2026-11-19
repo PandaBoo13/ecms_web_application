@@ -98,6 +98,12 @@ public class APIURL {
                         // Quiz self-service
                         "/api/courses/*/quizzes",
                         "/api/courses/*/quizzes/**",
+
+                        // Lead self-service (nhận khách và trạng thái ca trực tư vấn viên)
+                        "/api/leads/*/claim",
+                        "/api/leads/**/claim",
+                        "/api/leads/consultants/**",
+                        "/api/leads/statistics/**",
         };
 
         // ============================================================
