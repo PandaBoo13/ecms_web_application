@@ -15,17 +15,19 @@ export const API_ENDPOINT = {
   // ══════════════════════════════════════════════════════════════
   // COURSES
   // ══════════════════════════════════════════════════════════════
+ // ══════════════════════════════════════════════════════════════
   COURSES: '/api/courses',
   COURSE_DETAIL: (id: number) => `/api/courses/${id}`,
   COURSE_OFFLINE_INFO: (id: number) => `/api/courses/${id}/offline-info`,
   COURSE_SUBMIT_REVIEW: (id: number) => `/api/courses/${id}/submit-review`,
+  COURSE_WITHDRAW_REVIEW: (id: number) => `/api/courses/${id}/withdraw-review`,
   COURSE_REVIEW: (id: number) => `/api/courses/${id}/review`,
   COURSE_ARCHIVE: (id: number) => `/api/courses/${id}/archive`,
   COURSE_CANCEL: (id: number) => `/api/courses/${id}/cancel`,
   COURSE_COPY: (id: number) => `/api/courses/${id}/copy`,
   COURSE_HARD_DELETE: (id: number) => `/api/courses/${id}/hard`,
   COURSE_CHANGE_TEACHER: (id: number) => `/api/courses/${id}/teacher`,
-COURSE_FINALIZE_SCHEDULE: (id: number) => `/api/courses/${id}/finalize-schedule`,
+  COURSE_FINALIZE_SCHEDULE: (id: number) => `/api/courses/${id}/finalize-schedule`,
   // ══════════════════════════════════════════════════════════════
   // RESOURCES
   // ══════════════════════════════════════════════════════════════
@@ -53,7 +55,7 @@ COURSE_FINALIZE_SCHEDULE: (id: number) => `/api/courses/${id}/finalize-schedule`
     `/api/courses/${courseId}/sessions/${id}/substitute-teacher`,
   SESSION_ASSISTANT: (courseId: number, id: number) =>
     `/api/courses/${courseId}/sessions/${id}/assistant`,
-
+SESSION_MY_SCHEDULE: '/api/sessions/my-schedule',
   // ══════════════════════════════════════════════════════════════
   // QUESTIONS
   // ══════════════════════════════════════════════════════════════

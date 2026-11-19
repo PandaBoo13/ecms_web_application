@@ -1,5 +1,7 @@
 import { useState } from 'react';
-import { Descriptions, Drawer, Tag, Typography } from 'antd';
+import { useNavigate } from 'react-router-dom';
+import { Button, Descriptions, Drawer, Space, Tag, Typography } from 'antd';
+import { ExportOutlined } from '@ant-design/icons';
 import { useTranslation } from '@/hooks/useTranslation';
 import { getRequestTypeLabel } from '@/services/types/request/request';
 import type { RequestDetailResponse } from '@/services/types/request/request';
@@ -16,11 +18,38 @@ interface Props {
   onRefresh: () => void;
 }
 
+const resolveCourseId = (request: RequestDetailResponse): number | null => {
+  if (
+    request.targetEntityId &&
+    (request.targetEntityType === 'COURSE' ||
+      String(request.requestType).startsWith('COURSE_'))
+  ) {
+    return Number(request.targetEntityId);
+  }
+
+  const payload = (request as { payload?: Record<string, unknown> }).payload;
+  const payloadCourseId = payload?.courseId;
+  if (payloadCourseId && !Number.isNaN(Number(payloadCourseId))) {
+    return Number(payloadCourseId);
+  }
+
+  return null;
+};
+
 const RequestDetailDrawer = ({ open, request, onClose, onRefresh }: Props) => {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [hasConflict, setHasConflict] = useState(false);
 
   if (!request) return null;
+
+  const courseId = resolveCourseId(request);
+
+  const handleGoToCourseDetail = () => {
+    if (!courseId) return;
+    onClose();
+    navigate(`/admin/courses/${courseId}`);
+  };
 
   return (
     <Drawer
@@ -30,13 +59,27 @@ const RequestDetailDrawer = ({ open, request, onClose, onRefresh }: Props) => {
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
+            gap: 12,
           }}
         >
           <span>
             {t('request.detail.title', 'Chi tiết yêu cầu')} —{' '}
             {request.requestCode}
           </span>
-          <RequestStatusTag status={request.status} />
+          <Space size={8}>
+            {courseId && (
+              <Button
+                size="small"
+                type="primary"
+                ghost
+                icon={<ExportOutlined />}
+                onClick={handleGoToCourseDetail}
+              >
+                Xem khóa học
+              </Button>
+            )}
+            <RequestStatusTag status={request.status} />
+          </Space>
         </div>
       }
       open={open}
@@ -65,12 +108,31 @@ const RequestDetailDrawer = ({ open, request, onClose, onRefresh }: Props) => {
         </Descriptions.Item>
 
         <Descriptions.Item label={t('request.detail.target', 'Đối tượng áp dụng')}>
-          {request.targetEntityType}
-          {request.targetEntityId ? ` #${request.targetEntityId}` : ''}
+          {courseId ? (
+            <Typography.Link onClick={handleGoToCourseDetail}>
+              <Space size={6}>
+                <span>
+                  {request.targetEntityType || 'COURSE'} #{courseId}
+                </span>
+                <ExportOutlined style={{ fontSize: 12 }} />
+              </Space>
+            </Typography.Link>
+          ) : (
+            <>
+              {request.targetEntityType}
+              {request.targetEntityId ? ` #${request.targetEntityId}` : ''}
+            </>
+          )}
         </Descriptions.Item>
 
         <Descriptions.Item label={t('request.detail.titleField', 'Tiêu đề')}>
-          {request.title}
+          {courseId ? (
+            <Typography.Link strong onClick={handleGoToCourseDetail}>
+              {request.title}
+            </Typography.Link>
+          ) : (
+            request.title
+          )}
         </Descriptions.Item>
 
         {request.description && (

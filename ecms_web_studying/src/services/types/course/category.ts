@@ -27,3 +27,14 @@ export interface CategoryUpdateRequest {
   parentId?: number;
   isActive?: boolean;
 }
+
+export interface CategoryTreeResponse {
+  id: number;
+  name: string;
+  slug: string;
+  description?: string;
+  parentId?: number;
+  isActive: boolean;
+  childCount?: number;
+  children?: CategoryTreeResponse[];
+}

@@ -39,6 +39,11 @@ export const sessionApi = {
     return data.data;
   },
 
+  /** Xoá vĩnh viễn buổi học (BE không cho xoá buổi đã COMPLETED). */
+  delete: async (courseId: number, id: number): Promise<void> => {
+    await api.delete(API_ENDPOINT.SESSION_DETAIL(courseId, id));
+  },
+
   generate: async (courseId: number): Promise<SessionGenerationResult> => {
     const { data } = await api.post<RequestResponse<SessionGenerationResult>>(
       API_ENDPOINT.SESSION_GENERATE(courseId));
@@ -78,4 +83,14 @@ export const sessionApi = {
       null, { params: { teacherId } });
     return data.data;
   },
+
+  // Thêm vào trong object sessionApi:
+getMySchedule: async (params: { from?: string; to?: string }): Promise<any[]> => {
+  const { data } = await api.get<RequestResponse<any[]>>(
+    API_ENDPOINT.SESSION_MY_SCHEDULE, { params }
+  );
+  return data.data;
+},
+
+
 };

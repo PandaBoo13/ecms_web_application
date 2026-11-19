@@ -1,49 +1,55 @@
 import { useEffect, useState } from 'react';
-import { Button, Card, Col, Empty, Form, Input, Modal, Progress, Row, Spin, Table, Tag, Typography } from 'antd';
+import { 
+  Button, 
+  Card, 
+  Col, 
+  Empty, 
+  Progress, 
+  Row, 
+  Spin, 
+  Typography, 
+  Tag, 
+  Input,
+  Pagination
+} from 'antd';
 import { useNavigate } from 'react-router-dom';
+import { SearchOutlined, PlayCircleOutlined, BookOutlined } from '@ant-design/icons';
 import toast from 'react-hot-toast';
+import dayjs from 'dayjs';
 
 import PageContainer from '@/components/common/PageContainer';
 import PageHeader from '@/components/common/PageHeader';
-
-// 🆕 Cập nhật lại đường dẫn import API theo cấu trúc mới
-import { progressApi } from '@/services/api/course';
-// Nếu báo lỗi không tìm thấy, đổi thành: import { progressApi } from '@/services/api/course/progressApi';
-
-import type { ProgressResponse } from '@/services/types/course';
-import { enrollmentApi } from '@/services/api/enrollment';
-import { requestApi } from '@/services/api/request';
-import type { AttendanceRecordResponse, EnrollmentResponse } from '@/services/types/enrollment';
-import dayjs from 'dayjs';
+import { courseApi } from '@/services/api/course'; // 🆕 Dùng courseApi thay vì progressApi
+import type { EnrolledCourseResponse } from '@/services/types/course';
 
 const { Title, Text } = Typography;
-const enrollmentStatusLabel: Record<EnrollmentResponse['status'], string> = {
-  PENDING: 'Chờ khai giảng',
-  ACTIVE: 'Đang học',
-  RESERVED: 'Bảo lưu',
-  TERMINATED: 'Bỏ học',
-  COMPLETED: 'Hoàn thành',
+
+// Helper map trạng thái Đăng ký sang tiếng Việt
+const getEnrollmentStatusTag = (status: string) => {
+  switch (status) {
+    case 'COMPLETED': return <Tag color="success">Hoàn thành</Tag>;
+    case 'ACTIVE': return <Tag color="processing">Đang học</Tag>;
+    case 'PENDING': return <Tag color="warning">Chờ xử lý</Tag>;
+    case 'RESERVED': return <Tag color="purple">Bảo lưu</Tag>;
+    case 'TERMINATED': return <Tag color="error">Đã nghỉ</Tag>;
+    default: return <Tag color="default">{status}</Tag>;
+  }
 };
 
 const MyCoursesPage = () => {
   const navigate = useNavigate();
-  const [items, setItems] = useState<ProgressResponse[]>([]);
+  const [items, setItems] = useState<EnrolledCourseResponse[]>([]);
   const [loading, setLoading] = useState(true);
-  const [enrollments, setEnrollments] = useState<EnrollmentResponse[]>([]);
-  const [attendance, setAttendance] = useState<AttendanceRecordResponse[]>([]);
-  const [attendanceOpen, setAttendanceOpen] = useState(false);
-  const [leaveTarget, setLeaveTarget] = useState<AttendanceRecordResponse | null>(null);
-  const [leaveSubmitting, setLeaveSubmitting] = useState(false);
-  const [leaveForm] = Form.useForm();
+  const [keyword, setKeyword] = useState('');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(9);
 
   useEffect(() => {
-    Promise.all([
-      progressApi.getMyCourses({ page: 0, size: 50 }),
-      enrollmentApi.myEnrollments({ page: 0, size: 100 }),
-    ])
-      .then(([progress, enrollmentPage]) => {
-        setItems(progress.content || []);
-        setEnrollments(enrollmentPage.content || []);
+    setLoading(true);
+    // 🆕 Gọi API mới
+    courseApi.getMyEnrolledCourses()
+      .then((res) => {
+        setItems(res || []);
       })
       .catch((err) => {
         toast.error((err as { message?: string })?.message || 'Không thể tải danh sách khóa học');
@@ -53,233 +59,134 @@ const MyCoursesPage = () => {
       });
   }, []);
 
-  const totalCourses = new Set([
-    ...items.map((course) => course.courseId),
-    ...enrollments.map((enrollment) => enrollment.courseId),
-  ]).size;
+  // 1. Lọc theo từ khóa (Client-side)
+  const filteredItems = items.filter((p) => 
+    (p.courseTitle || '').toLowerCase().includes(keyword.toLowerCase())
+  );
 
-  const submitLeaveRequest = async (values: { reason?: string }) => {
-    if (!leaveTarget) return;
-    const sessionLabel = leaveTarget.sessionTitle || `Buổi #${leaveTarget.sessionNumber ?? leaveTarget.sessionId}`;
-    const reason = values.reason?.trim();
-    setLeaveSubmitting(true);
-    try {
-      await requestApi.create({
-        requestType: 'LEAVE_FEEDBACK',
-        targetEntityId: leaveTarget.sessionId,
-        title: `Xin nghỉ phép - ${sessionLabel}`,
-        description: reason,
-        payload: {
-          sessionId: leaveTarget.sessionId,
-          enrollmentId: leaveTarget.enrollmentId,
-          sessionDate: leaveTarget.sessionDate,
-          reason,
-        },
-      });
-      toast.success('Đã gửi đơn xin nghỉ phép, chờ giảng viên phản hồi');
-      setAttendance(await enrollmentApi.attendanceHistory(leaveTarget.enrollmentId));
-      setLeaveTarget(null);
-      leaveForm.resetFields();
-    } catch (err) {
-      const message = (err as { response?: { data?: { message?: string } }; message?: string })?.response?.data?.message
-        || (err as { message?: string })?.message;
-      toast.error(message || 'Gửi đơn xin nghỉ phép không thành công');
-    } finally {
-      setLeaveSubmitting(false);
-    }
-  };
+  // 2. Phân trang (Client-side)
+  const startIndex = (page - 1) * pageSize;
+  const paginatedItems = filteredItems.slice(startIndex, startIndex + pageSize);
+  const total = filteredItems.length;
 
   return (
     <PageContainer>
       <PageHeader 
         title="Khóa học của tôi" 
-        subtitle={`Tổng cộng ${totalCourses} khóa học`}
+        subtitle={`Bạn đã đăng ký ${items.length} khóa học`}
+        extra={
+          <Input 
+            placeholder="Tìm kiếm khóa học..." 
+            prefix={<SearchOutlined className="text-slate-400" />}
+            value={keyword}
+            onChange={(e) => {
+              setKeyword(e.target.value);
+              setPage(1); // Reset về trang 1 khi tìm kiếm
+            }}
+            allowClear
+            style={{ width: 250 }}
+          />
+        }
       />
 
       {loading ? (
         <div style={{ textAlign: 'center', padding: 64 }}>
-          <Spin size="large" />
+          <Spin size="large" description="Đang tải khóa học..." />
         </div>
-      ) : items.length === 0 && enrollments.length === 0 ? (
-        <Empty 
-          description="Bạn chưa đăng ký khóa học nào" 
-          style={{ marginTop: 64 }}
-        >
+      ) : items.length === 0 ? (
+        <Empty description="Bạn chưa đăng ký khóa học nào" style={{ marginTop: 64 }}>
           <Button type="primary" onClick={() => navigate('/courses')}>
-            Khám phá khóa học
+            Khám phá khóa học ngay
           </Button>
         </Empty>
+      ) : filteredItems.length === 0 ? (
+        <Empty description="Không tìm thấy khóa học nào phù hợp" style={{ marginTop: 64 }} />
       ) : (
-        <Row gutter={[16, 16]}>
-          {items.map((p) => (
-            <Col xs={24} sm={12} lg={8} key={p.id}>
-              <Card 
-                hoverable 
-                onClick={() => navigate(`/student/courses/${p.courseId}/learn`)}
-                style={{ height: '100%' }}
-              >
-                <Title level={5} ellipsis={{ rows: 2 }} style={{ minHeight: 44 }}>
-                  {p.courseTitle || `Khóa học #${p.courseId}`}
-                </Title>
-                <div>
-                  <Text type="secondary">
-                    Mã khóa học: {enrollments.find((enrollment) => enrollment.courseId === p.courseId)?.courseCode || '—'}
-                  </Text>
-                </div>
-                
-                <Progress 
-                  percent={Math.round(p.progressPercentage || 0)} 
-                  status={p.progressPercentage === 100 ? 'success' : 'active'}
-                />
-                
-                <div style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Text type="secondary" style={{ fontSize: 12 }}>
-                    Trạng thái:
-                  </Text>
-                  <Tag color={p.status === 'COMPLETED' ? 'success' : 'processing'}>
-                    {p.status}
-                  </Tag>
-                </div>
-                {enrollments.filter((enrollment) => enrollment.courseId === p.courseId).map((enrollment) => (
-                  <div
-                    key={enrollment.enrollmentId}
-                    className="mt-3 border-t pt-3"
-                    onClick={(event) => event.stopPropagation()}
+        <>
+          <Row gutter={[16, 16]}>
+            {paginatedItems.map((p) => {
+              const percent = Math.round(p.progressPercentage || 0);
+              const isDone = percent === 100;
+              // Chỉ cho phép vào học nếu đã kích hoạt hoặc đã hoàn thành
+              const canLearn = p.enrollmentStatus === 'ACTIVE' || p.enrollmentStatus === 'COMPLETED';
+
+              return (
+                <Col xs={24} sm={12} lg={8} key={p.enrollmentId}>
+                  <Card 
+                    hoverable 
+                    style={{ height: '100%', display: 'flex', flexDirection: 'column' }}
+                    styles={{ body: { flex: 1, display: 'flex', flexDirection: 'column', padding: '16px' } }}
+                    className="group"
                   >
-                    <Text type="secondary">Ghi danh: </Text>
-                    <Tag color={enrollment.status === 'ACTIVE' ? 'green' : enrollment.status === 'COMPLETED' ? 'purple' : 'default'}>
-                      {enrollment.status === 'COMPLETED' && enrollment.completionResult
-                        ? `Hoàn thành (${enrollment.completionResult === 'PASSED' ? 'Đạt' : 'Không đạt'})`
-                        : enrollmentStatusLabel[enrollment.status]}
-                    </Tag>
-                    <div>
-                      <Text type="secondary">Điểm cuối khóa: </Text>
-                      <Text>{enrollment.finalScore ?? '—'}</Text>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+                        {getEnrollmentStatusTag(p.enrollmentStatus)}
+                        <Text type="secondary" style={{ fontSize: 12 }}>
+                          Đăng ký: {dayjs(p.enrolledAt).format('DD/MM/YYYY')}
+                        </Text>
+                      </div>
+
+                      <Title 
+                        level={5} 
+                        ellipsis={{ rows: 2 }} 
+                        style={{ minHeight: 44, marginTop: 0, marginBottom: 16 }}
+                        title={p.courseTitle}
+                      >
+                        {p.courseTitle || `Khóa học #${p.courseId}`}
+                      </Title>
+                      
+                      <div style={{ marginBottom: 16 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                          <Text type="secondary" style={{ fontSize: 12 }}>Tiến độ</Text>
+                          <Text strong style={{ fontSize: 12, color: isDone ? '#52c41a' : '#1677ff' }}>{percent}%</Text>
+                        </div>
+                        <Progress 
+                          percent={percent} 
+                          status={isDone ? 'success' : 'active'}
+                          showInfo={false}
+                          strokeColor={isDone ? '#52c41a' : { from: '#1677ff', to: '#36cfc9' }}
+                        />
+                      </div>
                     </div>
-                    <div>
-                      <Text type="secondary">Ngày ghi danh: {dayjs(enrollment.enrolledAt).format('DD/MM/YYYY')}</Text>
-                    </div>
-                    <Button size="small" className="mt-2" onClick={async () => {
-                      try {
-                        setAttendance(await enrollmentApi.attendanceHistory(enrollment.enrollmentId));
-                        setAttendanceOpen(true);
-                      } catch {
-                        toast.error('Không tải được lịch sử điểm danh');
-                      }
-                    }}>Xem điểm danh</Button>
-                  </div>
-                ))}
-              </Card>
-            </Col>
-          ))}
-          {enrollments
-            .filter((enrollment) => !items.some((course) => course.courseId === enrollment.courseId))
-            .map((enrollment) => (
-              <Col xs={24} sm={12} lg={8} key={`enrollment-${enrollment.enrollmentId}`}>
-                <Card style={{ height: '100%' }}>
-                  <Title level={5} ellipsis={{ rows: 2 }} style={{ minHeight: 44 }}>
-                    {enrollment.courseTitle || `Khóa học #${enrollment.courseId}`}
-                  </Title>
-                  <div>
-                    <Text type="secondary">Mã khóa học: {enrollment.courseCode || '—'}</Text>
-                  </div>
-                  <div>
-                    <Text type="secondary">Tình trạng ghi danh: </Text>
-                    <Tag color={enrollment.status === 'ACTIVE' ? 'green' : enrollment.status === 'COMPLETED' ? 'purple' : 'default'}>
-                      {enrollment.status === 'COMPLETED' && enrollment.completionResult
-                        ? `Hoàn thành (${enrollment.completionResult === 'PASSED' ? 'Đạt' : 'Không đạt'})`
-                        : enrollmentStatusLabel[enrollment.status]}
-                    </Tag>
-                  </div>
-                  <div>
-                    <Text type="secondary">Điểm cuối khóa: </Text>
-                    <Text>{enrollment.finalScore ?? '—'}</Text>
-                  </div>
-                  <div>
-                    <Text type="secondary">Ngày ghi danh: {dayjs(enrollment.enrolledAt).format('DD/MM/YYYY')}</Text>
-                  </div>
-                  <Button size="small" className="mt-2" onClick={async () => {
-                    try {
-                      setAttendance(await enrollmentApi.attendanceHistory(enrollment.enrollmentId));
-                      setAttendanceOpen(true);
-                    } catch {
-                      toast.error('Không tải được lịch sử điểm danh');
-                    }
-                  }}>Xem điểm danh</Button>
-                </Card>
-              </Col>
-            ))}
-        </Row>
+
+                    <Button 
+                      type={isDone ? 'default' : 'primary'} 
+                      block 
+                      icon={percent === 0 ? <BookOutlined /> : <PlayCircleOutlined />}
+                      onClick={() => navigate(`/student/courses/${p.courseId}/learn`)}
+                      disabled={!canLearn}
+                    >
+                      {!canLearn 
+                        ? 'Chưa thể vào học'
+                        : percent === 0 
+                          ? 'Bắt đầu học' 
+                          : isDone 
+                            ? 'Xem lại bài học' 
+                            : 'Học tiếp'}
+                    </Button>
+                  </Card>
+                </Col>
+              );
+            })}
+          </Row>
+
+          {total > pageSize && (
+            <div style={{ marginTop: 24, textAlign: 'right' }}>
+              <Pagination
+                current={page}
+                pageSize={pageSize}
+                total={total}
+                onChange={(p, s) => {
+                  setPage(p);
+                  setPageSize(s);
+                }}
+                showSizeChanger
+                showTotal={(t) => `Tổng ${t} khóa học`}
+              />
+            </div>
+          )}
+        </>
       )}
-      <Modal title="Điểm danh theo buổi" open={attendanceOpen} footer={null} onCancel={() => setAttendanceOpen(false)} width={760}>
-        <Table
-          size="small"
-          rowKey={(row) => row.attendanceId ?? `${row.enrollmentId}-${row.sessionId}`}
-          dataSource={attendance}
-          pagination={false}
-          columns={[
-            { title: 'Buổi học', render: (_, row) => row.sessionTitle || `Buổi #${row.sessionNumber ?? row.sessionId}` },
-            { title: 'Ngày', dataIndex: 'sessionDate', render: (value: string | null) => value ? dayjs(value).format('DD/MM/YYYY') : '—' },
-            { title: 'Trạng thái', dataIndex: 'status', render: (value: string) => value === 'PRESENT' ? 'Có mặt' : value === 'ABSENT' ? 'Vắng' : value === 'EXCUSED' ? 'Vắng có phép' : 'Chưa điểm danh' },
-            {
-              title: 'Xin nghỉ phép',
-              key: 'leave',
-              width: 160,
-              render: (_, row) => {
-                const openForm = () => {
-                  setLeaveTarget(row);
-                  leaveForm.resetFields();
-                };
-                const reason = row.leaveRequestReason ?? undefined;
-                if (row.leaveRequestStatus === 'PENDING') {
-                  return <Tag color="orange" title={reason}>Chờ duyệt</Tag>;
-                }
-                if (row.leaveRequestStatus === 'APPROVED') {
-                  return <Tag color="green" title={reason}>Đã duyệt</Tag>;
-                }
-                if (row.leaveRequestStatus === 'REJECTED') {
-                  return (
-                    <span>
-                      <Tag color="red" title={reason}>Bị từ chối</Tag>
-                      <Button size="small" type="link" onClick={openForm}>Gửi lại</Button>
-                    </span>
-                  );
-                }
-                return <Button size="small" onClick={openForm}>Tạo đơn</Button>;
-              },
-            },
-          ]}
-          locale={{ emptyText: 'Chưa có dữ liệu điểm danh.' }}
-        />
-      </Modal>
-      <Modal
-        title={`Xin nghỉ phép - ${leaveTarget?.sessionTitle || (leaveTarget ? `Buổi #${leaveTarget.sessionNumber ?? leaveTarget.sessionId}` : '')}`}
-        open={!!leaveTarget}
-        okText="Gửi đơn"
-        confirmLoading={leaveSubmitting}
-        onCancel={() => { setLeaveTarget(null); leaveForm.resetFields(); }}
-        onOk={() => leaveForm.submit()}
-        destroyOnClose
-      >
-        <Form form={leaveForm} layout="vertical" onFinish={submitLeaveRequest}>
-          <div style={{ marginBottom: 12 }}>
-            <Text type="secondary">
-              Buổi học: {leaveTarget?.sessionTitle || (leaveTarget ? `Buổi #${leaveTarget.sessionNumber ?? leaveTarget.sessionId}` : '—')}
-              {leaveTarget?.sessionDate ? ` · ${dayjs(leaveTarget.sessionDate).format('DD/MM/YYYY')}` : ''}
-            </Text>
-          </div>
-          <Form.Item
-            name="reason"
-            label="Lý do xin nghỉ"
-            rules={[{ required: true, whitespace: true, message: 'Vui lòng nhập lý do xin nghỉ' }]}
-          >
-            <Input.TextArea rows={4} placeholder="Nhập lý do xin nghỉ phép cho buổi học này..." />
-          </Form.Item>
-          <Text type="secondary" style={{ fontSize: 12 }}>
-            Đơn sẽ được gửi đến giảng viên phụ trách buổi học để xem xét. Mỗi buổi chỉ có thể có một đơn đang chờ duyệt.
-          </Text>
-        </Form>
-      </Modal>
     </PageContainer>
   );
 };

@@ -1,4 +1,4 @@
-package com.ecms_web_application.OC01.controller;
+package com.ecms_web_application.OC01.controller.course;
 
 import com.ecms_web_application.OC01.config.SecurityUtils;
 import com.ecms_web_application.OC01.dto.request.SpecializationAddRequest;
@@ -14,24 +14,6 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
-/**
- * Instructor Specialization API — /api/instructors
- *
- * Self (USER):
- *  - GET    /me/specializations
- *  - POST   /me/specializations
- *  - DELETE /me/specializations/{categoryId}
- *  - PATCH  /me/specializations/{categoryId}/primary
- *  - DELETE /me/specializations/primary
- *  - DELETE /me/specializations
- *
- * Admin (PROTECTED):
- *  - GET    /{accountId}/specializations
- *  - POST   /{accountId}/specializations
- *  - DELETE /{accountId}/specializations/{categoryId}
- *  - GET    /{accountId}/specializations/primary
- *  - GET    /category/{categoryId}/specializations
- */
 @RestController
 @RequestMapping("/api/instructors")
 @RequiredArgsConstructor
@@ -44,7 +26,11 @@ public class InstructorSpecializationController {
     // SELF (/me/specializations)
     // ============================================================
 
-    /** GET /api/instructors/me/specializations */
+    /**
+     * API: Lấy danh sách chuyên môn của chính mình
+     * Method: GET /api/instructors/me/specializations
+     * Chức năng: Giảng viên đang đăng nhập xem các chuyên môn (danh mục) mà mình phụ trách.
+     */
     @GetMapping("/me/specializations")
     public ResponseEntity<RequestResponse> getMySpecializations() {
         Long accountId = SecurityUtils.requireCurrentAccountId();
@@ -52,7 +38,11 @@ public class InstructorSpecializationController {
         return ResponseEntity.ok(new RequestResponse(data, "Lấy chuyên môn thành công"));
     }
 
-    /** POST /api/instructors/me/specializations */
+    /**
+     * API: Thêm chuyên môn cho chính mình
+     * Method: POST /api/instructors/me/specializations
+     * Chức năng: Giảng viên tự đăng ký thêm 1 danh mục chuyên môn.
+     */
     @PostMapping("/me/specializations")
     public ResponseEntity<RequestResponse> addMySpecialization(
             @Valid @RequestBody SpecializationAddRequest request) {
@@ -62,7 +52,11 @@ public class InstructorSpecializationController {
                 .body(new RequestResponse(data, "Thêm chuyên môn thành công"));
     }
 
-    /** DELETE /api/instructors/me/specializations/{categoryId} */
+    /**
+     * API: Xóa một chuyên môn của chính mình
+     * Method: DELETE /api/instructors/me/specializations/{categoryId}
+     * Chức năng: Gỡ bỏ 1 danh mục chuyên môn của giảng viên hiện tại.
+     */
     @DeleteMapping("/me/specializations/{categoryId}")
     public ResponseEntity<RequestResponse> removeMySpecialization(@PathVariable Long categoryId) {
         Long accountId = SecurityUtils.requireCurrentAccountId();
@@ -70,7 +64,11 @@ public class InstructorSpecializationController {
         return ResponseEntity.ok(new RequestResponse("Xóa chuyên môn thành công"));
     }
 
-    /** PATCH /api/instructors/me/specializations/{categoryId}/primary */
+    /**
+     * API: Đặt chuyên môn chính
+     * Method: PATCH /api/instructors/me/specializations/{categoryId}/primary
+     * Chức năng: Đánh dấu 1 danh mục là chuyên môn chính (nổi bật nhất) của giảng viên.
+     */
     @PatchMapping("/me/specializations/{categoryId}/primary")
     public ResponseEntity<RequestResponse> setMyPrimary(@PathVariable Long categoryId) {
         Long accountId = SecurityUtils.requireCurrentAccountId();
@@ -78,7 +76,11 @@ public class InstructorSpecializationController {
         return ResponseEntity.ok(new RequestResponse("Đặt chuyên môn chính thành công"));
     }
 
-    /** DELETE /api/instructors/me/specializations/primary */
+    /**
+     * API: Bỏ chuyên môn chính
+     * Method: DELETE /api/instructors/me/specializations/primary
+     * Chức năng: Hủy đánh dấu chuyên môn chính hiện tại.
+     */
     @DeleteMapping("/me/specializations/primary")
     public ResponseEntity<RequestResponse> clearMyPrimary() {
         Long accountId = SecurityUtils.requireCurrentAccountId();
@@ -86,7 +88,11 @@ public class InstructorSpecializationController {
         return ResponseEntity.ok(new RequestResponse("Bỏ chuyên môn chính thành công"));
     }
 
-    /** DELETE /api/instructors/me/specializations */
+    /**
+     * API: Xóa toàn bộ chuyên môn
+     * Method: DELETE /api/instructors/me/specializations
+     * Chức năng: Reset toàn bộ danh mục chuyên môn của giảng viên hiện tại.
+     */
     @DeleteMapping("/me/specializations")
     public ResponseEntity<RequestResponse> removeAllMy() {
         Long accountId = SecurityUtils.requireCurrentAccountId();
@@ -98,14 +104,22 @@ public class InstructorSpecializationController {
     // ADMIN — theo accountId
     // ============================================================
 
-    /** GET /api/instructors/{accountId}/specializations */
+    /**
+     * API: Lấy chuyên môn của giảng viên bất kỳ
+     * Method: GET /api/instructors/{accountId}/specializations
+     * Chức năng: Admin xem danh sách chuyên môn của một tài khoản.
+     */
     @GetMapping("/{accountId}/specializations")
     public ResponseEntity<RequestResponse> getByAccount(@PathVariable Long accountId) {
         List<InstructorSpecializationResponse> data = specializationService.getByAccount(accountId);
         return ResponseEntity.ok(new RequestResponse(data, "Lấy chuyên môn thành công"));
     }
 
-    /** POST /api/instructors/{accountId}/specializations */
+    /**
+     * API: Thêm chuyên môn cho giảng viên
+     * Method: POST /api/instructors/{accountId}/specializations
+     * Chức năng: Admin gán chuyên môn vào tài khoản giảng viên.
+     */
     @PostMapping("/{accountId}/specializations")
     public ResponseEntity<RequestResponse> addForAccount(
             @PathVariable Long accountId,
@@ -115,7 +129,11 @@ public class InstructorSpecializationController {
                 .body(new RequestResponse(data, "Thêm chuyên môn thành công"));
     }
 
-    /** DELETE /api/instructors/{accountId}/specializations/{categoryId} */
+    /**
+     * API: Xóa chuyên môn của giảng viên
+     * Method: DELETE /api/instructors/{accountId}/specializations/{categoryId}
+     * Chức năng: Admin gỡ bỏ 1 danh mục chuyên môn của giảng viên.
+     */
     @DeleteMapping("/{accountId}/specializations/{categoryId}")
     public ResponseEntity<RequestResponse> removeForAccount(
             @PathVariable Long accountId,
@@ -124,7 +142,11 @@ public class InstructorSpecializationController {
         return ResponseEntity.ok(new RequestResponse("Xóa chuyên môn thành công"));
     }
 
-    /** GET /api/instructors/{accountId}/specializations/primary */
+    /**
+     * API: Lấy chuyên môn chính của giảng viên
+     * Method: GET /api/instructors/{accountId}/specializations/primary
+     * Chức năng: Admin xem chuyên môn chính của một tài khoản.
+     */
     @GetMapping("/{accountId}/specializations/primary")
     public ResponseEntity<RequestResponse> getPrimaryOfAccount(@PathVariable Long accountId) {
         List<InstructorSpecializationResponse> data = specializationService.getPrimaryOfAccount(accountId);
@@ -135,7 +157,11 @@ public class InstructorSpecializationController {
     // ADMIN — theo categoryId
     // ============================================================
 
-    /** GET /api/instructors/category/{categoryId}/specializations */
+    /**
+     * API: Lấy danh sách giảng viên theo chuyên môn
+     * Method: GET /api/instructors/category/{categoryId}/specializations
+     * Chức năng: Admin tìm tất cả giảng viên có cùng 1 chuyên môn (VD: Danh mục IELTS).
+     */
     @GetMapping("/category/{categoryId}/specializations")
     public ResponseEntity<RequestResponse> getByCategory(@PathVariable Long categoryId) {
         List<InstructorSpecializationResponse> data = specializationService.getByCategory(categoryId);

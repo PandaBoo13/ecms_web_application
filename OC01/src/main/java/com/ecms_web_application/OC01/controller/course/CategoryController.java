@@ -1,4 +1,4 @@
-package com.ecms_web_application.OC01.controller;
+package com.ecms_web_application.OC01.controller.course;
 
 import com.ecms_web_application.OC01.dto.request.CategoryCreateRequest;
 import com.ecms_web_application.OC01.dto.request.CategoryUpdateRequest;

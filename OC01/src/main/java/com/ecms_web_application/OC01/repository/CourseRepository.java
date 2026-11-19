@@ -43,36 +43,45 @@ public interface CourseRepository extends IRepository<Course, Long> {
   // SEARCH — phân trang
   // ══════════════════════════════════════════════════════════════
   @Query(value = """
-          SELECT c FROM Course c
-          LEFT JOIN FETCH c.teacher t
-          LEFT JOIN FETCH c.category cat
-          LEFT JOIN FETCH c.room r
-          WHERE c.deletedAt IS NULL
-            AND (:status IS NULL OR c.status = :status)
-            AND (:type IS NULL OR c.courseType = :type)
-            AND (:teacherId IS NULL OR t.id = :teacherId)
-            AND (:categoryId IS NULL OR cat.id = :categoryId)
-            AND (:search = '' OR LOWER(c.title) LIKE LOWER(CONCAT('%', :search, '%')))
-          ORDER BY c.createdAt DESC
-      """, countQuery = """
-          SELECT COUNT(c) FROM Course c
-          LEFT JOIN c.teacher t
-          LEFT JOIN c.category cat
-          LEFT JOIN c.room r
-          WHERE c.deletedAt IS NULL
-            AND (:status IS NULL OR c.status = :status)
-            AND (:type IS NULL OR c.courseType = :type)
-            AND (:teacherId IS NULL OR t.id = :teacherId)
-            AND (:categoryId IS NULL OR cat.id = :categoryId)
-            AND (:search = '' OR LOWER(c.title) LIKE LOWER(CONCAT('%', :search, '%')))
-      """)
+        SELECT c FROM Course c
+        LEFT JOIN FETCH c.teacher t
+        LEFT JOIN FETCH c.category cat
+        LEFT JOIN FETCH c.room r
+        WHERE c.deletedAt IS NULL
+          AND (:status IS NULL OR c.status = :status)
+          AND (:type IS NULL OR c.courseType = :type)
+          AND (:teacherId IS NULL OR t.id = :teacherId)
+          AND (:categoryId IS NULL OR cat.id = :categoryId)
+          AND (
+              :search = ''
+              OR LOWER(c.title) LIKE LOWER(CONCAT('%', :search, '%'))
+              OR LOWER(c.code) LIKE LOWER(CONCAT('%', :search, '%'))
+              OR LOWER(COALESCE(c.displayCode, '')) LIKE LOWER(CONCAT('%', :search, '%'))
+          )
+    """, countQuery = """
+        SELECT COUNT(c) FROM Course c
+        LEFT JOIN c.teacher t
+        LEFT JOIN c.category cat
+        LEFT JOIN c.room r
+        WHERE c.deletedAt IS NULL
+          AND (:status IS NULL OR c.status = :status)
+          AND (:type IS NULL OR c.courseType = :type)
+          AND (:teacherId IS NULL OR t.id = :teacherId)
+          AND (:categoryId IS NULL OR cat.id = :categoryId)
+          AND (
+              :search = ''
+              OR LOWER(c.title) LIKE LOWER(CONCAT('%', :search, '%'))
+              OR LOWER(c.code) LIKE LOWER(CONCAT('%', :search, '%'))
+              OR LOWER(COALESCE(c.displayCode, '')) LIKE LOWER(CONCAT('%', :search, '%'))
+          )
+    """)
   Page<Course> searchCourses(
-      @Param("status") CourseStatus status,
-      @Param("type") CourseType type,
-      @Param("teacherId") Long teacherId,
-      @Param("categoryId") Long categoryId,
-      @Param("search") String search,
-      Pageable pageable);
+          @Param("status") CourseStatus status,
+          @Param("type") CourseType type,
+          @Param("teacherId") Long teacherId,
+          @Param("categoryId") Long categoryId,
+          @Param("search") String search,
+          Pageable pageable);
 
   @Query("""
           SELECT c FROM Course c
@@ -153,4 +162,24 @@ public interface CourseRepository extends IRepository<Course, Long> {
       @Param("excludeId") Long excludeId,
       @Param("startDate") LocalDate startDate,
       @Param("endDate") LocalDate endDate);
+
+  @Query(value = """
+    SELECT 
+        e.enrollment_id AS enrollmentId,
+        c.id AS courseId,
+        c.code AS courseCode,
+        c.title AS courseTitle,
+        c.thumbnail_url AS thumbnailUrl,
+        e.status AS enrollmentStatus,
+        e.enrolled_at AS enrolledAt,
+        p.progress_percentage AS progressPercentage
+    FROM enrollments e
+    JOIN course c ON e.course_id = c.id
+    JOIN students s ON e.student_id = s.id
+    LEFT JOIN progress p ON p.enrollment_id = e.enrollment_id AND p.progress_type = 'COURSE'
+    WHERE s.user_id = :accountId
+      AND e.status IN ('PENDING', 'ACTIVE', 'RESERVED', 'COMPLETED')
+    ORDER BY e.enrolled_at DESC
+""", nativeQuery = true)
+  List<Object[]> findMyEnrolledCourses(@Param("accountId") Long accountId);
 }

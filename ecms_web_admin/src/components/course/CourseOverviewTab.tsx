@@ -1,6 +1,5 @@
 import { Divider } from 'antd';
 import CourseGeneralInfoTab from './CourseGeneralInfoTab';
-import CourseProgressStats from './CourseProgressStats';
 import CourseProgressCharts from './CourseProgressCharts';
 import type { CourseDetailResponse } from '@/services/types/course';
 
@@ -22,7 +21,6 @@ const CourseOverviewTab = ({ course, onRefresh }: Props) => {
       <Divider className="!my-0 border-slate-200" />
 
       {/* 2. Thẻ thống kê chỉ số tiến độ */}
-      <CourseProgressStats courseId={course.id} />
 
       {/* 3. Biểu đồ tiến độ Line & Doughnut */}
       <CourseProgressCharts courseId={course.id} />

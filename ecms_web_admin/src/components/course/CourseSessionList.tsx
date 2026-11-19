@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Card,
   Table,
@@ -11,6 +11,12 @@ import {
   Input,
   Select,
   Popconfirm,
+  Alert,
+  Descriptions,
+  Typography,
+  Divider,
+  Result,
+  Spin,
 } from 'antd';
 import type { MenuProps } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
@@ -24,6 +30,8 @@ import {
   UserSwitchOutlined,
   UserAddOutlined,
   PlusOutlined,
+  ThunderboltOutlined,
+  CalendarOutlined,
 } from '@ant-design/icons';
 import toast from 'react-hot-toast';
 
@@ -34,13 +42,21 @@ import SessionFormModal from './SessionFormModal';
 
 import { sessionApi } from '@/services/api/course';
 import { adminUserApi } from '@/services/api/admin';
-import type { SessionResponse } from '@/services/types/course';
+import type {
+  CourseDetailResponse,
+  SessionResponse,
+  SessionGenerationResult,
+} from '@/services/types/course';
 import type { AccountResponse } from '@/services/types/user';
+
+const { Text, Paragraph } = Typography;
 
 interface Props {
   courseId: number;
   sessions: SessionResponse[];
   onRefresh: () => void;
+  /** 🆕 Bắt buộc để đọc config lịch (startDate, endDate, scheduleDays...) */
+  course?: CourseDetailResponse;
 }
 
 interface AssignState {
@@ -49,10 +65,31 @@ interface AssignState {
   type: 'substitute' | 'assistant';
 }
 
-const CourseSessionList = ({ courseId, sessions, onRefresh }: Props) => {
+// Map cả 2 convention: 0..6 (Sun..Sat) và 1..7 (Mon..Sun)
+const DAY_LABELS: Record<number, string> = {
+  0: 'CN',
+  1: 'T2',
+  2: 'T3',
+  3: 'T4',
+  4: 'T5',
+  5: 'T6',
+  6: 'T7',
+  7: 'CN',
+};
+
+const formatScheduleDays = (days?: number[]): string => {
+  if (!days || days.length === 0) return '—';
+  return days.map((d) => DAY_LABELS[d] ?? `#${d}`).join(', ');
+};
+
+const CourseSessionList = ({ courseId, sessions: initialSessions, onRefresh, course }: Props) => {
+  // 🆕 Dùng state local thay vì phụ thuộc hoàn toàn vào props
+  const [sessions, setSessions] = useState<SessionResponse[]>(initialSessions || []);
+  const [loading, setLoading] = useState(false);
+
   const [instructors, setInstructors] = useState<AccountResponse[]>([]);
 
-  // 🆕 Modal tạo buổi học
+  // Modal tạo buổi học
   const [createOpen, setCreateOpen] = useState(false);
 
   // Modal cancel
@@ -64,6 +101,29 @@ const CourseSessionList = ({ courseId, sessions, onRefresh }: Props) => {
   const [assignState, setAssignState] = useState<AssignState | null>(null);
   const [assignValue, setAssignValue] = useState<number | undefined>();
   const [assignLoading, setAssignLoading] = useState(false);
+
+  // Modal generate
+  const [generateOpen, setGenerateOpen] = useState(false);
+  const [generateLoading, setGenerateLoading] = useState(false);
+  const [generateResult, setGenerateResult] = useState<SessionGenerationResult | null>(null);
+
+  // 🆕 Hàm fetch danh sách session từ API
+  const fetchSessions = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await sessionApi.list(courseId);
+      setSessions(data);
+    } catch (err) {
+      toast.error('Không tải được danh sách buổi học');
+    } finally {
+      setLoading(false);
+    }
+  }, [courseId]);
+
+  // Tự fetch khi mount hoặc khi courseId thay đổi
+  useEffect(() => {
+    fetchSessions();
+  }, [fetchSessions]);
 
   // Load instructors khi mở modal assign
   useEffect(() => {
@@ -84,6 +144,40 @@ const CourseSessionList = ({ courseId, sessions, onRefresh }: Props) => {
     [instructors],
   );
 
+  // 🆕 Kiểm tra course đã cấu hình lịch chưa
+  const scheduleConfig = useMemo(() => {
+    const startDate = course?.startDate;
+    const endDate = course?.endDate;
+    const scheduleDays = course?.scheduleDays ?? [];
+    const sessionStartTime = course?.sessionStartTime;
+    const sessionEndTime = course?.sessionEndTime;
+    const totalSessionsExpected = course?.totalSessionsExpected;
+
+    const missing: string[] = [];
+    if (!startDate) missing.push('Ngày bắt đầu');
+    if (!endDate) missing.push('Ngày kết thúc');
+    if (scheduleDays.length === 0) missing.push('Các thứ trong tuần');
+    if (!sessionStartTime) missing.push('Giờ bắt đầu');
+    if (!sessionEndTime) missing.push('Giờ kết thúc');
+
+    return {
+      startDate,
+      endDate,
+      scheduleDays,
+      sessionStartTime,
+      sessionEndTime,
+      totalSessionsExpected,
+      missing,
+      isReady: missing.length === 0,
+    };
+  }, [course]);
+
+  // Hàm gọi refresh chung: fetch lại danh sách session VÀ gọi onRefresh để update các thông tin khác của khóa học
+  const refreshAll = useCallback(() => {
+    fetchSessions();
+    onRefresh();
+  }, [fetchSessions, onRefresh]);
+
   // ══════════════════════════════════════════════════════════════
   // HANDLERS
   // ══════════════════════════════════════════════════════════════
@@ -91,7 +185,7 @@ const CourseSessionList = ({ courseId, sessions, onRefresh }: Props) => {
     try {
       await sessionApi.markDone(courseId, sessionId);
       toast.success('Đã đánh dấu buổi học hoàn thành');
-      onRefresh();
+      refreshAll();
     } catch (err) {
       toast.error((err as { message?: string })?.message || 'Thất bại');
     }
@@ -114,7 +208,7 @@ const CourseSessionList = ({ courseId, sessions, onRefresh }: Props) => {
       toast.success('Đã hủy buổi học');
       setCancelState(null);
       setCancelReason('');
-      onRefresh();
+      refreshAll();
     } catch (err) {
       toast.error((err as { message?: string })?.message || 'Hủy thất bại');
     } finally {
@@ -136,11 +230,7 @@ const CourseSessionList = ({ courseId, sessions, onRefresh }: Props) => {
     setAssignLoading(true);
     try {
       if (assignState.type === 'substitute') {
-        await sessionApi.assignSubstituteTeacher(
-          courseId,
-          assignState.sessionId,
-          assignValue ?? null,
-        );
+        await sessionApi.assignSubstituteTeacher(courseId, assignState.sessionId, assignValue ?? null);
         toast.success(assignValue ? 'Đã gán GV dạy thay' : 'Đã gỡ GV dạy thay');
       } else {
         await sessionApi.assignAssistant(courseId, assignState.sessionId, assignValue ?? null);
@@ -148,12 +238,45 @@ const CourseSessionList = ({ courseId, sessions, onRefresh }: Props) => {
       }
       setAssignState(null);
       setAssignValue(undefined);
-      onRefresh();
+      refreshAll();
     } catch (err) {
       toast.error((err as { message?: string })?.message || 'Thất bại');
     } finally {
       setAssignLoading(false);
     }
+  };
+
+  // Mở modal generate — reset state trước
+  const openGenerate = () => {
+    setGenerateResult(null);
+    setGenerateOpen(true);
+  };
+
+  // Gọi API generate
+  const handleGenerateSubmit = async () => {
+    if (!scheduleConfig.isReady) return;
+    setGenerateLoading(true);
+    try {
+      const result = await sessionApi.generate(courseId);
+      setGenerateResult(result);
+      if (result.generated > 0) {
+        toast.success(`Đã tạo ${result.generated} buổi học`);
+        refreshAll();
+      } else {
+        toast('Không có buổi học mới nào được tạo', { icon: 'ℹ️' });
+      }
+    } catch (err) {
+      const msg = (err as { message?: string })?.message || 'Tạo buổi học thất bại';
+      toast.error(msg);
+    } finally {
+      setGenerateLoading(false);
+    }
+  };
+
+  // Đóng modal generate
+  const closeGenerate = () => {
+    setGenerateOpen(false);
+    setGenerateResult(null);
   };
 
   const buildActions = (s: SessionResponse): MenuProps['items'] => {
@@ -338,27 +461,245 @@ const CourseSessionList = ({ courseId, sessions, onRefresh }: Props) => {
   // RENDER
   // ══════════════════════════════════════════════════════════════
 
-  // Nút "Tạo buổi học" dùng chung cho cả empty + có data
   const createButton = (
-    <Button
-      type="primary"
-      icon={<PlusOutlined />}
-      onClick={() => setCreateOpen(true)}
-    >
+    <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>
       Tạo buổi học
     </Button>
   );
 
-  // Empty state — vẫn hiển thị nút tạo
+  // Nút generate — disable nếu không có course (không đọc được config)
+  const generateButton = (
+    <Button
+      icon={<ThunderboltOutlined />}
+      onClick={openGenerate}
+      disabled={!course}
+      title={!course ? 'Cần tải thông tin khóa học trước' : undefined}
+    >
+      Tạo tự động
+    </Button>
+  );
+
+  const headerExtra = (
+    <Space>
+      {generateButton}
+      {createButton}
+    </Space>
+  );
+
+  // Modal generate
+  const generateModal = (
+    <Modal
+      title={
+        <Space>
+          <ThunderboltOutlined style={{ color: '#1677ff' }} />
+          <span>Tạo tự động toàn bộ buổi học</span>
+        </Space>
+      }
+      open={generateOpen}
+      onCancel={closeGenerate}
+      footer={
+        generateResult
+          ? [
+              <Button key="close" type="primary" onClick={closeGenerate}>
+                Đóng
+              </Button>,
+            ]
+          : [
+              <Button key="cancel" onClick={closeGenerate}>
+                Hủy
+              </Button>,
+              <Button
+                key="submit"
+                type="primary"
+                icon={<ThunderboltOutlined />}
+                loading={generateLoading}
+                disabled={!scheduleConfig.isReady}
+                onClick={handleGenerateSubmit}
+              >
+                Bắt đầu tạo
+              </Button>,
+            ]
+      }
+      width={600}
+      destroyOnClose
+      maskClosable={!generateLoading}
+      closable={!generateLoading}
+    >
+      {/* Trường hợp chưa cấu hình lịch */}
+      {!scheduleConfig.isReady && !generateResult && (
+        <>
+          <Alert
+            type="warning"
+            showIcon
+            message="Khóa học chưa được cấu hình lịch"
+            description={
+              <div>
+                Cần bổ sung các thông tin sau trước khi tạo tự động:
+                <ul style={{ margin: '8px 0 0 0', paddingLeft: 18 }}>
+                  {scheduleConfig.missing.map((m) => (
+                    <li key={m}>{m}</li>
+                  ))}
+                </ul>
+              </div>
+            }
+            style={{ marginBottom: 12 }}
+          />
+          <Text type="secondary" style={{ fontSize: 12 }}>
+            Vào tab <strong>Tổng quan</strong> → nút <strong>Chỉnh sửa thông tin lớp Offline</strong>{' '}
+            để cấu hình lịch, sau đó quay lại đây.
+          </Text>
+        </>
+      )}
+
+      {/* Trường hợp đủ config — preview trước khi chạy */}
+      {scheduleConfig.isReady && !generateResult && (
+        <>
+          <Paragraph>
+            Hệ thống sẽ quét toàn bộ khoảng thời gian và tạo các buổi học còn thiếu.
+          </Paragraph>
+
+          <Descriptions
+            column={1}
+            size="small"
+            bordered
+            items={[
+              {
+                key: 'startDate',
+                label: 'Ngày bắt đầu',
+                children: <DateDisplay value={scheduleConfig.startDate} format="long" />,
+              },
+              {
+                key: 'endDate',
+                label: 'Ngày kết thúc',
+                children: <DateDisplay value={scheduleConfig.endDate} format="long" />,
+              },
+              {
+                key: 'scheduleDays',
+                label: 'Các thứ',
+                children: <Tag color="blue">{formatScheduleDays(scheduleConfig.scheduleDays)}</Tag>,
+              },
+              {
+                key: 'time',
+                label: 'Giờ học',
+                children: (
+                  <span>
+                    {scheduleConfig.sessionStartTime} → {scheduleConfig.sessionEndTime}
+                  </span>
+                ),
+              },
+              ...(scheduleConfig.totalSessionsExpected
+                ? [
+                    {
+                      key: 'total',
+                      label: 'Số buổi dự kiến',
+                      children: <Tag color="purple">{scheduleConfig.totalSessionsExpected}</Tag>,
+                    },
+                  ]
+                : []),
+              {
+                key: 'current',
+                label: 'Buổi đã có',
+                children: <Tag color="default">{sessions.length}</Tag>,
+              },
+            ]}
+          />
+
+          <Alert
+            type="info"
+            showIcon
+            message="Lưu ý"
+            description="Các buổi học đã tồn tại (cùng ngày + giờ) sẽ được tự động bỏ qua. Bạn có thể chạy lại nhiều lần mà không lo trùng lặp."
+            style={{ marginTop: 12 }}
+          />
+        </>
+      )}
+
+      {/* Kết quả sau khi chạy */}
+      {generateResult && (
+        <>
+          <Result
+            status={generateResult.generated > 0 ? 'success' : 'info'}
+            icon={<ThunderboltOutlined style={{ color: '#52c41a' }} />}
+            title={
+              <span>
+                Đã tạo <Text strong style={{ color: '#52c41a' }}>{generateResult.generated}</Text>
+                <Text type="secondary"> / {generateResult.totalDates} buổi</Text>
+              </span>
+            }
+            subTitle={generateResult.message}
+            style={{ padding: '8px 0' }}
+          />
+
+          {generateResult.skipped && generateResult.skipped.length > 0 && (
+            <>
+              <Divider style={{ margin: '12px 0' }} orientation="left">
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  <CalendarOutlined /> Bỏ qua ({generateResult.skipped.length})
+                </Text>
+              </Divider>
+              <div
+                style={{
+                  maxHeight: 200,
+                  overflowY: 'auto',
+                  background: '#fafafa',
+                  borderRadius: 6,
+                  padding: 8,
+                }}
+              >
+                {generateResult.skipped.map((s, idx) => (
+                  <div
+                    key={`${s.date}-${idx}`}
+                    style={{
+                      fontSize: 13,
+                      padding: '4px 8px',
+                      borderBottom:
+                        idx < generateResult.skipped.length - 1 ? '1px solid #f0f0f0' : 'none',
+                    }}
+                  >
+                    <Text code style={{ fontSize: 12 }}>
+                      {s.date}
+                    </Text>{' '}
+                    <Text type="secondary">— {s.reason}</Text>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+
+          {generateResult.generated === 0 && (!generateResult.skipped || generateResult.skipped.length === 0) && (
+            <Alert
+              type="info"
+              showIcon
+              message="Không có ngày nào khớp với lịch cấu hình trong khoảng thời gian đã chọn."
+              style={{ marginTop: 12 }}
+            />
+          )}
+        </>
+      )}
+    </Modal>
+  );
+
+  // Loading state lần đầu
+  if (loading && sessions.length === 0) {
+    return (
+      <Card title="Danh sách buổi học" extra={headerExtra}>
+        <div style={{ textAlign: 'center', padding: '40px 0' }}>
+          <Spin tip="Đang tải danh sách buổi học..." />
+        </div>
+      </Card>
+    );
+  }
+
+  // Empty state — vẫn hiển thị nút tạo + generate
   if (!sessions || sessions.length === 0) {
     return (
       <>
-        <Card
-          title="Danh sách buổi học (0)"
-          extra={createButton}
-        >
+        <Card title="Danh sách buổi học (0)" extra={headerExtra}>
           <Empty description="Khóa học chưa có buổi học nào">
-            {createButton}
+            <Space>
+              {generateButton}
+              {createButton}
+            </Space>
           </Empty>
         </Card>
 
@@ -366,33 +707,37 @@ const CourseSessionList = ({ courseId, sessions, onRefresh }: Props) => {
           courseId={courseId}
           open={createOpen}
           onClose={() => setCreateOpen(false)}
-          onSuccess={onRefresh}
+          onSuccess={() => {
+            setCreateOpen(false);
+            refreshAll();
+          }}
         />
+        {generateModal}
       </>
     );
   }
 
   return (
     <>
-      <Card
-        title={`Danh sách buổi học (${sessions.length})`}
-        extra={createButton}
-      >
+      <Card title={`Danh sách buổi học (${sessions.length})`} extra={headerExtra}>
         <Table<SessionResponse>
           columns={columns}
           dataSource={sessions}
           rowKey="id"
           pagination={false}
           scroll={{ x: 'max-content' }}
+          loading={loading} // 🆕 Loading overlay khi fetch lại ngầm
         />
       </Card>
 
-      {/* 🆕 Modal tạo buổi học */}
       <SessionFormModal
         courseId={courseId}
         open={createOpen}
         onClose={() => setCreateOpen(false)}
-        onSuccess={onRefresh}
+        onSuccess={() => {
+          setCreateOpen(false);
+          refreshAll();
+        }}
       />
 
       {/* Modal hủy buổi */}
@@ -455,6 +800,8 @@ const CourseSessionList = ({ courseId, sessions, onRefresh }: Props) => {
           </div>
         </div>
       </Modal>
+
+      {generateModal}
     </>
   );
 };

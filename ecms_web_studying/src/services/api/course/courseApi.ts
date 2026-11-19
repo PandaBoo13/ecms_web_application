@@ -10,6 +10,7 @@ import type {
   CourseOfflineInfoRequest,
   CourseReviewRequest,
   CourseCopyRequest,
+  EnrolledCourseResponse, // 🆕 Import type cho API my-enrolled
 } from '../../types/course';
 
 export const courseApi = {
@@ -38,7 +39,8 @@ export const courseApi = {
   },
 
   updateOfflineInfo: async (
-    id: number, payload: CourseOfflineInfoRequest,
+    id: number,
+    payload: Partial<CourseOfflineInfoRequest>,
   ): Promise<CourseResponse> => {
     const { data } = await api.put<RequestResponse<CourseResponse>>(
       API_ENDPOINT.COURSE_OFFLINE_INFO(id), payload);
@@ -51,12 +53,29 @@ export const courseApi = {
     return data.data;
   },
 
+  /**
+   * Thu hồi yêu cầu kiểm duyệt (COURSE → DRAFT, request → CANCELLED).
+   * Backend chỉ trả message, không có data.
+   */
+  withdrawReview: async (id: number): Promise<void> => {
+    await api.post(API_ENDPOINT.COURSE_WITHDRAW_REVIEW(id));
+  },
+
   review: async (
     id: number, approved: boolean, rejectReason?: string,
   ): Promise<CourseResponse> => {
-    const body: CourseReviewRequest = { approved, rejectReason };
+    // Khi approve → không gửi rejectReason để tránh rác payload
+    const body: CourseReviewRequest = approved
+      ? { approved }
+      : { approved, rejectReason: rejectReason ?? '' };
     const { data } = await api.post<RequestResponse<CourseResponse>>(
       API_ENDPOINT.COURSE_REVIEW(id), body);
+    return data.data;
+  },
+
+  finalizeSchedule: async (id: number): Promise<CourseResponse> => {
+    const { data } = await api.post<RequestResponse<CourseResponse>>(
+      API_ENDPOINT.COURSE_FINALIZE_SCHEDULE(id));
     return data.data;
   },
 
@@ -91,6 +110,21 @@ export const courseApi = {
   changeTeacher: async (id: number, teacherId: number): Promise<CourseResponse> => {
     const { data } = await api.patch<RequestResponse<CourseResponse>>(
       API_ENDPOINT.COURSE_CHANGE_TEACHER(id), null, { params: { teacherId } });
+    return data.data;
+  },
+
+  // ============================================================
+  // STUDENT APIs
+  // ============================================================
+
+  /**
+   * Lấy danh sách khóa học mà Học viên đã đăng ký (Lấy từ bảng Enrollments).
+   * API: GET /api/courses/my-enrolled
+   */
+  getMyEnrolledCourses: async (): Promise<EnrolledCourseResponse[]> => {
+    const { data } = await api.get<RequestResponse<EnrolledCourseResponse[]>>(
+      API_ENDPOINT.COURSE_MY_ENROLLED
+    );
     return data.data;
   },
 };
