@@ -9,8 +9,10 @@ import com.ecms_web_application.OC01.dto.response.course.ResourceTreeResponse;
 import com.ecms_web_application.OC01.entity.Account;
 import com.ecms_web_application.OC01.entity.course.Course;
 import com.ecms_web_application.OC01.entity.course.CourseResource;
+import com.ecms_web_application.OC01.entity.enums.CourseStatus;
 import com.ecms_web_application.OC01.entity.enums.ResourceType;
 import com.ecms_web_application.OC01.exception.ErrorHandler;
+import com.ecms_web_application.OC01.generic.mapper.CourseModuleMapper;
 import com.ecms_web_application.OC01.repository.CourseRepository;
 import com.ecms_web_application.OC01.repository.CourseResourceRepository;
 import com.ecms_web_application.OC01.service.AuditLogService;
@@ -33,13 +35,14 @@ public class CourseResourceServiceImpl implements CourseResourceService {
     private final CourseRepository courseRepository;
     private final AuditLogService auditLogService;
     private final com.ecms_web_application.OC01.service.ProgressCalculationService progressCalculationService;
+    private final CourseModuleMapper mapper;
 
     @Override
     @Transactional(readOnly = true)
     public List<ResourceTreeResponse> getTreeByCourse(Long courseId) {
         List<CourseResource> all = resourceRepository.findByCourse_IdOrderByOrderIndexAsc(courseId);
         Map<Long, ResourceTreeResponse> map = new HashMap<>();
-        for (CourseResource r : all) map.put(r.getId(), toTree(r));
+        for (CourseResource r : all) map.put(r.getId(), mapper.toResourceTreeResponse(r));
         List<ResourceTreeResponse> roots = new ArrayList<>();
         for (CourseResource r : all) {
             ResourceTreeResponse node = map.get(r.getId());
@@ -54,13 +57,17 @@ public class CourseResourceServiceImpl implements CourseResourceService {
 
     @Override
     @Transactional(readOnly = true)
-    public CourseResourceResponse getById(Long id) { return toResponse(getOrThrow(id)); }
+    public CourseResourceResponse getById(Long id) {
+        return mapper.toCourseResourceResponse(getOrThrow(id));
+    }
 
     @Override
     @Transactional
     public CourseResourceResponse create(Long courseId, ResourceCreateRequest request) {
         Course course = courseRepository.findById(courseId)
                 .orElseThrow(() -> new ErrorHandler(HttpStatus.NOT_FOUND, "Khóa học không tồn tại"));
+        assertCourseEditable(course);
+
         Account current = SecurityUtils.getCurrentAccount();
 
         CourseResource parent = null;
@@ -112,15 +119,16 @@ public class CourseResourceServiceImpl implements CourseResourceService {
 
         CourseResource saved = resourceRepository.save(r);
         triggerRecalcIfRequired(saved);
-        auditLogService.log("CREATE", "RESOURCE", saved.getId(),
-                "Tạo " + request.getResourceType() + ": " + saved.getTitle());
-        return toResponse(saved);
+        auditLogService.log("CREATE", "RESOURCE", saved.getId(), "Tạo " + request.getResourceType() + ": " + saved.getTitle());
+        return mapper.toCourseResourceResponse(saved);
     }
 
     @Override
     @Transactional
     public CourseResourceResponse update(Long id, ResourceUpdateRequest request) {
         CourseResource r = getOrThrow(id);
+        assertCourseEditable(r.getCourse());
+
         if (request.getTitle() != null && !request.getTitle().isBlank()) r.setTitle(request.getTitle().trim());
         if (request.getDescription() != null) r.setDescription(request.getDescription());
         if (request.getOrderIndex() != null)  r.setOrderIndex(request.getOrderIndex());
@@ -151,19 +159,20 @@ public class CourseResourceServiceImpl implements CourseResourceService {
         CourseResource saved = resourceRepository.save(r);
         triggerRecalcIfRequired(saved);
         auditLogService.log("UPDATE", "RESOURCE", id, null);
-        return toResponse(saved);
+        return mapper.toCourseResourceResponse(saved);
     }
 
     @Override
     @Transactional
     public void delete(Long id) {
         CourseResource r = getOrThrow(id);
+        assertCourseEditable(r.getCourse());
+
         if (resourceRepository.existsByParent_Id(id)) {
             throw new ErrorHandler(HttpStatus.CONFLICT, "Không thể xóa — còn resource con");
         }
         boolean needRecalc = Boolean.TRUE.equals(r.getIsRequired())
-                && (r.getCourse().getStatus() == com.ecms_web_application.OC01.entity.enums.CourseStatus.PUBLISHED
-                || r.getCourse().getStatus() == com.ecms_web_application.OC01.entity.enums.CourseStatus.ONGOING);
+                && (r.getCourse().getStatus() == CourseStatus.PUBLISHED || r.getCourse().getStatus() == CourseStatus.ONGOING);
         Long courseIdForRecalc = r.getCourse().getId();
         resourceRepository.delete(r);
         auditLogService.log("DELETE", "RESOURCE", id, null);
@@ -173,25 +182,23 @@ public class CourseResourceServiceImpl implements CourseResourceService {
     @Override
     @Transactional
     public void reorder(Long courseId, ResourceReorderRequest request) {
-        courseRepository.findById(courseId)
+        Course course = courseRepository.findById(courseId)
                 .orElseThrow(() -> new ErrorHandler(HttpStatus.NOT_FOUND, "Khóa học không tồn tại"));
+        assertCourseEditable(course);
 
         List<CourseResource> toUpdate = new ArrayList<>();
         Map<Long, Set<Integer>> usedIndices = new HashMap<>();
 
         for (ResourceReorderRequest.ReorderItem item : request.getItems()) {
             CourseResource r = getOrThrow(item.getId());
-
             if (!r.getCourse().getId().equals(courseId)) {
                 throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Resource " + item.getId() + " không thuộc khóa học này");
             }
-
             Long parentKey = r.getParent() != null ? r.getParent().getId() : -1L;
             Set<Integer> indices = usedIndices.computeIfAbsent(parentKey, k -> new HashSet<>());
             if (!indices.add(item.getOrderIndex())) {
                 throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Trùng orderIndex " + item.getOrderIndex() + " trong cùng parent");
             }
-
             r.setOrderIndex(item.getOrderIndex());
             toUpdate.add(r);
         }
@@ -202,8 +209,16 @@ public class CourseResourceServiceImpl implements CourseResourceService {
     }
 
     private CourseResource getOrThrow(Long id) {
-        return resourceRepository.findById(id)
-                .orElseThrow(() -> new ErrorHandler(HttpStatus.NOT_FOUND, "Resource không tồn tại"));
+        return resourceRepository.findById(id).orElseThrow(() -> new ErrorHandler(HttpStatus.NOT_FOUND, "Resource không tồn tại"));
+    }
+
+    private void assertCourseEditable(Course course) {
+        if (course.getStatus() != CourseStatus.DRAFT) {
+            String hint = (course.getStatus() == CourseStatus.PENDING_REVIEW)
+                    ? " Vui lòng thu hồi yêu cầu kiểm duyệt (POST /api/courses/" + course.getId() + "/withdraw-review) trước khi sửa."
+                    : "";
+            throw new ErrorHandler(HttpStatus.CONFLICT, "Không thể thay đổi RESOURCE khi khóa học ở trạng thái " + course.getStatus() + ". Chỉ DRAFT mới được sửa." + hint);
+        }
     }
 
     private void validateHierarchy(ResourceType parentType, ResourceType childType) {
@@ -217,72 +232,15 @@ public class CourseResourceServiceImpl implements CourseResourceService {
             default -> true;
         };
         if (!ok) {
-            throw new ErrorHandler(HttpStatus.BAD_REQUEST,
-                    String.format("Không thể đặt %s dưới %s", childType, parentType));
+            throw new ErrorHandler(HttpStatus.BAD_REQUEST, String.format("Không thể đặt %s dưới %s", childType, parentType));
         }
     }
 
     private void triggerRecalcIfRequired(CourseResource r) {
         if (!Boolean.TRUE.equals(r.getIsRequired())) return;
         var status = r.getCourse().getStatus();
-        if (status == com.ecms_web_application.OC01.entity.enums.CourseStatus.PUBLISHED
-                || status == com.ecms_web_application.OC01.entity.enums.CourseStatus.ONGOING) {
+        if (status == CourseStatus.PUBLISHED || status == CourseStatus.ONGOING) {
             progressCalculationService.onResourceChanged(r.getCourse().getId());
         }
-    }
-
-    private CourseResourceResponse toResponse(CourseResource r) {
-        CourseResourceResponse res = new CourseResourceResponse();
-        res.setId(r.getId());
-        res.setCourseId(r.getCourse().getId());
-        res.setParentId(r.getParent() != null ? r.getParent().getId() : null);
-        res.setResourceType(r.getResourceType().name());
-        res.setTitle(r.getTitle());
-        res.setDescription(r.getDescription());
-        res.setOrderIndex(r.getOrderIndex());
-        res.setIsRequired(r.getIsRequired());
-        res.setIsFreePreview(r.getIsFreePreview());
-        res.setDuration(r.getDuration());
-        res.setContent(r.getContent());
-        res.setThumbnailUrl(r.getThumbnailUrl());
-        res.setFileName(r.getFileName());
-        res.setFileUrl(r.getFileUrl());
-        res.setFileSize(r.getFileSize());
-        res.setFileFormat(r.getFileFormat());
-        res.setMimeType(r.getMimeType());
-        res.setMaxAttempts(r.getMaxAttempts());
-        res.setPassingScore(r.getPassingScore());
-        res.setTimeLimit(r.getTimeLimit());
-        res.setPoints(r.getPoints());
-        res.setDeadline(r.getDeadline());
-        res.setSettings(r.getSettings());
-        res.setStatus(r.getStatus() != null ? r.getStatus().name() : null);
-        res.setAvailableFrom(r.getAvailableFrom());
-        res.setAvailableUntil(r.getAvailableUntil());
-        res.setQuizCategory(r.getQuizCategory() != null ? r.getQuizCategory().name() : null);
-        res.setHashtagFilter(r.getHashtagFilter());
-        res.setTotalQuestions(r.getTotalQuestions());
-        res.setShuffleQuestions(r.getShuffleQuestions());
-        res.setCreatedAt(r.getCreatedAt());
-        res.setUpdatedAt(r.getUpdatedAt());
-        return res;
-    }
-
-    private ResourceTreeResponse toTree(CourseResource r) {
-        ResourceTreeResponse t = new ResourceTreeResponse();
-        t.setId(r.getId());
-        t.setResourceType(r.getResourceType().name());
-        t.setTitle(r.getTitle());
-        t.setOrderIndex(r.getOrderIndex());
-        t.setIsRequired(r.getIsRequired());
-        t.setIsFreePreview(r.getIsFreePreview());
-        t.setDuration(r.getDuration());
-        t.setFileUrl(r.getFileUrl());
-        t.setStatus(r.getStatus() != null ? r.getStatus().name() : null);
-        t.setQuizCategory(r.getQuizCategory() != null ? r.getQuizCategory().name() : null);
-        t.setPassingScore(r.getPassingScore());
-        t.setMaxAttempts(r.getMaxAttempts());
-        t.setHashtagFilter(r.getHashtagFilter());
-        return t;
     }
 }

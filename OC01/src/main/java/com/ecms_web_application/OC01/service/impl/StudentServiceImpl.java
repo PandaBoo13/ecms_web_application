@@ -231,7 +231,7 @@ public class StudentServiceImpl implements StudentService {
         Student existingStudent = null;
         String normalizedEmail = lead.getEmail() != null ? lead.getEmail().trim().toLowerCase() : "";
         if (!normalizedEmail.isBlank()) {
-            existingStudent = studentRepository.findByEmail(normalizedEmail).orElse(null);
+            existingStudent = studentRepository.findByEmailIgnoreCase(normalizedEmail).orElse(null);
             if (existingStudent == null) {
                 Account acc = accountRepository.findByEmail(normalizedEmail).orElse(null);
                 if (acc != null) {
@@ -245,6 +245,15 @@ public class StudentServiceImpl implements StudentService {
 
         // Nếu là học viên cũ: liên kết Lead với hồ sơ học viên đã có, thêm lịch sử học tập
         if (existingStudent != null) {
+            if ("INACTIVE".equalsIgnoreCase(existingStudent.getStatus())) {
+                throw new ErrorHandler(HttpStatus.CONFLICT,
+                        "Học viên đã ngừng hoạt động; không thể ghi danh từ Lead này");
+            }
+            if (ensureAccountForExistingStudent) {
+                ensureStudentAccount(existingStudent);
+                studentRepository.save(existingStudent);
+            }
+
             log.info("Nhận diện học viên cũ: leadId={}, studentId={}, studentCode={}", leadId, existingStudent.getId(), existingStudent.getStudentCode());
             lead.setStudentId(existingStudent.getId());
             lead.setConvertedAt(now);

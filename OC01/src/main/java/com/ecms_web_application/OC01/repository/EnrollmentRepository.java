@@ -19,7 +19,16 @@ public interface EnrollmentRepository extends IRepository<Enrollment, Long>, Jpa
     Optional<Enrollment> findByInvoiceId(Long invoiceId);
     boolean existsByInvoiceId(Long invoiceId);
     long countByCourseIdAndStatusIn(Long courseId, Collection<EnrollmentStatus> statuses);
+    @Query("""
+        SELECT e.courseId, COUNT(e)
+        FROM Enrollment e
+        WHERE e.courseId IN :courseIds AND e.status IN :statuses
+        GROUP BY e.courseId
+    """)
+    List<Object[]> countByCourseIdInAndStatusInGrouped(@Param("courseIds") Collection<Long> courseIds,
+                                                        @Param("statuses") Collection<EnrollmentStatus> statuses);
     List<Enrollment> findByCourseIdAndStatus(Long courseId, EnrollmentStatus status);
+    List<Enrollment> findByCourseIdOrderByEnrolledAtAscIdAsc(Long courseId);
     List<Enrollment> findByStatus(EnrollmentStatus status);
     List<Enrollment> findByCourseIdAndStudentId(Long courseId, Long studentId);
     boolean existsByCourseIdAndStudentId(Long courseId, Long studentId);

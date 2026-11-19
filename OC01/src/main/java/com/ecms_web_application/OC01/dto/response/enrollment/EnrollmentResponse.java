@@ -2,6 +2,7 @@ package com.ecms_web_application.OC01.dto.response.enrollment;
 
 import com.ecms_web_application.OC01.entity.Enrollment;
 import com.ecms_web_application.OC01.entity.enums.EnrollmentStatus;
+import com.ecms_web_application.OC01.entity.enums.CompletionResult;
 import com.ecms_web_application.OC01.entity.enums.EnrollmentType;
 
 import java.math.BigDecimal;
@@ -33,12 +34,14 @@ public record EnrollmentResponse(
         Long scoreRecordedBy,
         LocalDateTime completedAt,
         Long completedBy,
+        CompletionResult completionResult,
         long absences,
         String studentName,
         String studentCode,
         String studentEmail,
         String studentPhone,
         String courseTitle,
+        String courseCode,
         String invoiceCode,
         boolean completionEligible,
         String completionBlockedReason
@@ -63,15 +66,41 @@ public record EnrollmentResponse(
                                           String studentEmail, String studentPhone,
                                           String courseTitle, String invoiceCode,
                                           boolean completionEligible, String completionBlockedReason) {
+        return from(e, enrollmentType, accountId, absences, studentName, studentCode,
+                studentEmail, studentPhone, courseTitle, null, invoiceCode,
+                completionEligible, completionBlockedReason);
+    }
+
+    public static EnrollmentResponse from(Enrollment e, EnrollmentType enrollmentType, Long accountId,
+                                          long absences,
+                                          String studentName, String studentCode,
+                                          String studentEmail, String studentPhone,
+                                          String courseTitle, String courseCode, String invoiceCode,
+                                          boolean completionEligible, String completionBlockedReason) {
+        return from(e, enrollmentType, accountId, absences, studentName, studentCode,
+                studentEmail, studentPhone, courseTitle, courseCode, invoiceCode,
+                completionEligible, completionBlockedReason, false);
+    }
+
+    public static EnrollmentResponse from(Enrollment e, EnrollmentType enrollmentType, Long accountId,
+                                          long absences,
+                                          String studentName, String studentCode,
+                                          String studentEmail, String studentPhone,
+                                          String courseTitle, String courseCode, String invoiceCode,
+                                          boolean completionEligible, String completionBlockedReason,
+                                          boolean hideScore) {
+        BigDecimal score = hideScore ? null : e.getFinalScore();
+        LocalDateTime scoreRecordedAt = hideScore ? null : e.getScoreRecordedAt();
+        Long scoreRecordedBy = hideScore ? null : e.getScoreRecordedBy();
         return new EnrollmentResponse(
                 e.getId(), enrollmentType, accountId,
                 e.getStudentId(), e.getCourseId(), e.getInvoiceId(), e.getStatus(),
                 e.getEnrolledAt(), e.getEnrolledBy(), e.getUpdatedAt(), e.getUpdatedBy(),
                 e.getHoldReason(), e.getHoldStartDate(), e.getHoldEndDate(), e.getActualReturnDate(),
                 e.getHoldProcessedBy(), e.getTerminationReason(), e.getTerminatedAt(),
-                e.getTerminatedBy(), e.getFinalScore(), e.getScoreRecordedAt(),
-                e.getScoreRecordedBy(), e.getCompletedAt(), e.getCompletedBy(), absences,
-                studentName, studentCode, studentEmail, studentPhone, courseTitle, invoiceCode,
+                e.getTerminatedBy(), score, scoreRecordedAt,
+                scoreRecordedBy, e.getCompletedAt(), e.getCompletedBy(), e.getCompletionResult(), absences,
+                studentName, studentCode, studentEmail, studentPhone, courseTitle, courseCode, invoiceCode,
                 completionEligible, completionBlockedReason);
     }
 }

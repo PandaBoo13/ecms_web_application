@@ -28,7 +28,7 @@ const statusLabels: Record<InvoiceStatus, string> = {
 };
 const methodLabels: Record<string, string> = {
   CASH: 'Tiền mặt',
-  BANK_TRANSFER: 'Chuyển khoản (BANK_TRANSFER)',
+  BANK_TRANSFER: 'Chuyển khoản',
 };
 const dateText = (value?: string | null) => value ? dayjs(value).format('DD/MM/YYYY HH:mm') : '—';
 const moneyText = (value?: number | null) => value == null ? '—' : `${Number(value).toLocaleString('vi-VN')} ₫`;
@@ -150,32 +150,78 @@ export default function TuitionPage() {
   };
 
   const invoiceColumns: ColumnsType<InvoiceResponse> = [
-    { title: 'Mã hóa đơn', dataIndex: 'invoiceCode', width: 185, render: (value: string) => <Text strong>{value}</Text> },
     {
-      title: 'Người thanh toán', dataIndex: 'ownerName', width: 200,
-      render: (value: string | null, row) => <div>
-        <Text strong>{value || row.ownerEmail || `ID ${row.studentId ?? row.leadId ?? '—'}`}</Text>
-      </div>,
+      title: 'Mã hóa đơn',
+      dataIndex: 'invoiceCode',
+      render: (value: string) => <Text strong className="font-mono text-xs">{value}</Text>,
     },
-    { title: 'Khóa học', dataIndex: 'courseTitle', width: 220, render: (value: string | null, row) => value || `Khóa học #${row.courseId}` },
-    { title: 'Loại hóa đơn', dataIndex: 'type', width: 145, render: (value: string) => value === 'REFUND' ? 'Hoàn tiền' : 'Học phí' },
-    { title: 'Số tiền', dataIndex: 'amount', width: 145, render: moneyText },
-    { title: 'Hạn thanh toán', dataIndex: 'dueAt', width: 165, render: dateText },
-    { title: 'Phương thức', dataIndex: 'paymentMethod', width: 175, render: (value?: string) => value ? methodLabels[value] ?? value : '—' },
-    { title: 'Trạng thái', dataIndex: 'status', width: 200, render: (value: InvoiceStatus, row) => (
-      <Space size={4} wrap>
-        <Tag color={invoiceColor[value]}>{row.type === 'REFUND' && value === 'PAID' ? 'Đã hoàn tiền' : statusLabels[value]}</Tag>
-      </Space>
-    ) },
     {
-      title: 'Thao tác', fixed: 'right', width: 150, align: 'center', render: (_, row) => (
-        <Space size={4}>
-          <Tooltip title="Xem chi tiết"><Button aria-label="Xem chi tiết" type="text" icon={<EyeOutlined />} onClick={() => void openDetails(row)} /></Tooltip>
-          <Tooltip title={row.status === 'PAID' ? 'Hóa đơn đã thanh toán, không thể cập nhật' : row.status === 'CANCELLED' ? 'Hóa đơn đã hủy, không thể thao tác' : 'Cập nhật'}>
-            <Button aria-label="Cập nhật" type="text" icon={<EditOutlined />} disabled={row.status === 'PAID' || row.status === 'CANCELLED'} onClick={() => showInvoiceAction('update', row)} />
+      title: 'Người thanh toán',
+      dataIndex: 'ownerName',
+      render: (value: string | null, row) => (
+        <div>
+          <Text strong>{value || row.ownerEmail || `ID ${row.studentId ?? row.leadId ?? '—'}`}</Text>
+        </div>
+      ),
+    },
+    {
+      title: 'Khóa học',
+      dataIndex: 'courseTitle',
+      render: (value: string | null, row) => value || `Khóa học #${row.courseId}`,
+    },
+    {
+      title: 'Số tiền',
+      dataIndex: 'amount',
+      render: moneyText,
+    },
+    {
+      title: 'Phương thức',
+      dataIndex: 'paymentMethod',
+      render: (value?: string) => (value ? methodLabels[value] ?? value : '—'),
+    },
+    {
+      title: 'Trạng thái',
+      dataIndex: 'status',
+      align: 'center',
+      render: (value: InvoiceStatus, row) => (
+        <Tag color={invoiceColor[value]}>
+          {row.type === 'REFUND' && value === 'PAID' ? 'Đã hoàn tiền' : statusLabels[value]}
+        </Tag>
+      ),
+    },
+    {
+      title: 'Thao tác',
+      align: 'center',
+      width: 90,
+      render: (_, row) => (
+        <Space size={2}>
+          <Tooltip title="Xem chi tiết">
+            <Button
+              aria-label="Xem chi tiết"
+              type="text"
+              icon={<EyeOutlined />}
+              onClick={() => void openDetails(row)}
+            />
+          </Tooltip>
+          <Tooltip
+            title={
+              row.status === 'PAID'
+                ? 'Hóa đơn đã thanh toán, không thể cập nhật'
+                : row.status === 'CANCELLED'
+                ? 'Hóa đơn đã hủy, không thể thao tác'
+                : 'Cập nhật'
+            }
+          >
+            <Button
+              aria-label="Cập nhật"
+              type="text"
+              icon={<EditOutlined />}
+              disabled={row.status === 'PAID' || row.status === 'CANCELLED'}
+              onClick={() => showInvoiceAction('update', row)}
+            />
           </Tooltip>
         </Space>
-      )
+      ),
     },
   ];
 
@@ -276,7 +322,7 @@ export default function TuitionPage() {
           <Button icon={<ReloadOutlined />} onClick={() => { void loadInvoices(pagination.current, pagination.pageSize); void loadStats(); }}>Tải lại</Button>
         </Space>
       </div>
-      <Table rowKey="invoiceId" columns={invoiceColumns} dataSource={invoiceRows} loading={loadingInvoices} scroll={{ x: 1450 }}
+      <Table rowKey="invoiceId" columns={invoiceColumns} dataSource={invoiceRows} loading={loadingInvoices}
         pagination={{ ...pagination, showSizeChanger: true, showTotal: (total) => `Tổng ${total} hóa đơn` }} onChange={handleTableChange} />
     </>
   );

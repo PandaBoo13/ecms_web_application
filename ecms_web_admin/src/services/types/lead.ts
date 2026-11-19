@@ -169,3 +169,31 @@ export interface LeadPlacementTestCreatePayload {
   evaluatedAt?: string;
 }
 
+export interface ConsultantPerformance {
+  consultantId: number;
+  name: string;
+  email: string;
+  phone?: string;
+  avatarUrl?: string;
+  workStatus: string;
+  totalLeads: number;
+  convertedLeads: number;
+  consultingCount?: number;
+  consultedCount?: number;
+  conversionRate: number;
+}
+
+export interface FastClaimLeadPayload {
+  leadId: number;
+  leadCode?: string;
+  fullName: string;
+  phone?: string;
+  courseTitle?: string;
+  demandType?: string;
+  type?: string;
+  timestamp?: string;
+  claimedById?: number;
+  claimedBy?: string;
+}
+
+

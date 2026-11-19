@@ -1,431 +1,650 @@
 [
     {
-        "method":  "GET",
-        "path":  "/api/courses",
-        "module":  "course",
-        "description":  "Xem danh sách khóa học"
+        "method": "GET",
+        "path": "/api/courses",
+        "module": "course",
+        "description": "Xem danh sách khóa học"
     },
     {
-        "method":  "GET",
-        "path":  "/api/courses/{id}",
-        "module":  "course",
-        "description":  "Xem chi tiết khóa học"
+        "method": "GET",
+        "path": "/api/courses/{id}",
+        "module": "course",
+        "description": "Xem chi tiết khóa học"
     },
     {
-        "method":  "POST",
-        "path":  "/api/courses",
-        "module":  "course",
-        "description":  "Tạo khóa học"
+        "method": "POST",
+        "path": "/api/courses",
+        "module": "course",
+        "description": "Tạo khóa học"
     },
     {
-        "method":  "PUT",
-        "path":  "/api/courses/{id}",
-        "module":  "course",
-        "description":  "Sửa khóa học"
+        "method": "PUT",
+        "path": "/api/courses/{id}",
+        "module": "course",
+        "description": "Sửa khóa học"
     },
     {
-        "method":  "DELETE",
-        "path":  "/api/courses/{id}",
-        "module":  "course",
-        "description":  "Xóa mềm khóa học"
+        "method": "DELETE",
+        "path": "/api/courses/{id}",
+        "module": "course",
+        "description": "Xóa mềm khóa học"
     },
     {
-        "method":  "POST",
-        "path":  "/api/courses/{id}/submit-review",
-        "module":  "course",
-        "description":  "Gửi duyệt khóa"
+        "method": "POST",
+        "path": "/api/courses/{id}/submit-review",
+        "module": "course",
+        "description": "Gửi duyệt khóa"
     },
     {
-        "method":  "POST",
-        "path":  "/api/courses/{id}/review",
-        "module":  "course",
-        "description":  "Duyệt/từ chối khóa"
+        "method": "POST",
+        "path": "/api/courses/{id}/review",
+        "module": "course",
+        "description": "Duyệt/từ chối khóa"
     },
     {
-        "method":  "POST",
-        "path":  "/api/courses/{id}/archive",
-        "module":  "course",
-        "description":  "Lưu trữ khóa"
+        "method": "POST",
+        "path": "/api/courses/{id}/archive",
+        "module": "course",
+        "description": "Lưu trữ khóa"
     },
     {
-        "method":  "POST",
-        "path":  "/api/courses/{id}/cancel",
-        "module":  "course",
-        "description":  "Hủy khóa"
+        "method": "POST",
+        "path": "/api/courses/{id}/cancel",
+        "module": "course",
+        "description": "Hủy khóa"
     },
     {
-        "method":  "POST",
-        "path":  "/api/courses/{sourceId}/copy",
-        "module":  "course",
-        "description":  "Copy khóa học"
+        "method": "POST",
+        "path": "/api/courses/{sourceId}/copy",
+        "module": "course",
+        "description": "Copy khóa học"
     },
     {
-        "method":  "PUT",
-        "path":  "/api/courses/{id}/offline-info",
-        "module":  "course",
-        "description":  "Cập nhật thông tin lớp Offline"
+        "method": "PUT",
+        "path": "/api/courses/{id}/offline-info",
+        "module": "course",
+        "description": "Cập nhật thông tin lớp Offline"
     },
     {
-        "method":  "DELETE",
-        "path":  "/api/courses/{id}/hard",
-        "module":  "course",
-        "description":  "Xóa cứng khóa (SUPER_ADMIN)"
+        "method": "DELETE",
+        "path": "/api/courses/{id}/hard",
+        "module": "course",
+        "description": "Xóa cứng khóa (SUPER_ADMIN)"
     },
     {
-        "method":  "GET",
-        "path":  "/api/courses/{courseId}/resources/tree",
-        "module":  "resource",
-        "description":  "Xem cây nội dung"
+        "method": "GET",
+        "path": "/api/courses/{courseId}/resources/tree",
+        "module": "resource",
+        "description": "Xem cây nội dung"
     },
     {
-        "method":  "POST",
-        "path":  "/api/courses/{courseId}/resources",
-        "module":  "resource",
-        "description":  "Tạo resource"
+        "method": "POST",
+        "path": "/api/courses/{courseId}/resources",
+        "module": "resource",
+        "description": "Tạo resource"
     },
     {
-        "method":  "PUT",
-        "path":  "/api/courses/{courseId}/resources/{id}",
-        "module":  "resource",
-        "description":  "Sửa resource"
+        "method": "PUT",
+        "path": "/api/courses/{courseId}/resources/{id}",
+        "module": "resource",
+        "description": "Sửa resource"
     },
     {
-        "method":  "DELETE",
-        "path":  "/api/courses/{courseId}/resources/{id}",
-        "module":  "resource",
-        "description":  "Xóa resource"
+        "method": "DELETE",
+        "path": "/api/courses/{courseId}/resources/{id}",
+        "module": "resource",
+        "description": "Xóa resource"
     },
     {
-        "method":  "PUT",
-        "path":  "/api/courses/{courseId}/resources/reorder",
-        "module":  "resource",
-        "description":  "Sắp xếp lại thứ tự resource"
+        "method": "PUT",
+        "path": "/api/courses/{courseId}/resources/reorder",
+        "module": "resource",
+        "description": "Sắp xếp lại thứ tự resource"
     },
     {
-        "method":  "GET",
-        "path":  "/api/courses/{courseId}/sessions",
-        "module":  "session",
-        "description":  "Xem danh sách session"
+        "method": "GET",
+        "path": "/api/courses/{courseId}/sessions",
+        "module": "session",
+        "description": "Xem danh sách session"
     },
     {
-        "method":  "POST",
-        "path":  "/api/courses/{courseId}/sessions",
-        "module":  "session",
-        "description":  "Thêm session"
+        "method": "POST",
+        "path": "/api/courses/{courseId}/sessions",
+        "module": "session",
+        "description": "Thêm session"
     },
     {
-        "method":  "POST",
-        "path":  "/api/courses/{courseId}/sessions/{id}/cancel",
-        "module":  "session",
-        "description":  "Hủy session"
+        "method": "POST",
+        "path": "/api/courses/{courseId}/sessions/{id}/cancel",
+        "module": "session",
+        "description": "Hủy session"
     },
     {
-        "method":  "PATCH",
-        "path":  "/api/courses/{courseId}/sessions/{id}/substitute",
-        "module":  "session",
-        "description":  "Gán GV dạy thay"
+        "method": "PATCH",
+        "path": "/api/courses/{courseId}/sessions/{id}/substitute",
+        "module": "session",
+        "description": "Gán GV dạy thay"
     },
     {
-        "method":  "GET",
-        "path":  "/api/courses/{courseId}/questions",
-        "module":  "question",
-        "description":  "Xem câu hỏi"
+        "method": "GET",
+        "path": "/api/courses/{courseId}/questions",
+        "module": "question",
+        "description": "Xem câu hỏi"
     },
     {
-        "method":  "POST",
-        "path":  "/api/courses/{courseId}/questions",
-        "module":  "question",
-        "description":  "Tạo câu hỏi"
+        "method": "POST",
+        "path": "/api/courses/{courseId}/questions",
+        "module": "question",
+        "description": "Tạo câu hỏi"
     },
     {
-        "method":  "PUT",
-        "path":  "/api/courses/{courseId}/questions/{id}",
-        "module":  "question",
-        "description":  "Sửa câu hỏi"
+        "method": "PUT",
+        "path": "/api/courses/{courseId}/questions/{id}",
+        "module": "question",
+        "description": "Sửa câu hỏi"
     },
     {
-        "method":  "DELETE",
-        "path":  "/api/courses/{courseId}/questions/{id}",
-        "module":  "question",
-        "description":  "Xóa câu hỏi"
+        "method": "DELETE",
+        "path": "/api/courses/{courseId}/questions/{id}",
+        "module": "question",
+        "description": "Xóa câu hỏi"
     },
     {
-        "method":  "GET",
-        "path":  "/api/courses/{courseId}/quizzes",
-        "module":  "quiz",
-        "description":  "Xem quiz"
+        "method": "GET",
+        "path": "/api/courses/{courseId}/quizzes",
+        "module": "quiz",
+        "description": "Xem quiz"
     },
     {
-        "method":  "POST",
-        "path":  "/api/courses/{courseId}/quizzes",
-        "module":  "quiz",
-        "description":  "Tạo quiz"
+        "method": "POST",
+        "path": "/api/courses/{courseId}/quizzes",
+        "module": "quiz",
+        "description": "Tạo quiz"
     },
     {
-        "method":  "PUT",
-        "path":  "/api/courses/{courseId}/quizzes/{id}",
-        "module":  "quiz",
-        "description":  "Sửa quiz"
+        "method": "PUT",
+        "path": "/api/courses/{courseId}/quizzes/{id}",
+        "module": "quiz",
+        "description": "Sửa quiz"
     },
     {
-        "method":  "DELETE",
-        "path":  "/api/courses/{courseId}/quizzes/{id}",
-        "module":  "quiz",
-        "description":  "Xóa quiz"
+        "method": "DELETE",
+        "path": "/api/courses/{courseId}/quizzes/{id}",
+        "module": "quiz",
+        "description": "Xóa quiz"
     },
     {
-        "method":  "POST",
-        "path":  "/api/rooms",
-        "module":  "room",
-        "description":  "Tạo phòng"
+        "method": "POST",
+        "path": "/api/rooms",
+        "module": "room",
+        "description": "Tạo phòng"
     },
     {
-        "method":  "PUT",
-        "path":  "/api/rooms/{id}",
-        "module":  "room",
-        "description":  "Sửa phòng"
+        "method": "PUT",
+        "path": "/api/rooms/{id}",
+        "module": "room",
+        "description": "Sửa phòng"
     },
     {
-        "method":  "DELETE",
-        "path":  "/api/rooms/{id}",
-        "module":  "room",
-        "description":  "Xóa phòng"
+        "method": "DELETE",
+        "path": "/api/rooms/{id}",
+        "module": "room",
+        "description": "Xóa phòng"
     },
     {
-        "method":  "GET",
-        "path":  "/api/audit-logs",
-        "module":  "audit",
-        "description":  "Xem audit log"
+        "method": "GET",
+        "path": "/api/audit-logs",
+        "module": "audit",
+        "description": "Xem audit log"
     },
     {
-        "method":  "GET",
-        "path":  "/api/refunds",
-        "module":  "refund",
-        "description":  "Xem danh sách refund"
+        "method": "GET",
+        "path": "/api/leads",
+        "module": "lead",
+        "description": "Xem danh sách khách hàng tiềm năng"
     },
     {
-        "method":  "POST",
-        "path":  "/api/refunds",
-        "module":  "refund",
-        "description":  "Tạo refund request"
+        "method": "GET",
+        "path": "/api/leads/{id}",
+        "module": "lead",
+        "description": "Xem chi tiết khách hàng tiềm năng"
     },
     {
-        "method":  "GET",
-        "path":  "/api/refunds/courses/{courseId}",
-        "module":  "refund",
-        "description":  "Xem refund theo course"
+        "method": "GET",
+        "path": "/api/leads/{id}/detail",
+        "module": "lead",
+        "description": "Xem chi tiết Lead và lịch sử"
     },
     {
-        "method":  "GET",
-        "path":  "/api/leads",
-        "module":  "lead",
-        "description":  "Xem danh sách khách hàng tiềm năng"
+        "method": "POST",
+        "path": "/api/leads",
+        "module": "lead",
+        "description": "Tạo mới khách hàng tiềm năng"
     },
     {
-        "method":  "GET",
-        "path":  "/api/leads/{id}",
-        "module":  "lead",
-        "description":  "Xem chi tiết khách hàng tiềm năng"
+        "method": "PUT",
+        "path": "/api/leads/{id}",
+        "module": "lead",
+        "description": "Cập nhật khách hàng tiềm năng"
     },
     {
-        "method":  "GET",
-        "path":  "/api/leads/{id}/detail",
-        "module":  "lead",
-        "description":  "Xem chi tiết Lead và lịch sử"
+        "method": "PUT",
+        "path": "/api/leads/{id}/assign",
+        "module": "lead",
+        "description": "Phân công tư vấn viên cho Lead"
     },
     {
-        "method":  "POST",
-        "path":  "/api/leads",
-        "module":  "lead",
-        "description":  "Tạo mới khách hàng tiềm năng"
+        "method": "POST",
+        "path": "/api/leads/{id}/interactions",
+        "module": "lead",
+        "description": "Ghi nhận tương tác tư vấn"
     },
     {
-        "method":  "PUT",
-        "path":  "/api/leads/{id}",
-        "module":  "lead",
-        "description":  "Cập nhật khách hàng tiềm năng"
+        "method": "GET",
+        "path": "/api/leads/{id}/interactions",
+        "module": "lead",
+        "description": "Xem lịch sử tương tác của Lead"
     },
     {
-        "method":  "PUT",
-        "path":  "/api/leads/{id}/assign",
-        "module":  "lead",
-        "description":  "Phân công tư vấn viên cho Lead"
+        "method": "POST",
+        "path": "/api/leads/{id}/placement-tests",
+        "module": "lead",
+        "description": "Ghi nhận đánh giá đầu vào Lead"
     },
     {
-        "method":  "POST",
-        "path":  "/api/leads/{id}/interactions",
-        "module":  "lead",
-        "description":  "Ghi nhận tương tác tư vấn"
+        "method": "GET",
+        "path": "/api/leads/{id}/placement-tests",
+        "module": "lead",
+        "description": "Xem danh sách đánh giá đầu vào của Lead"
     },
     {
-        "method":  "GET",
-        "path":  "/api/leads/{id}/interactions",
-        "module":  "lead",
-        "description":  "Xem lịch sử tương tác của Lead"
+        "method": "DELETE",
+        "path": "/api/leads/{id}",
+        "module": "lead",
+        "description": "Xóa khách hàng tiềm năng"
     },
     {
-        "method":  "POST",
-        "path":  "/api/leads/{id}/placement-tests",
-        "module":  "lead",
-        "description":  "Ghi nhận đánh giá đầu vào Lead"
+        "method": "GET",
+        "path": "/api/students",
+        "module": "student",
+        "description": "Xem danh sách học viên"
     },
     {
-        "method":  "GET",
-        "path":  "/api/leads/{id}/placement-tests",
-        "module":  "lead",
-        "description":  "Xem danh sách đánh giá đầu vào của Lead"
+        "method": "GET",
+        "path": "/api/students/{id}",
+        "module": "student",
+        "description": "Xem chi tiết học viên"
     },
     {
-        "method":  "DELETE",
-        "path":  "/api/leads/{id}",
-        "module":  "lead",
-        "description":  "Xóa khách hàng tiềm năng"
+        "method": "GET",
+        "path": "/api/students/{id}/detail",
+        "module": "student",
+        "description": "Xem chi tiết học viên và lịch sử"
     },
     {
-        "method":  "GET",
-        "path":  "/api/students",
-        "module":  "student",
-        "description":  "Xem danh sách học viên"
+        "method": "GET",
+        "path": "/api/students/code/{studentCode}",
+        "module": "student",
+        "description": "Xem chi tiết học viên theo mã"
     },
     {
-        "method":  "GET",
-        "path":  "/api/students/{id}",
-        "module":  "student",
-        "description":  "Xem chi tiết học viên"
+        "method": "POST",
+        "path": "/api/students",
+        "module": "student",
+        "description": "Tạo mới học viên"
     },
     {
-        "method":  "GET",
-        "path":  "/api/students/{id}/detail",
-        "module":  "student",
-        "description":  "Xem chi tiết học viên và lịch sử"
+        "method": "POST",
+        "path": "/api/students/convert-lead",
+        "module": "student",
+        "description": "Chuyển đổi Lead thành Student"
     },
     {
-        "method":  "GET",
-        "path":  "/api/students/code/{studentCode}",
-        "module":  "student",
-        "description":  "Xem chi tiết học viên theo mã"
+        "method": "PUT",
+        "path": "/api/students/{id}",
+        "module": "student",
+        "description": "Cập nhật thông tin học viên"
     },
     {
-        "method":  "POST",
-        "path":  "/api/students",
-        "module":  "student",
-        "description":  "Tạo mới học viên"
+        "method": "PATCH",
+        "path": "/api/students/{id}/status",
+        "module": "student",
+        "description": "Cập nhật trạng thái học viên"
     },
     {
-        "method":  "POST",
-        "path":  "/api/students/convert-lead",
-        "module":  "student",
-        "description":  "Chuyển đổi Lead thành Student"
+        "method": "POST",
+        "path": "/api/students/{id}/guardians",
+        "module": "student",
+        "description": "Thêm người giám hộ học viên"
     },
     {
-        "method":  "PUT",
-        "path":  "/api/students/{id}",
-        "module":  "student",
-        "description":  "Cập nhật thông tin học viên"
+        "method": "GET",
+        "path": "/api/students/{id}/guardians",
+        "module": "student",
+        "description": "Xem danh sách người giám hộ học viên"
     },
     {
-        "method":  "PATCH",
-        "path":  "/api/students/{id}/status",
-        "module":  "student",
-        "description":  "Cập nhật trạng thái học viên"
+        "method": "DELETE",
+        "path": "/api/students/{id}/guardians/{guardianId}",
+        "module": "student",
+        "description": "Xóa người giám hộ học viên"
     },
     {
-        "method":  "POST",
-        "path":  "/api/students/{id}/guardians",
-        "module":  "student",
-        "description":  "Thêm người giám hộ học viên"
+        "method": "GET",
+        "path": "/api/students/{id}/academic-histories",
+        "module": "student",
+        "description": "Xem lịch sử học tập của học viên"
     },
     {
-        "method":  "GET",
-        "path":  "/api/students/{id}/guardians",
-        "module":  "student",
-        "description":  "Xem danh sách người giám hộ học viên"
+        "method": "DELETE",
+        "path": "/api/students/{id}",
+        "module": "student",
+        "description": "Xóa học viên"
     },
     {
-        "method":  "DELETE",
-        "path":  "/api/students/{id}/guardians/{guardianId}",
-        "module":  "student",
-        "description":  "Xóa người giám hộ học viên"
+        "method": "PATCH",
+        "path": "/api/courses/{id}/teacher",
+        "module": "course",
+        "description": "Đổi GV chính của khóa (Admin)"
     },
     {
-        "method":  "GET",
-        "path":  "/api/students/{id}/academic-histories",
-        "module":  "student",
-        "description":  "Xem lịch sử học tập của học viên"
+        "method": "PATCH",
+        "path": "/api/courses/{courseId}/sessions/{id}/substitute-teacher",
+        "module": "session",
+        "description": "Gán/gỡ GV dạy thay cho buổi"
     },
     {
-        "method":  "DELETE",
-        "path":  "/api/students/{id}",
-        "module":  "student",
-        "description":  "Xóa học viên"
+        "method": "PATCH",
+        "path": "/api/courses/{courseId}/sessions/{id}/assistant",
+        "module": "session",
+        "description": "Gán/gỡ trợ giảng cho buổi"
     },
     {
-        "method":  "PATCH",
-        "path":  "/api/courses/{id}/teacher",
-        "module":  "course",
-        "description":  "Đổi GV chính của khóa (Admin)"
+        "method": "PATCH",
+        "path": "/api/courses/{courseId}/sessions/{id}/teacher",
+        "module": "session",
+        "description": "Legacy — gán GV dạy thay (deprecated)"
     },
     {
-        "method":  "PATCH",
-        "path":  "/api/courses/{courseId}/sessions/{id}/substitute-teacher",
-        "module":  "session",
-        "description":  "Gán/gỡ GV dạy thay cho buổi"
+        "method": "POST",
+        "path": "/api/courses/{courseId}/sessions/generate",
+        "module": "session",
+        "description": "Sinh session tự động từ schedule"
     },
     {
-        "method":  "PATCH",
-        "path":  "/api/courses/{courseId}/sessions/{id}/assistant",
-        "module":  "session",
-        "description":  "Gán/gỡ trợ giảng cho buổi"
+        "method": "POST",
+        "path": "/api/tuition/invoices/checkout",
+        "module": "tuition",
+        "description": "Tạo hóa đơn checkout online"
     },
     {
-        "method":  "PATCH",
-        "path":  "/api/courses/{courseId}/sessions/{id}/teacher",
-        "module":  "session",
-        "description":  "Legacy — gán GV dạy thay (deprecated)"
+        "method": "POST",
+        "path": "/api/tuition/invoices/{invoiceId}/vnpay",
+        "module": "tuition",
+        "description": "Tạo liên kết thanh toán VNPAY"
     },
     {
-        "method":  "POST",
-        "path":  "/api/courses/{courseId}/sessions/generate",
-        "module":  "session",
-        "description":  "Sinh session tự động từ schedule"
+        "method": "GET",
+        "path": "/api/tuition/invoices",
+        "module": "tuition",
+        "description": "Tra cứu hóa đơn"
     },
-    { "method": "POST", "path": "/api/tuition/invoices", "module": "tuition", "description": "Tạo hóa đơn học phí offline" },
-    { "method": "POST", "path": "/api/tuition/invoices/checkout", "module": "tuition", "description": "Tạo hóa đơn checkout online" },
-    { "method": "POST", "path": "/api/tuition/invoices/{invoiceId}/vnpay", "module": "tuition", "description": "Tạo liên kết thanh toán VNPAY" },
-    { "method": "GET", "path": "/api/tuition/invoices", "module": "tuition", "description": "Tra cứu hóa đơn" },
-    { "method": "GET", "path": "/api/tuition/invoices/stats", "module": "tuition", "description": "Thống kê số lượng hóa đơn theo trạng thái" },
-    { "method": "GET", "path": "/api/tuition/invoices/{invoiceId}", "module": "tuition", "description": "Xem chi tiết hóa đơn" },
-    { "method": "POST", "path": "/api/tuition/invoices/{invoiceId}/cash-confirmation", "module": "tuition", "description": "Xác nhận thu học phí tiền mặt" },
-    { "method": "PATCH", "path": "/api/tuition/invoices/{invoiceId}/due-date", "module": "tuition", "description": "Gia hạn hạn thanh toán" },
-    { "method": "POST", "path": "/api/tuition/invoices/{invoiceId}/cancel", "module": "tuition", "description": "Hủy hóa đơn chưa thanh toán" },
-    { "method": "POST", "path": "/api/tuition/invoices/{invoiceId}/refund", "module": "tuition", "description": "Tạo chứng từ hoàn tiền" },
-    { "method": "GET", "path": "/api/tuition/invoices/eligible-leads", "module": "tuition", "description": "Danh sách lead đã tư vấn chờ tạo hóa đơn" },
-    { "method": "POST", "path": "/api/tuition/invoices/from-lead", "module": "tuition", "description": "Tạo hóa đơn học phí từ lead đã tư vấn" },
-    { "method": "POST", "path": "/api/tuition/invoices/{invoiceId}/payment-link", "module": "tuition", "description": "Gửi link thanh toán học phí qua email" },
-    { "method": "POST", "path": "/api/tuition/invoices/{invoiceId}/bank-transfer-confirmation", "module": "tuition", "description": "Xác nhận chuyển khoản học phí" },
-    { "method": "POST", "path": "/api/enrollments/offline", "module": "enrollment", "description": "Tạo ghi danh offline từ hóa đơn đã thanh toán" },
-    { "method": "POST", "path": "/api/enrollments/offline/bulk", "module": "enrollment", "description": "Ghi danh hàng loạt học viên OFFLINE" },
-    { "method": "GET", "path": "/api/enrollments/offline/eligible", "module": "enrollment", "description": "Danh sách học viên đủ điều kiện ghi danh offline theo khóa học" },
-    { "method": "GET", "path": "/api/enrollments", "module": "enrollment", "description": "Tra cứu ghi danh" },
-    { "method": "GET", "path": "/api/enrollments/summary", "module": "enrollment", "description": "Tổng số ghi danh theo trạng thái" },
-    { "method": "GET", "path": "/api/enrollments/{enrollmentId}", "module": "enrollment", "description": "Xem chi tiết ghi danh" },
-    { "method": "GET", "path": "/api/enrollments/{enrollmentId}/attendance", "module": "enrollment", "description": "Xem lịch sử điểm danh" },
-    { "method": "GET", "path": "/api/enrollments/{enrollmentId}/status-history", "module": "enrollment", "description": "Xem lịch sử trạng thái ghi danh" },
-    { "method": "POST", "path": "/api/enrollments/{enrollmentId}/reserve", "module": "enrollment", "description": "Bảo lưu ghi danh" },
-    { "method": "POST", "path": "/api/enrollments/{enrollmentId}/resume", "module": "enrollment", "description": "Khôi phục ghi danh" },
-    { "method": "POST", "path": "/api/enrollments/{enrollmentId}/terminate", "module": "enrollment", "description": "Kết thúc ghi danh" },
-    { "method": "PUT", "path": "/api/enrollments/{enrollmentId}/final-score", "module": "enrollment", "description": "Lưu điểm cuối khóa" },
-    { "method": "POST", "path": "/api/enrollments/{enrollmentId}/complete", "module": "enrollment", "description": "Xét hoàn thành khóa học" },
-    { "method": "POST", "path": "/api/enrollments/complete/bulk", "module": "enrollment", "description": "Xét hoàn thành hàng loạt học viên trong khóa" },
-    { "method": "GET", "path": "/api/courses/{courseId}/sessions/{sessionId}/attendance", "module": "enrollment", "description": "Xem danh sách điểm danh buổi học" },
-    { "method": "PUT", "path": "/api/courses/{courseId}/sessions/{sessionId}/attendance", "module": "enrollment", "description": "Lưu trạng thái điểm danh buổi học" },
-    { "method": "GET", "path": "/api/categories", "module": "category", "description": "Xem danh sách danh mục" },
-    { "method": "GET", "path": "/api/categories/{id}", "module": "category", "description": "Xem chi tiết danh mục" },
-    { "method": "GET", "path": "/api/categories/tree", "module": "category", "description": "Xem cây danh mục đầy đủ" },
-    { "method": "GET", "path": "/api/categories/tree/{rootId}", "module": "category", "description": "Xem cây danh mục theo root" },
-    { "method": "GET", "path": "/api/categories/roots", "module": "category", "description": "Xem danh sách danh mục gốc" },
-    { "method": "GET", "path": "/api/categories/{parentId}/children", "module": "category", "description": "Xem danh mục con trực tiếp" },
-    { "method": "POST", "path": "/api/categories", "module": "category", "description": "Tạo danh mục mới" },
-    { "method": "PUT", "path": "/api/categories/{id}", "module": "category", "description": "Cập nhật danh mục" },
-    { "method": "DELETE", "path": "/api/categories/{id}", "module": "category", "description": "Xóa danh mục" }
+    {
+        "method": "GET",
+        "path": "/api/tuition/invoices/stats",
+        "module": "tuition",
+        "description": "Thống kê số lượng hóa đơn theo trạng thái"
+    },
+    {
+        "method": "GET",
+        "path": "/api/tuition/invoices/{invoiceId}",
+        "module": "tuition",
+        "description": "Xem chi tiết hóa đơn"
+    },
+    {
+        "method": "POST",
+        "path": "/api/tuition/invoices/{invoiceId}/cash-confirmation",
+        "module": "tuition",
+        "description": "Xác nhận thu học phí tiền mặt"
+    },
+    {
+        "method": "PATCH",
+        "path": "/api/tuition/invoices/{invoiceId}/due-date",
+        "module": "tuition",
+        "description": "Gia hạn hạn thanh toán"
+    },
+    {
+        "method": "POST",
+        "path": "/api/tuition/invoices/{invoiceId}/cancel",
+        "module": "tuition",
+        "description": "Hủy hóa đơn chưa thanh toán"
+    },
+    {
+        "method": "POST",
+        "path": "/api/tuition/invoices/{invoiceId}/refund-approval",
+        "module": "tuition",
+        "description": "Gửi yêu cầu hoàn tiền chờ duyệt"
+    },
+    {
+        "method": "GET",
+        "path": "/api/tuition/invoices/{invoiceId}/refund-approval",
+        "module": "tuition",
+        "description": "Xem trạng thái duyệt hoàn tiền"
+    },
+    {
+        "method": "POST",
+        "path": "/api/tuition/invoices/{invoiceId}/refund-record",
+        "module": "tuition",
+        "description": "Ghi nhận chứng từ hoàn tiền"
+    },
+    {
+        "method": "GET",
+        "path": "/api/tuition/invoices/eligible-leads",
+        "module": "tuition",
+        "description": "Danh sách lead đã tư vấn chờ tạo hóa đơn"
+    },
+    {
+        "method": "POST",
+        "path": "/api/tuition/invoices/from-lead",
+        "module": "tuition",
+        "description": "Tạo hóa đơn học phí từ lead đã tư vấn"
+    },
+    {
+        "method": "POST",
+        "path": "/api/tuition/invoices/{invoiceId}/payment-link",
+        "module": "tuition",
+        "description": "Gửi link thanh toán học phí qua email"
+    },
+    {
+        "method": "POST",
+        "path": "/api/tuition/invoices/{invoiceId}/bank-transfer-confirmation",
+        "module": "tuition",
+        "description": "Xác nhận chuyển khoản học phí"
+    },
+    {
+        "method": "GET",
+        "path": "/api/enrollments",
+        "module": "enrollment",
+        "description": "Tra cứu ghi danh"
+    },
+    {
+        "method": "GET",
+        "path": "/api/enrollments/summary",
+        "module": "enrollment",
+        "description": "Tổng số ghi danh theo trạng thái"
+    },
+    {
+        "method": "GET",
+        "path": "/api/enrollments/{enrollmentId}",
+        "module": "enrollment",
+        "description": "Xem chi tiết ghi danh"
+    },
+    {
+        "method": "GET",
+        "path": "/api/enrollments/{enrollmentId}/attendance",
+        "module": "enrollment",
+        "description": "Xem lịch sử điểm danh"
+    },
+    {
+        "method": "GET",
+        "path": "/api/enrollments/{enrollmentId}/status-history",
+        "module": "enrollment",
+        "description": "Xem lịch sử trạng thái ghi danh"
+    },
+    {
+        "method": "POST",
+        "path": "/api/enrollments/{enrollmentId}/reserve",
+        "module": "enrollment",
+        "description": "Bảo lưu ghi danh"
+    },
+    {
+        "method": "POST",
+        "path": "/api/enrollments/{enrollmentId}/resume",
+        "module": "enrollment",
+        "description": "Khôi phục ghi danh"
+    },
+    {
+        "method": "POST",
+        "path": "/api/enrollments/{enrollmentId}/terminate",
+        "module": "enrollment",
+        "description": "Kết thúc ghi danh"
+    },
+    {
+        "method": "PUT",
+        "path": "/api/enrollments/{enrollmentId}/final-score",
+        "module": "enrollment",
+        "description": "Lưu điểm cuối khóa"
+    },
+    {
+        "method": "POST",
+        "path": "/api/enrollments/{enrollmentId}/complete",
+        "module": "enrollment",
+        "description": "Xét hoàn thành khóa học"
+    },
+    {
+        "method": "POST",
+        "path": "/api/enrollments/complete/bulk",
+        "module": "enrollment",
+        "description": "Xét hoàn thành hàng loạt học viên trong khóa"
+    },
+    {
+        "method": "GET",
+        "path": "/api/enrollments/course/{courseId}/roster/export",
+        "module": "enrollment",
+        "description": "Xuất danh sách học viên khóa học ra Excel"
+    },
+    {
+        "method": "POST",
+        "path": "/api/enrollments/course/{courseId}/final-scores/import",
+        "module": "enrollment",
+        "description": "Nhập bảng điểm cuối khóa từ Excel"
+    },
+    {
+        "method": "GET",
+        "path": "/api/enrollments/course/{courseId}/grade-review-status",
+        "module": "enrollment",
+        "description": "Xem trạng thái duyệt bảng điểm cuối khóa"
+    },
+    {
+        "method": "POST",
+        "path": "/api/enrollments/course/{courseId}/grade-review/submit",
+        "module": "enrollment",
+        "description": "Gửi duyệt bảng điểm cuối khóa"
+    },
+    {
+        "method": "GET",
+        "path": "/api/courses/{courseId}/sessions/{sessionId}/attendance",
+        "module": "enrollment",
+        "description": "Xem danh sách điểm danh buổi học"
+    },
+    {
+        "method": "PUT",
+        "path": "/api/courses/{courseId}/sessions/{sessionId}/attendance",
+        "module": "enrollment",
+        "description": "Lưu trạng thái điểm danh buổi học"
+    },
+    {
+        "method": "GET",
+        "path": "/api/instructor/attendance/sessions",
+        "module": "enrollment",
+        "description": "Danh sách buổi học được phân công điểm danh"
+    },
+    {
+        "method": "GET",
+        "path": "/api/instructor/attendance/courses",
+        "module": "enrollment",
+        "description": "Danh sách khóa OFFLINE được phân công điểm danh"
+    },
+    {
+        "method": "GET",
+        "path": "/api/courses/{courseId}/sessions/{sessionId}/attendance/history",
+        "module": "enrollment",
+        "description": "Xem lịch sử thay đổi điểm danh buổi học"
+    },
+    {
+        "method": "GET",
+        "path": "/api/courses/{courseId}/attendance",
+        "module": "enrollment",
+        "description": "Xem ma trận điểm danh khóa học OFFLINE"
+    },
+    {
+        "method": "GET",
+        "path": "/api/courses/{courseId}/attendance/export",
+        "module": "enrollment",
+        "description": "Xuất ma trận điểm danh khóa học ra Excel"
+    },
+    {
+        "method": "GET",
+        "path": "/api/categories",
+        "module": "category",
+        "description": "Xem danh sách danh mục"
+    },
+    {
+        "method": "GET",
+        "path": "/api/categories/{id}",
+        "module": "category",
+        "description": "Xem chi tiết danh mục"
+    },
+    {
+        "method": "GET",
+        "path": "/api/categories/tree",
+        "module": "category",
+        "description": "Xem cây danh mục đầy đủ"
+    },
+    {
+        "method": "GET",
+        "path": "/api/categories/tree/{rootId}",
+        "module": "category",
+        "description": "Xem cây danh mục theo root"
+    },
+    {
+        "method": "GET",
+        "path": "/api/categories/roots",
+        "module": "category",
+        "description": "Xem danh sách danh mục gốc"
+    },
+    {
+        "method": "GET",
+        "path": "/api/categories/{parentId}/children",
+        "module": "category",
+        "description": "Xem danh mục con trực tiếp"
+    },
+    {
+        "method": "POST",
+        "path": "/api/categories",
+        "module": "category",
+        "description": "Tạo danh mục mới"
+    },
+    {
+        "method": "PUT",
+        "path": "/api/categories/{id}",
+        "module": "category",
+        "description": "Cập nhật danh mục"
+    },
+    {
+        "method": "DELETE",
+        "path": "/api/categories/{id}",
+        "module": "category",
+        "description": "Xóa danh mục"
+    }
 ]

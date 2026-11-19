@@ -74,11 +74,21 @@ public class RequestServiceImpl implements RequestService {
         RequestType type = RequestType.fromCode(req.getRequestType());
         requestValidator.validateForCreate(req, type);
 
-        // 2. Handler validate (query DB: target phải tồn tại + state hợp lệ)
+        // 2. [FIX-RACE] Khoá Course trước khi check trùng để tránh 2 request PENDING
+        //    đồng thời được tạo cho cùng course. Lock giữ đến cuối transaction.
+        //    Chỉ áp dụng cho COURSE_REVIEW; nếu course không tồn tại (đã bị xoá),
+        //    bỏ qua lock → handler.validateCreate sẽ throw 404 với message chuẩn.
+        if (type == RequestType.COURSE_REVIEW && req.getTargetEntityId() != null) {
+            courseRepository.findByIdForUpdate(req.getTargetEntityId())
+                    .ifPresent(c -> log.debug(
+                            "[RequestCreate] Locked course {} for COURSE_REVIEW", c.getId()));
+        }
+
+        // 3. Handler validate (đã có lock nếu là COURSE_REVIEW — đọc lại sẽ hit persistence context)
         RequestHandler handler = handlerRegistry.get(type);
         handler.validateCreate(req, type);
 
-        // 3. Không cho submit trùng khi đã có PENDING cho cùng target
+        // 4. Không cho submit trùng khi đã có PENDING cho cùng target
         String targetType = type.getTargetEntityType();
         if (!"NONE".equals(targetType)) {
             boolean exists = requestRepository
@@ -91,7 +101,7 @@ public class RequestServiceImpl implements RequestService {
             }
         }
 
-        // 4. Build entity
+        // 5. Build entity
         Long requesterId = SecurityUtils.requireCurrentAccountId();
 
         Request r = new Request();
@@ -107,7 +117,7 @@ public class RequestServiceImpl implements RequestService {
 
         Request saved = requestRepository.save(r);
 
-        // 5. onCreate hook — side-effect sau save (vd DRAFT → PENDING_REVIEW)
+        // 6. onCreate hook — side-effect sau save (vd DRAFT → PENDING_REVIEW)
         handler.onCreate(saved, req);
 
         log.info("[Request] CREATED code={}, type={}, target={}#{}, requesterId={}",
@@ -137,34 +147,36 @@ public class RequestServiceImpl implements RequestService {
 
         RequestType type = (filter.getRequestType() == null || filter.getRequestType().isBlank())
                 ? null : RequestType.fromCode(filter.getRequestType());
+        RequestType excludeType =
+                (filter.getExcludeRequestType() == null || filter.getExcludeRequestType().isBlank())
+                        ? null : RequestType.fromCode(filter.getExcludeRequestType());
         RequestStatus status = (filter.getStatus() == null || filter.getStatus().isBlank())
                 ? null : RequestStatus.fromCode(filter.getStatus());
         String keyword = (filter.getKeyword() == null) ? "" : filter.getKeyword().trim();
 
-        // ── FIX $13: gán default value thay vì null ──
-        java.time.LocalDateTime fromDate = filter.getFromDate() != null
+        LocalDateTime fromDate = filter.getFromDate() != null
                 ? filter.getFromDate()
-                : java.time.LocalDateTime.of(1970, 1, 1, 0, 0, 0);
+                : LocalDateTime.of(1970, 1, 1, 0, 0, 0);
 
-        java.time.LocalDateTime toDate = filter.getToDate() != null
+        LocalDateTime toDate = filter.getToDate() != null
                 ? filter.getToDate()
-                : java.time.LocalDateTime.of(9999, 12, 31, 23, 59, 59);
+                : LocalDateTime.of(9999, 12, 31, 23, 59, 59);
 
         Page<Request> page = requestRepository.search(
-                type, status,
+                type, excludeType, status,
                 filter.getRequesterId(),
                 filter.getTargetEntityType(),
                 filter.getTargetEntityId(),
                 keyword,
-                fromDate,     // ← luôn non-null
-                toDate,       // ← luôn non-null
+                fromDate,
+                toDate,
                 pageable);
 
         return mapPageWithAccounts(page);
     }
 
     // ============================================================
-    // PREVIEW COURSE CONFLICTS — cảnh báo trùng lịch trước khi duyệt
+    // PREVIEW COURSE CONFLICTS
     // ============================================================
     @Override
     public RequestConflictPreviewResponse previewCourseConflicts(Long requestId) {
@@ -173,7 +185,6 @@ public class RequestServiceImpl implements RequestService {
                 .orElseThrow(() -> new ErrorHandler(HttpStatus.NOT_FOUND,
                         "Yêu cầu không tồn tại"));
 
-        // Chỉ áp dụng cho COURSE_REVIEW
         if (r.getRequestType() != RequestType.COURSE_REVIEW) {
             return RequestConflictPreviewResponse.builder()
                     .requestId(r.getId())
@@ -250,7 +261,6 @@ public class RequestServiceImpl implements RequestService {
 
         if (Boolean.TRUE.equals(req.getApproved())) {
             r.setStatus(RequestStatus.APPROVED);
-            // ⚠️ Handler sẽ throw CONFLICT nếu có conflict lịch (policy c)
             handler.onApprove(r, req);
         } else {
             r.setStatus(RequestStatus.REJECTED);
@@ -315,7 +325,6 @@ public class RequestServiceImpl implements RequestService {
     // ============================================================
     // HELPERS
     // ============================================================
-
     private String generateRequestCode() {
         String date = LocalDate.now().format(CODE_DATE_FMT);
         long count = requestRepository.countByCreatedAtBetween(
@@ -360,6 +369,13 @@ public class RequestServiceImpl implements RequestService {
         Account acc = accountRepository.findByIdWithRoleAndProfile(accountId)
                 .orElseThrow(() -> new ErrorHandler(HttpStatus.UNAUTHORIZED,
                         "Account không tồn tại"));
+
+        // §2.3: đơn xin nghỉ buổi học chỉ do GIẢNG VIÊN xử lý.
+        // Khác với các loại yêu cầu khác, ADMIN KHÔNG được bypass luồng này.
+        if (type == RequestType.LEAVE_FEEDBACK && !acc.isInstructor()) {
+            throw new ErrorHandler(HttpStatus.FORBIDDEN,
+                    "Chỉ giảng viên phụ trách buổi học mới được duyệt đơn nghỉ");
+        }
 
         if (acc.isAdmin()) return;
 

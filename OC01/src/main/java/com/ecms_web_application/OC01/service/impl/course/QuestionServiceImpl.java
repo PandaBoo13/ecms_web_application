@@ -5,10 +5,12 @@ import com.ecms_web_application.OC01.dto.response.course.QuestionResponse;
 import com.ecms_web_application.OC01.entity.course.Course;
 import com.ecms_web_application.OC01.entity.course.CourseResource;
 import com.ecms_web_application.OC01.entity.course.Question;
+import com.ecms_web_application.OC01.entity.enums.CourseStatus;
 import com.ecms_web_application.OC01.entity.enums.QuestionStatus;
 import com.ecms_web_application.OC01.entity.enums.QuestionType;
 import com.ecms_web_application.OC01.entity.enums.ResourceType;
 import com.ecms_web_application.OC01.exception.ErrorHandler;
+import com.ecms_web_application.OC01.generic.mapper.CourseModuleMapper;
 import com.ecms_web_application.OC01.repository.CourseRepository;
 import com.ecms_web_application.OC01.repository.CourseResourceRepository;
 import com.ecms_web_application.OC01.repository.QuestionRepository;
@@ -34,35 +36,35 @@ public class QuestionServiceImpl implements QuestionService {
     private final CourseRepository courseRepository;
     private final CourseResourceRepository resourceRepository;
     private final AuditLogService auditLogService;
+    private final CourseModuleMapper mapper;
 
     @Override
     @Transactional(readOnly = true)
     public Page<QuestionResponse> search(Long courseId, Long lessonId, String questionType,
                                          String status, String hashtag, String search, Pageable pageable) {
-        QuestionType qt = StringUtils.hasText(questionType)
-                ? QuestionType.valueOf(questionType.toUpperCase()) : null;
-        QuestionStatus st = StringUtils.hasText(status)
-                ? QuestionStatus.valueOf(status.toUpperCase()) : null;
+        QuestionType qt = StringUtils.hasText(questionType) ? QuestionType.valueOf(questionType.toUpperCase()) : null;
+        QuestionStatus st = StringUtils.hasText(status) ? QuestionStatus.valueOf(status.toUpperCase()) : null;
         return questionRepository.searchQuestions(courseId, lessonId, qt, st,
                 StringUtils.hasText(hashtag) ? hashtag : "",
                 StringUtils.hasText(search) ? search.trim() : "",
-                pageable).map(this::toResponse);
+                pageable).map(mapper::toQuestionResponse);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public QuestionResponse getById(Long id) { return toResponse(getOrThrow(id)); }
+    public QuestionResponse getById(Long id) {
+        return mapper.toQuestionResponse(getOrThrow(id));
+    }
 
     @Override
     @Transactional
     public QuestionResponse create(Long courseId, QuestionCreateRequest request) {
         Course course = courseRepository.findById(courseId)
                 .orElseThrow(() -> new ErrorHandler(HttpStatus.NOT_FOUND, "Course không tồn tại"));
+        assertCourseEditable(course);
 
-        // ✅ FIX: lessonId là bắt buộc — khớp cột NOT NULL trong DB
         if (request.getLessonId() == null) {
-            throw new ErrorHandler(HttpStatus.BAD_REQUEST,
-                    "lessonId là bắt buộc — mọi câu hỏi phải thuộc một LESSON");
+            throw new ErrorHandler(HttpStatus.BAD_REQUEST, "lessonId là bắt buộc — mọi câu hỏi phải thuộc một LESSON");
         }
         CourseResource lesson = resourceRepository.findById(request.getLessonId())
                 .orElseThrow(() -> new ErrorHandler(HttpStatus.NOT_FOUND, "Lesson không tồn tại"));
@@ -88,16 +90,15 @@ public class QuestionServiceImpl implements QuestionService {
 
         Question saved = questionRepository.save(q);
         auditLogService.log("CREATE", "QUESTION", saved.getId(), null);
-        return toResponse(saved);
+        return mapper.toQuestionResponse(saved);
     }
 
     @Override
     @Transactional
     public QuestionResponse update(Long id, QuestionCreateRequest request) {
         Question q = getOrThrow(id);
+        assertCourseEditable(q.getCourse());
 
-        // ── SỬA LỖI: Validate chéo Lesson khi cập nhật ──
-        // lessonId KHÔNG được null (DB NOT NULL); nếu client không gửi → giữ nguyên.
         if (request.getLessonId() != null) {
             CourseResource lesson = resourceRepository.findById(request.getLessonId())
                     .orElseThrow(() -> new ErrorHandler(HttpStatus.NOT_FOUND, "Lesson không tồn tại"));
@@ -122,41 +123,28 @@ public class QuestionServiceImpl implements QuestionService {
 
         Question saved = questionRepository.save(q);
         auditLogService.log("UPDATE", "QUESTION", id, null);
-        return toResponse(saved);
+        return mapper.toQuestionResponse(saved);
     }
 
     @Override
     @Transactional
     public void delete(Long id) {
         Question q = getOrThrow(id);
+        assertCourseEditable(q.getCourse());
         questionRepository.delete(q);
         auditLogService.log("DELETE", "QUESTION", id, null);
     }
 
     private Question getOrThrow(Long id) {
-        return questionRepository.findById(id)
-                .orElseThrow(() -> new ErrorHandler(HttpStatus.NOT_FOUND, "Câu hỏi không tồn tại"));
+        return questionRepository.findById(id).orElseThrow(() -> new ErrorHandler(HttpStatus.NOT_FOUND, "Câu hỏi không tồn tại"));
     }
 
-    private QuestionResponse toResponse(Question q) {
-        QuestionResponse r = new QuestionResponse();
-        r.setId(q.getId());
-        r.setCourseId(q.getCourse().getId());
-        if (q.getLesson() != null) {
-            r.setLessonId(q.getLesson().getId());
-            r.setLessonTitle(q.getLesson().getTitle());
+    private void assertCourseEditable(Course course) {
+        if (course.getStatus() != CourseStatus.DRAFT) {
+            String hint = (course.getStatus() == CourseStatus.PENDING_REVIEW)
+                    ? " Vui lòng thu hồi yêu cầu kiểm duyệt (POST /api/courses/" + course.getId() + "/withdraw-review) trước khi sửa."
+                    : "";
+            throw new ErrorHandler(HttpStatus.CONFLICT, "Không thể thay đổi QUESTION khi khóa học ở trạng thái " + course.getStatus() + ". Chỉ DRAFT mới được sửa." + hint);
         }
-        r.setQuestionType(q.getQuestionType().name());
-        r.setContent(q.getContent());
-        r.setOptions(q.getOptions());
-        r.setCorrectAnswer(q.getCorrectAnswer());
-        r.setExplanation(q.getExplanation());
-        r.setHashtag(q.getHashtag());
-        r.setPoints(q.getPoints());
-        r.setOrderIndex(q.getOrderIndex());
-        r.setStatus(q.getStatus() != null ? q.getStatus().name() : null);
-        r.setCreatedAt(q.getCreatedAt());
-        r.setUpdatedAt(q.getUpdatedAt());
-        return r;
     }
 }

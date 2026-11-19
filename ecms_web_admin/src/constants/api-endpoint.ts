@@ -15,17 +15,19 @@ export const API_ENDPOINT = {
   // ══════════════════════════════════════════════════════════════
   // COURSES
   // ══════════════════════════════════════════════════════════════
+ // ══════════════════════════════════════════════════════════════
   COURSES: '/api/courses',
   COURSE_DETAIL: (id: number) => `/api/courses/${id}`,
   COURSE_OFFLINE_INFO: (id: number) => `/api/courses/${id}/offline-info`,
   COURSE_SUBMIT_REVIEW: (id: number) => `/api/courses/${id}/submit-review`,
+  COURSE_WITHDRAW_REVIEW: (id: number) => `/api/courses/${id}/withdraw-review`,
   COURSE_REVIEW: (id: number) => `/api/courses/${id}/review`,
   COURSE_ARCHIVE: (id: number) => `/api/courses/${id}/archive`,
   COURSE_CANCEL: (id: number) => `/api/courses/${id}/cancel`,
   COURSE_COPY: (id: number) => `/api/courses/${id}/copy`,
   COURSE_HARD_DELETE: (id: number) => `/api/courses/${id}/hard`,
   COURSE_CHANGE_TEACHER: (id: number) => `/api/courses/${id}/teacher`,
-COURSE_FINALIZE_SCHEDULE: (id: number) => `/api/courses/${id}/finalize-schedule`,
+  COURSE_FINALIZE_SCHEDULE: (id: number) => `/api/courses/${id}/finalize-schedule`,
   // ══════════════════════════════════════════════════════════════
   // RESOURCES
   // ══════════════════════════════════════════════════════════════
@@ -53,7 +55,7 @@ COURSE_FINALIZE_SCHEDULE: (id: number) => `/api/courses/${id}/finalize-schedule`
     `/api/courses/${courseId}/sessions/${id}/substitute-teacher`,
   SESSION_ASSISTANT: (courseId: number, id: number) =>
     `/api/courses/${courseId}/sessions/${id}/assistant`,
-
+SESSION_MY_SCHEDULE: '/api/sessions/my-schedule',
   // ══════════════════════════════════════════════════════════════
   // QUESTIONS
   // ══════════════════════════════════════════════════════════════
@@ -83,6 +85,7 @@ COURSE_FINALIZE_SCHEDULE: (id: number) => `/api/courses/${id}/finalize-schedule`
   CATEGORY_DETAIL: (id: number) => `/api/categories/${id}`,
   CATEGORY_TREE: '/api/categories/tree',
   CATEGORY_TREE_ROOT: (rootId: number) => `/api/categories/tree/${rootId}`,
+  CATEGORY_TREE_FROM_ROOT: (rootId: number) => `/api/categories/tree/${rootId}`,
   CATEGORY_ROOTS: '/api/categories/roots',
   CATEGORY_CHILDREN: (parentId: number) => `/api/categories/${parentId}/children`,
 
@@ -92,6 +95,7 @@ COURSE_FINALIZE_SCHEDULE: (id: number) => `/api/courses/${id}/finalize-schedule`
   ROOMS: '/api/rooms',
   ROOMS_ACTIVE: '/api/rooms/active',
   ROOM_DETAIL: (id: number) => `/api/rooms/${id}`,
+  ROOM_AVAILABILITY: (id: number) => `/api/rooms/${id}/availability`,
 
   // ══════════════════════════════════════════════════════════════
   // PROGRESS
@@ -227,21 +231,17 @@ COURSE_FINALIZE_SCHEDULE: (id: number) => `/api/courses/${id}/finalize-schedule`
   TUITION_INVOICE_STATS: '/api/tuition/invoices/stats',
   TUITION_ELIGIBLE_LEADS: '/api/tuition/invoices/eligible-leads',
   TUITION_FROM_LEAD: '/api/tuition/invoices/from-lead',
-  TUITION_FROM_STUDENT: '/api/tuition/invoices/from-student',
   TUITION_PAYMENT_LINK: (id: number) => `/api/tuition/invoices/${id}/payment-link`,
-  TUITION_CHECKOUT: '/api/tuition/invoices/checkout',
   TUITION_VNPAY_START: (id: number) => `/api/tuition/invoices/${id}/vnpay`,
   TUITION_INVOICE_DETAIL: (id: number) => `/api/tuition/invoices/${id}`,
   TUITION_CASH_CONFIRMATION: (id: number) => `/api/tuition/invoices/${id}/cash-confirmation`,
   TUITION_BANK_TRANSFER_CONFIRMATION: (id: number) => `/api/tuition/invoices/${id}/bank-transfer-confirmation`,
   TUITION_DUE_DATE: (id: number) => `/api/tuition/invoices/${id}/due-date`,
   TUITION_CANCEL: (id: number) => `/api/tuition/invoices/${id}/cancel`,
-  TUITION_REFUND: (id: number) => `/api/tuition/invoices/${id}/refund`,
+  TUITION_REFUND_APPROVAL: (id: number) => `/api/tuition/invoices/${id}/refund-approval`,
+  TUITION_REFUND_RECORD: (id: number) => `/api/tuition/invoices/${id}/refund-record`,
   ENROLLMENTS: '/api/enrollments',
   ENROLLMENT_SUMMARY: '/api/enrollments/summary',
-  ENROLLMENT_OFFLINE: '/api/enrollments/offline',
-  ENROLLMENT_PENDING_BULK: '/api/enrollments/pending/bulk',
-  ENROLLMENT_PENDING_ELIGIBLE: '/api/enrollments/pending/eligible',
   ENROLLMENT_DETAIL: (id: number) => `/api/enrollments/${id}`,
   ENROLLMENT_ATTENDANCE_HISTORY: (id: number) => `/api/enrollments/${id}/attendance`,
   ENROLLMENT_STATUS_HISTORY: (id: number) => `/api/enrollments/${id}/status-history`,
@@ -251,8 +251,18 @@ COURSE_FINALIZE_SCHEDULE: (id: number) => `/api/courses/${id}/finalize-schedule`
   ENROLLMENT_FINAL_SCORE: (id: number) => `/api/enrollments/${id}/final-score`,
   ENROLLMENT_COMPLETE: (id: number) => `/api/enrollments/${id}/complete`,
   ENROLLMENT_COMPLETE_BULK: '/api/enrollments/complete/bulk',
+  ENROLLMENT_COURSE_ROSTER_EXPORT: (courseId: number) => `/api/enrollments/course/${courseId}/roster/export`,
+  ENROLLMENT_FINAL_SCORES_IMPORT: (courseId: number) => `/api/enrollments/course/${courseId}/final-scores/import`,
+  ENROLLMENT_GRADE_REVIEW_STATUS: (courseId: number) => `/api/enrollments/course/${courseId}/grade-review-status`,
+  ENROLLMENT_GRADE_REVIEW_SUBMIT: (courseId: number) => `/api/enrollments/course/${courseId}/grade-review/submit`,
   SESSION_ATTENDANCE: (courseId: number, sessionId: number) =>
     `/api/courses/${courseId}/sessions/${sessionId}/attendance`,
+  SESSION_ATTENDANCE_HISTORY: (courseId: number, sessionId: number) =>
+    `/api/courses/${courseId}/sessions/${sessionId}/attendance/history`,
+  COURSE_ATTENDANCE: (courseId: number) => `/api/courses/${courseId}/attendance`,
+  COURSE_ATTENDANCE_EXPORT: (courseId: number) => `/api/courses/${courseId}/attendance/export`,
+  INSTRUCTOR_ATTENDANCE_SESSIONS: '/api/instructor/attendance/sessions',
+  INSTRUCTOR_ATTENDANCE_COURSES: '/api/instructor/attendance/courses',
 
   // ══════════════════════════════════════════════════════════════
   // AI AGENT

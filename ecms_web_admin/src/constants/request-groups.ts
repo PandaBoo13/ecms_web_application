@@ -9,6 +9,12 @@ export interface RequestGroup {
 
 export const REQUEST_GROUPS: RequestGroup[] = [
   {
+    key: 'grade_review',
+    labelKey: 'request.group.grade_review',
+    icon: 'FileProtectOutlined',
+    types: ['COURSE_GRADE_APPROVAL'],
+  },
+  {
     key: 'course',
     labelKey: 'request.group.course',
     icon: 'BookOutlined',
@@ -97,7 +103,8 @@ export const REQUEST_GROUPS: RequestGroup[] = [
       'SUGGESTION',
       'DOCUMENT_REQUEST',
       'CERTIFICATE_REQUEST',
-      'LEAVE_FEEDBACK',
+      // LEAVE_FEEDBACK (§2.3) do giảng viên duyệt trong buổi điểm danh;
+      // Admin chỉ xem trạng thái đơn ở màn hình điểm danh, không đưa vào module request.
       'DATA_EXPORT',
       'NOTIFICATION_BROADCAST',
       'NOTIFICATION_BLAST',

@@ -52,17 +52,24 @@ export interface QuizAttemptResponse {
   answers?: Record<string, unknown>;
 }
 
+/**
+ * Request tạo/cập nhật Quiz.
+ *
+ * ⚠️ Backend schema yêu cầu BẮT BUỘC 3 field: `title`, `quizType`, `passingScore`.
+ * (xem OpenAPI: "required": ["passingScore", "quizType", "title"])
+ * → Nếu thiếu `quizType` hoặc `passingScore` sẽ bị 400 Bad Request.
+ */
 export interface QuizCreateRequest {
   title: string;
-  quizType?: QuizCategory;
-  passingScore?: number;
-  maxAttempts?: number;
+  quizType: QuizCategory;      // required
+  passingScore: number;        // required — 0..100
+  maxAttempts?: number;        // >= 1
   timeLimit?: number;
   shuffleQuestions?: boolean;
-  totalQuestions?: number;
+  totalQuestions?: number;     // >= 1
   hashtagFilter?: string;
-  availableFrom?: string;
-  availableUntil?: string;
+  availableFrom?: string;      // ISO datetime
+  availableUntil?: string;     // ISO datetime
   parentId?: number;
 }
 

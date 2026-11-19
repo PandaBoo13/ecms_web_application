@@ -42,7 +42,7 @@ export const ADMIN_MENU: MenuItem[] = [
     icon: 'DollarOutlined',
     roles: [ROLE.ADMIN],
     children: [
-      { key: '/admin/tuition', label: 'Quản lý học phí', path: '/admin/tuition', roles: [ROLE.ADMIN] },
+      { key: '/admin/tuition', label: 'Quản lý hóa đơn', path: '/admin/tuition', roles: [ROLE.ADMIN] },
       { key: '/admin/refunds', label: 'Hoàn tiền', path: '/admin/refunds', roles: [ROLE.ADMIN] },
     ],
   },
@@ -53,7 +53,6 @@ export const ADMIN_MENU: MenuItem[] = [
     roles: [ROLE.ADMIN],
     children: [
       { key: '/admin/enrollments', label: 'Quản lý ghi danh', path: '/admin/enrollments', roles: [ROLE.ADMIN] },
-      { key: '/admin/enrollments/pending', label: 'Chờ ghi danh', path: '/admin/enrollments/pending', roles: [ROLE.ADMIN] },
     ],
   },
   {
@@ -64,11 +63,9 @@ export const ADMIN_MENU: MenuItem[] = [
     children: [
       { key: '/admin/courses', label: 'Danh sách khóa học', path: '/admin/courses', roles: [ROLE.ADMIN, ROLE.LEAD, ROLE.CONSULTANT] },
       { key: '/admin/categories', label: 'Danh mục', path: '/admin/categories', roles: [ROLE.ADMIN, ROLE.LEAD, ROLE.CONSULTANT] },
-      // 🆕 Thêm mục Phòng học ở đây
       { key: '/admin/rooms', label: 'Phòng học', path: '/admin/rooms', roles: [ROLE.ADMIN] },
     ],
   },
-  // 🆕 REQUEST MODULE — dùng icon SolutionOutlined có sẵn trong ICON_MAP
   {
     key: 'requests',
     label: 'Yêu cầu & Kiểm duyệt',
@@ -116,6 +113,13 @@ export const INSTRUCTOR_MENU: MenuItem[] = [
     icon: 'DashboardOutlined',
     path: '/instructor/dashboard',
   },
+  // 🆕 Thêm Lịch giảng dạy ngay dưới Tổng quan
+  {
+    key: '/instructor/schedule',
+    label: 'Lịch giảng dạy',
+    icon: 'CalendarOutlined',
+    path: '/instructor/schedule',
+  },
   {
     key: '/instructor/courses',
     label: 'Khóa học của tôi',
@@ -152,20 +156,21 @@ export const ROUTE_TITLE: Record<string, string> = {
   '/admin/dashboard': 'Tổng quan',
   '/admin/leads': 'Quản lý Lead (Tuyển sinh)',
   '/admin/students': 'Quản lý học viên',
-  '/admin/tuition': 'Quản lý học phí',
+  '/admin/tuition': 'Quản lý hóa đơn',
   '/admin/refunds': 'Quản lý hoàn tiền',
   '/admin/enrollments': 'Danh sách ghi danh',
-  '/admin/enrollments/pending': 'Chờ ghi danh',
   '/admin/users': 'Quản lý tài khoản',
   '/admin/courses': 'Quản lý khóa học',
   '/admin/categories': 'Quản lý danh mục',
-  '/admin/rooms': 'Quản lý phòng học', // 🆕
+  '/admin/rooms': 'Quản lý phòng học',
   '/admin/requests': 'Quản lý yêu cầu',
   '/admin/roles': 'Phân quyền',
   '/admin/permissions': 'Quản lý Quyền hạn',
   '/admin/audit-logs': 'Nhật ký hệ thống',
   '/admin/reports': 'Báo cáo',
+  
   '/instructor/dashboard': 'Tổng quan',
+  '/instructor/schedule': 'Lịch giảng dạy', // 🆕 Thêm title cho lịch
   '/instructor/courses': 'Khóa học của tôi',
   '/instructor/students': 'Học viên',
   '/instructor/attendance': 'Điểm danh',

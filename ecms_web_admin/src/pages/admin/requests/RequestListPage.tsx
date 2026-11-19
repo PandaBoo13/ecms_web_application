@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Button, Select, Space, Tabs, Tag } from 'antd';
+import { useNavigate } from 'react-router-dom';
+import { Button, Select, Space, Tabs, Tag, Tooltip } from 'antd';
 import {
   ReloadOutlined,
   ClockCircleOutlined,
   CheckCircleOutlined,
   CloseCircleOutlined,
   InboxOutlined,
+  ExportOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import toast from 'react-hot-toast';
@@ -33,6 +35,10 @@ import RequestDetailDrawer from './RequestDetailDrawer';
 // Đủ cho demo, nếu production > 500 request/nhóm → cần BE support search mảng requestType.
 const GROUP_FETCH_SIZE = 200;
 
+// §2.3: đơn xin nghỉ buổi học do giảng viên xử lý tại màn hình điểm danh.
+// Admin chỉ xem trạng thái đơn trong buổi điểm danh → ẩn khỏi toàn bộ module request.
+const ADMIN_EXCLUDED_REQUEST_TYPE = 'LEAVE_FEEDBACK';
+
 interface RequestStats {
   total: number;
   pending: number;
@@ -42,6 +48,7 @@ interface RequestStats {
 
 const RequestListPage = () => {
   const { t } = useTranslation();
+  const navigate = useNavigate();
 
   const [data, setData] = useState<RequestResponse[]>([]);
   const [loading, setLoading] = useState(false);
@@ -68,10 +75,10 @@ const RequestListPage = () => {
   const fetchStats = useCallback(async () => {
     try {
       const [all, pending, approved, rejected] = await Promise.all([
-        requestApi.search({ page: 0, size: 1 }),
-        requestApi.search({ page: 0, size: 1, status: 'PENDING' }),
-        requestApi.search({ page: 0, size: 1, status: 'APPROVED' }),
-        requestApi.search({ page: 0, size: 1, status: 'REJECTED' }),
+        requestApi.search({ page: 0, size: 1, excludeRequestType: ADMIN_EXCLUDED_REQUEST_TYPE }),
+        requestApi.search({ page: 0, size: 1, status: 'PENDING', excludeRequestType: ADMIN_EXCLUDED_REQUEST_TYPE }),
+        requestApi.search({ page: 0, size: 1, status: 'APPROVED', excludeRequestType: ADMIN_EXCLUDED_REQUEST_TYPE }),
+        requestApi.search({ page: 0, size: 1, status: 'REJECTED', excludeRequestType: ADMIN_EXCLUDED_REQUEST_TYPE }),
       ]);
       setStats({
         total: all.totalElements,
@@ -92,6 +99,7 @@ const RequestListPage = () => {
     try {
       const group = getGroupByKey(activeTab);
       const baseParams = {
+        excludeRequestType: ADMIN_EXCLUDED_REQUEST_TYPE,
         status: statusFilter,
         keyword: keyword.trim() || undefined,
         sortBy: 'createdAt',
@@ -211,7 +219,47 @@ const RequestListPage = () => {
         dataIndex: 'title',
         key: 'title',
         ellipsis: true,
-        render: (v: string) => <span style={{ fontWeight: 500 }}>{v}</span>,
+        render: (v: string, rec: RequestResponse) => {
+          const isCourseRequest =
+            Boolean(rec.targetEntityId) &&
+            (rec.targetEntityType === 'COURSE' ||
+              String(rec.requestType).startsWith('COURSE_'));
+
+          if (!isCourseRequest) {
+            return <span style={{ fontWeight: 500 }}>{v}</span>;
+          }
+
+          return (
+            <Tooltip title="Mở trang chi tiết khóa học">
+              <span
+                role="button"
+                tabIndex={0}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigate(`/admin/courses/${rec.targetEntityId}`);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    navigate(`/admin/courses/${rec.targetEntityId}`);
+                  }
+                }}
+                style={{
+                  fontWeight: 500,
+                  color: '#1677ff',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                }}
+              >
+                <span>{v}</span>
+                <ExportOutlined style={{ fontSize: 12, flexShrink: 0 }} />
+              </span>
+            </Tooltip>
+          );
+        },
       },
       {
         title: t('request.column.type', 'Loại'),
@@ -249,7 +297,7 @@ const RequestListPage = () => {
         render: (v?: string) => <DateDisplay value={v} />,
       },
     ],
-    [t],
+    [t, navigate],
   );
 
   // ══════════════════════════════════════════════════════════════
@@ -260,7 +308,9 @@ const RequestListPage = () => {
       { key: 'all', label: t('request.tab.all', 'Tất cả') },
       ...REQUEST_GROUPS.map((g) => ({
         key: g.key,
-        label: t(g.labelKey, g.key),
+        label: g.key === 'grade_review'
+          ? t(g.labelKey, 'Kiểm duyệt điểm')
+          : t(g.labelKey, g.key),
       })),
     ],
     [t],
@@ -394,7 +444,7 @@ const RequestListPage = () => {
             'Tìm theo mã, tiêu đề, người gửi...',
           )}
           onRow={(record) => ({
-            onDoubleClick: () => handleOpenDetail(record.id),
+            onClick: () => void handleOpenDetail(record.id),
             style: { cursor: 'pointer' },
           })}
           extra={

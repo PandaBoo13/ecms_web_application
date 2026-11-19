@@ -5,6 +5,7 @@ import com.ecms_web_application.OC01.dto.response.course.CourseResourceResponse;
 import com.ecms_web_application.OC01.dto.response.course.CourseResponse;
 import com.ecms_web_application.OC01.entity.course.Course;
 import com.ecms_web_application.OC01.entity.course.CourseResource;
+import com.ecms_web_application.OC01.generic.CourseScoreScale;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -133,6 +134,7 @@ public class CourseMapper {
         r.setLearningMode(c.getLearningMode());
         r.setAllowedRoomIds(c.getAllowedRoomIds());
         r.setTotalSessionsExpected(c.getTotalSessionsExpected());
+        r.setMaxFinalScore(CourseScoreScale.maxFinalScore(c));
         r.setCreatedAt(c.getCreatedAt());
         r.setUpdatedAt(c.getUpdatedAt());
     }

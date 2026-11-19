@@ -43,6 +43,25 @@ public interface RequestRepository extends IRepository<Request, Long> {
             @Param("status") RequestStatus status,
             Pageable pageable);
 
+    @Query("""
+        SELECT r FROM Request r
+        WHERE r.targetEntityType = :targetType
+          AND r.targetEntityId = :targetId
+          AND r.requestType = :type
+        ORDER BY r.createdAt DESC
+    """)
+    java.util.List<Request> findAllByTargetAndType(
+            @Param("targetType") String targetType,
+            @Param("targetId") Long targetId,
+            @Param("type") RequestType type,
+            Pageable pageable);
+
+    default java.util.Optional<Request> findLatestByTargetAndType(
+            String targetType, Long targetId, RequestType type) {
+        var list = findAllByTargetAndType(targetType, targetId, type, Pageable.ofSize(1));
+        return list.isEmpty() ? java.util.Optional.empty() : java.util.Optional.of(list.get(0));
+    }
+
     default java.util.Optional<Request> findLatestByTargetAndTypeAndStatus(
             String targetType, Long targetId, RequestType type, RequestStatus status) {
         var list = findAllByTargetAndTypeAndStatus(targetType, targetId, type, status,
@@ -61,6 +80,7 @@ public interface RequestRepository extends IRepository<Request, Long> {
     @Query("""
         SELECT r FROM Request r
         WHERE (:requestType IS NULL OR r.requestType = :requestType)
+          AND (:excludeRequestType IS NULL OR r.requestType <> :excludeRequestType)
           AND (:status IS NULL OR r.status = :status)
           AND (:requesterId IS NULL OR r.requesterId = :requesterId)
           AND (:targetEntityType IS NULL OR r.targetEntityType = :targetEntityType)
@@ -72,6 +92,7 @@ public interface RequestRepository extends IRepository<Request, Long> {
     """)
     Page<Request> search(
             @Param("requestType") RequestType requestType,
+            @Param("excludeRequestType") RequestType excludeRequestType,
             @Param("status") RequestStatus status,
             @Param("requesterId") Long requesterId,
             @Param("targetEntityType") String targetEntityType,

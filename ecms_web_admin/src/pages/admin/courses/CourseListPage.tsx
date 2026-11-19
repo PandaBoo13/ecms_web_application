@@ -1,11 +1,27 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Button, Space, Select, TreeSelect, Tooltip, Popconfirm, Image, Typography, Row, Col,
+  Button,
+  Space,
+  Select,
+  TreeSelect,
+  Tooltip,
+  Popconfirm,
+  Image,
+  Typography,
+  Row,
+  Col,
 } from 'antd';
 import {
-  PlusOutlined, EyeOutlined, ReloadOutlined, EditOutlined, DeleteOutlined,
-  BookOutlined, CheckCircleOutlined, ClockCircleOutlined, FileTextOutlined,
+  PlusOutlined,
+  EyeOutlined,
+  ReloadOutlined,
+  EditOutlined,
+  DeleteOutlined,
+  BookOutlined,
+  CheckCircleOutlined,
+  ClockCircleOutlined,
+  FileTextOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import toast from 'react-hot-toast';
@@ -31,6 +47,10 @@ interface CourseStats {
   draft: number;
 }
 
+type CourseWithTeacherId = CourseResponse & {
+  teacherId?: number | null;
+};
+
 const CourseListPage = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -44,12 +64,18 @@ const CourseListPage = () => {
   const [statusFilter, setStatusFilter] = useState<string | undefined>();
   const [typeFilter, setTypeFilter] = useState<string | undefined>();
   const [categoryFilter, setCategoryFilter] = useState<number | undefined>();
+  const [teacherFilter, setTeacherFilter] = useState<number | undefined>();
 
-  // 🆕 Lưu danh sách categories gốc (không map nữa, để build tree)
   const [categories, setCategories] = useState<CategoryResponse[]>([]);
+  const [teacherOptions, setTeacherOptions] = useState<
+    { value: number; label: string }[]
+  >([]);
 
   const [stats, setStats] = useState<CourseStats>({
-    total: 0, published: 0, pending: 0, draft: 0,
+    total: 0,
+    published: 0,
+    pending: 0,
+    draft: 0,
   });
 
   // ══════════════════════════════════════════════════════════════
@@ -61,7 +87,6 @@ const CourseListPage = () => {
       .then((res) => {
         if (res?.content) {
           setCategories(res.content);
-          console.log('📂 [CATEGORY] Loaded:', res.content.length, 'items');
         }
       })
       .catch((err) => {
@@ -70,12 +95,46 @@ const CourseListPage = () => {
       });
   }, []);
 
-  // 🆕 BUILD TREE cho TreeSelect
+  // ══════════════════════════════════════════════════════════════
+  // FETCH DANH SÁCH GIẢNG VIÊN CHO BỘ LỌC
+  // ══════════════════════════════════════════════════════════════
+  const fetchTeachers = useCallback(async () => {
+    try {
+      // Lấy danh sách giảng viên đang phụ trách khóa học từ courseApi
+      // (Nếu dự án có accountApi/teacherApi riêng, có thể thay thế tại đây)
+      const res = await courseApi.search({ page: 0, size: 500 });
+      const teacherMap = new Map<number, string>();
+
+      (res?.content as CourseWithTeacherId[] | undefined)?.forEach((c) => {
+        if (
+          c.teacherId !== undefined &&
+          c.teacherId !== null &&
+          c.teacherName
+        ) {
+          teacherMap.set(c.teacherId, c.teacherName);
+        }
+      });
+
+      const options = Array.from(teacherMap.entries())
+        .map(([id, name]) => ({ value: id, label: name }))
+        .sort((a, b) => a.label.localeCompare(b.label, 'vi'));
+
+      setTeacherOptions(options);
+    } catch (err) {
+      console.warn('[TEACHERS] fetch failed:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchTeachers();
+  }, [fetchTeachers]);
+
+  // BUILD TREE cho TreeSelect
   const categoryTreeData = useMemo(() => {
     const buildTree = (
       items: CategoryResponse[],
       parentId: number | null = null,
-      depth: number = 0
+      depth: number = 0,
     ): any[] => {
       return items
         .filter((item) => (item.parentId ?? null) === parentId)
@@ -86,9 +145,7 @@ const CourseListPage = () => {
           children: buildTree(items, item.id, depth + 1),
         }));
     };
-    const tree = buildTree(categories);
-    console.log('🌳 [CATEGORY] Tree built:', tree.length, 'root nodes');
-    return tree;
+    return buildTree(categories);
   }, [categories]);
 
   // ══════════════════════════════════════════════════════════════
@@ -128,22 +185,14 @@ const CourseListPage = () => {
       if (keyword.trim()) params.search = keyword.trim();
       if (statusFilter) params.status = statusFilter;
       if (typeFilter) params.type = typeFilter;
-      // ✅ Dùng !== undefined để không bỏ sót id = 0
       if (categoryFilter !== undefined && categoryFilter !== null) {
         params.categoryId = categoryFilter;
       }
-
-      // 🆕 DEBUG: Xem params thực sự gửi đi
-      console.log('🚀 [COURSE-FETCH] Params:', params);
+      if (teacherFilter !== undefined && teacherFilter !== null) {
+        params.teacherId = teacherFilter;
+      }
 
       const res = await courseApi.search(params);
-
-      // 🆕 DEBUG: Xem response thực sự nhận về
-      console.log('📥 [COURSE-FETCH] Response:', {
-        totalElements: res.totalElements,
-        contentLength: res.content?.length,
-        sampleIds: res.content?.slice(0, 3).map((c) => c.id),
-      });
 
       setData(res.content);
       setTotal(res.totalElements);
@@ -156,7 +205,15 @@ const CourseListPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, keyword, statusFilter, typeFilter, categoryFilter]);
+  }, [
+    page,
+    pageSize,
+    keyword,
+    statusFilter,
+    typeFilter,
+    categoryFilter,
+    teacherFilter,
+  ]);
 
   useEffect(() => {
     fetchData();
@@ -182,14 +239,18 @@ const CourseListPage = () => {
     setPage(0);
   };
   const handleCategoryChange = (v: number | undefined) => {
-    console.log('🎯 [CATEGORY-CHANGE] Selected:', v);
     setCategoryFilter(v);
+    setPage(0);
+  };
+  const handleTeacherChange = (v: number | undefined) => {
+    setTeacherFilter(v);
     setPage(0);
   };
 
   const handleRefresh = () => {
     fetchData();
     fetchStats();
+    fetchTeachers();
     toast.success('Đã làm mới dữ liệu');
   };
 
@@ -210,6 +271,7 @@ const CourseListPage = () => {
     setStatusFilter(undefined);
     setTypeFilter(undefined);
     setCategoryFilter(undefined);
+    setTeacherFilter(undefined);
     setPage(0);
   };
 
@@ -328,11 +390,15 @@ const CourseListPage = () => {
         ),
       },
     ],
-    [t, navigate]
+    [t, navigate],
   );
 
   const hasActiveFilters = Boolean(
-    keyword || statusFilter || typeFilter || categoryFilter !== undefined
+    keyword ||
+      statusFilter ||
+      typeFilter ||
+      categoryFilter !== undefined ||
+      teacherFilter !== undefined,
   );
 
   return (
@@ -348,7 +414,7 @@ const CourseListPage = () => {
             <Button
               type="primary"
               icon={<PlusOutlined />}
-             onClick={() => navigate('/admin/courses/create')}
+              onClick={() => navigate('/admin/courses/create')}
             >
               {t('course.create')}
             </Button>
@@ -364,7 +430,12 @@ const CourseListPage = () => {
             icon={<BookOutlined />}
             color="#2563eb"
             bgColor="#eff6ff"
-            active={!statusFilter && !typeFilter && categoryFilter === undefined}
+            active={
+              !statusFilter &&
+              !typeFilter &&
+              categoryFilter === undefined &&
+              teacherFilter === undefined
+            }
             onClick={handleResetFilters}
             tooltip="Nhấn để xem toàn bộ khóa học"
           />
@@ -377,7 +448,11 @@ const CourseListPage = () => {
             color="#10b981"
             bgColor="#ecfdf5"
             active={statusFilter === 'PUBLISHED'}
-            onClick={() => handleStatusChange(statusFilter === 'PUBLISHED' ? undefined : 'PUBLISHED')}
+            onClick={() =>
+              handleStatusChange(
+                statusFilter === 'PUBLISHED' ? undefined : 'PUBLISHED',
+              )
+            }
             tagText="PUBLISHED"
             tagColor="success"
             tooltip="Nhấn để lọc các khóa học đã xuất bản"
@@ -392,7 +467,11 @@ const CourseListPage = () => {
             bgColor="#fffbeb"
             active={statusFilter === 'PENDING_REVIEW'}
             onClick={() =>
-              handleStatusChange(statusFilter === 'PENDING_REVIEW' ? undefined : 'PENDING_REVIEW')
+              handleStatusChange(
+                statusFilter === 'PENDING_REVIEW'
+                  ? undefined
+                  : 'PENDING_REVIEW',
+              )
             }
             tagText="PENDING"
             tagColor="warning"
@@ -407,7 +486,9 @@ const CourseListPage = () => {
             color="#64748b"
             bgColor="#f8fafc"
             active={statusFilter === 'DRAFT'}
-            onClick={() => handleStatusChange(statusFilter === 'DRAFT' ? undefined : 'DRAFT')}
+            onClick={() =>
+              handleStatusChange(statusFilter === 'DRAFT' ? undefined : 'DRAFT')
+            }
             tagText="DRAFT"
             tagColor="default"
             tooltip="Nhấn để lọc các khóa học đang ở trạng thái nháp"
@@ -430,18 +511,17 @@ const CourseListPage = () => {
           }}
           onSearch={handleKeywordChange}
           searchValue={keyword}
-          searchPlaceholder={t('course.searchPlaceholder')}
+          searchPlaceholder="Tìm theo tên, mã khóa học hoặc giảng viên..."
           onRow={(record) => ({
             onDoubleClick: () => navigate(`/admin/courses/${record.id}`),
             style: { cursor: 'pointer' },
           })}
           extra={
             <Space wrap>
-              {/* 🆕 TREE SELECT — hiển thị dạng cây có thụt lề */}
               <TreeSelect
                 placeholder="Lọc theo danh mục"
                 allowClear
-                style={{ width: 240 }}
+                style={{ width: 220 }}
                 value={categoryFilter}
                 onChange={handleCategoryChange}
                 treeData={categoryTreeData}
@@ -449,6 +529,17 @@ const CourseListPage = () => {
                 treeNodeFilterProp="title"
                 treeDefaultExpandAll
                 dropdownStyle={{ maxHeight: 400, overflow: 'auto' }}
+              />
+
+              <Select
+                placeholder="Lọc theo giảng viên"
+                allowClear
+                showSearch
+                optionFilterProp="label"
+                style={{ width: 200 }}
+                value={teacherFilter}
+                onChange={handleTeacherChange}
+                options={teacherOptions}
               />
 
               <Select
@@ -481,7 +572,9 @@ const CourseListPage = () => {
                 ]}
               />
 
-              {hasActiveFilters && <Button onClick={handleResetFilters}>Xóa bộ lọc</Button>}
+              {hasActiveFilters && (
+                <Button onClick={handleResetFilters}>Xóa bộ lọc</Button>
+              )}
             </Space>
           }
         />

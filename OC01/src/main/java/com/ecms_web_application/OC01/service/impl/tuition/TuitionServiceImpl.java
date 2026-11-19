@@ -3,11 +3,13 @@ package com.ecms_web_application.OC01.service.impl.tuition;
 import com.ecms_web_application.OC01.config.SecurityUtils;
 import com.ecms_web_application.OC01.dto.request.tuition.CancelInvoiceRequest;
 import com.ecms_web_application.OC01.dto.request.tuition.CreateInvoiceFromLeadRequest;
-import com.ecms_web_application.OC01.dto.request.tuition.CreateInvoiceFromStudentRequest;
-import com.ecms_web_application.OC01.dto.request.tuition.CreateInvoiceRequest;
 import com.ecms_web_application.OC01.dto.request.tuition.OnlineCheckoutRequest;
 import com.ecms_web_application.OC01.dto.request.tuition.ExtendInvoiceDueDateRequest;
+import com.ecms_web_application.OC01.dto.request.request.RequestCreateRequest;
 import com.ecms_web_application.OC01.dto.request.tuition.RefundInvoiceRequest;
+import com.ecms_web_application.OC01.dto.request.tuition.SubmitRefundApprovalRequest;
+import com.ecms_web_application.OC01.dto.response.request.RequestDetailResponse;
+import com.ecms_web_application.OC01.dto.response.tuition.RefundApprovalStatusResponse;
 import com.ecms_web_application.OC01.dto.response.tuition.CreateInvoiceFromLeadResponse;
 import com.ecms_web_application.OC01.dto.response.tuition.EligibleLeadResponse;
 import com.ecms_web_application.OC01.dto.response.tuition.InvoiceResponse;
@@ -27,8 +29,9 @@ import com.ecms_web_application.OC01.entity.enums.PaymentMethod;
 import com.ecms_web_application.OC01.dto.request.StudentConvertFromLeadRequest;
 import com.ecms_web_application.OC01.dto.response.StudentResponse;
 import com.ecms_web_application.OC01.entity.Account;
-import com.ecms_web_application.OC01.entity.Lead;
-import com.ecms_web_application.OC01.entity.Student;
+import com.ecms_web_application.OC01.entity.enums.RequestStatus;
+import com.ecms_web_application.OC01.entity.enums.RequestType;
+import com.ecms_web_application.OC01.entity.request.Request;
 import com.ecms_web_application.OC01.event.InvoicePaidEvent;
 import com.ecms_web_application.OC01.event.InvoiceExtendedEvent;
 import com.ecms_web_application.OC01.event.InvoiceRefundedEvent;
@@ -38,10 +41,12 @@ import com.ecms_web_application.OC01.repository.CourseRepository;
 import com.ecms_web_application.OC01.repository.EnrollmentRepository;
 import com.ecms_web_application.OC01.repository.InvoiceRepository;
 import com.ecms_web_application.OC01.repository.LeadRepository;
+import com.ecms_web_application.OC01.repository.RequestRepository;
 import com.ecms_web_application.OC01.repository.StudentRepository;
 import com.ecms_web_application.OC01.service.AuditLogService;
 import com.ecms_web_application.OC01.service.EnrollmentService;
 import com.ecms_web_application.OC01.service.TuitionService;
+import com.ecms_web_application.OC01.service.request.RequestService;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -60,6 +65,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -84,42 +90,8 @@ public class TuitionServiceImpl implements TuitionService {
     private final TuitionPaymentLinkService paymentLinkService;
     private final AuditLogService auditLogService;
     private final NotificationService notificationService;
-
-    @Override
-    @Transactional
-    public InvoiceResponse createOfflineInvoice(CreateInvoiceRequest request) {
-        requireAdmin();
-        Course course = getCourse(request.getCourseId());
-        if (course.getCourseType() != CourseType.OFFLINE) {
-            throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Chỉ tạo hóa đơn thủ công cho khóa OFFLINE");
-        }
-        validateOwnerReferences(request.getStudentId(), request.getLeadId());
-        if (request.getLeadId() != null) {
-            Lead lead = leadRepository.findById(request.getLeadId())
-                    .orElseThrow(() -> new ErrorHandler(HttpStatus.NOT_FOUND, "Lead không tồn tại"));
-            if (lead.getStudentId() != null) {
-                throw new ErrorHandler(HttpStatus.CONFLICT,
-                        "Lead đã có hồ sơ học viên; hãy tạo hóa đơn theo studentId");
-            }
-        }
-        if (request.getAmount() == null || request.getAmount().compareTo(BigDecimal.ZERO) <= 0) {
-            throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Số tiền hóa đơn phải lớn hơn 0");
-        }
-        course = lockOfflineCourse(course.getId());
-        ensureOfflineInvoiceCapacity(course, null);
-
-        Invoice invoice = new Invoice();
-        invoice.setInvoiceCode(generateInvoiceCode());
-        invoice.setType(InvoiceType.TUITION_PAYMENT);
-        invoice.setCourseId(course.getId());
-        invoice.setStudentId(request.getStudentId());
-        invoice.setLeadId(request.getLeadId());
-        invoice.setAmount(request.getAmount());
-        invoice.setDueAt(request.getDueAt());
-        invoice.setStatus(InvoiceStatus.PENDING);
-        invoice.setCreatedBy(SecurityUtils.requireCurrentAccountId());
-        return InvoiceResponse.from(invoiceRepository.save(invoice));
-    }
+    private final RequestService requestService;
+    private final RequestRepository requestRepository;
 
     @Override
     @Transactional
@@ -315,43 +287,6 @@ public class TuitionServiceImpl implements TuitionService {
             InvoiceStatus.PENDING, InvoiceStatus.PAID, InvoiceStatus.OVERDUE);
 
     @Override
-    @Transactional(readOnly = true)
-    public Page<EligibleLeadResponse> searchEligibleLeads(String search, Pageable pageable) {
-        requireAdmin();
-        Page<Lead> leads;
-        if (search == null || search.trim().isEmpty()) {
-            leads = leadRepository.findConsultedLeads(
-                    InvoiceType.TUITION_PAYMENT, ACTIVE_INVOICE_STATUSES, pageable);
-        } else {
-            leads = leadRepository.searchConsultedLeads(
-                    search.trim(), InvoiceType.TUITION_PAYMENT, ACTIVE_INVOICE_STATUSES, pageable);
-        }
-
-        if (leads.isEmpty()) {
-            return Page.empty(pageable);
-        }
-
-        // Batch-fetch tất cả Course liên quan trong 1 query thay vì N+1
-        Set<Long> courseIds = leads.stream()
-                .map(Lead::getCourseId)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toSet());
-        Map<Long, Course> courseMap = courseIds.isEmpty() ? Map.of()
-                : courseRepository.findAllById(courseIds).stream()
-                        .collect(Collectors.toMap(Course::getId, c -> c, (c1, c2) -> c1));
-
-        return leads.map(lead -> {
-            Course course = lead.getCourseId() == null ? null : courseMap.get(lead.getCourseId());
-            return new EligibleLeadResponse(
-                    lead.getId(), lead.getFullName(), lead.getEmail(), lead.getPhone(),
-                    lead.getCourseId(),
-                    course == null ? null : course.getTitle(),
-                    course == null ? null : course.getPrice(),
-                    lead.getConsultedAt(), lead.getAssignedConsultantId(), lead.getNote());
-        });
-    }
-
-    @Override
     @Transactional
     public CreateInvoiceFromLeadResponse createInvoiceFromLead(CreateInvoiceFromLeadRequest request) {
         requireAdmin();
@@ -418,65 +353,40 @@ public class TuitionServiceImpl implements TuitionService {
     }
 
     @Override
-    @Transactional
-    public CreateInvoiceFromLeadResponse createInvoiceFromStudent(CreateInvoiceFromStudentRequest request) {
+    @Transactional(readOnly = true)
+    public Page<EligibleLeadResponse> searchEligibleLeads(String search, Pageable pageable) {
         requireAdmin();
-        Long actorId = SecurityUtils.requireCurrentAccountId();
-        Student student = studentRepository.findById(request.getStudentId())
-                .orElseThrow(() -> new ErrorHandler(HttpStatus.NOT_FOUND, "Học viên không tồn tại"));
-        if ("INACTIVE".equalsIgnoreCase(student.getStatus())) {
-            throw new ErrorHandler(HttpStatus.CONFLICT, "Học viên đã ngừng hoạt động; không thể tạo hóa đơn");
-        }
-        Course course = lockOfflineCourse(request.getCourseId());
-        if (course.getCourseType() != CourseType.OFFLINE) {
-            throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Chỉ tạo hóa đơn thủ công cho khóa OFFLINE");
-        }
-        if (course.getPrice() == null || course.getPrice().compareTo(BigDecimal.ZERO) <= 0) {
-            throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Khóa học chưa có học phí hợp lệ");
-        }
-        ensureOfflineInvoiceCapacity(course, null);
-        if (invoiceRepository.existsByStudentIdAndCourseIdAndTypeAndStatusIn(
-                student.getId(), course.getId(), InvoiceType.TUITION_PAYMENT,
-                List.of(InvoiceStatus.PENDING, InvoiceStatus.PAID, InvoiceStatus.OVERDUE))) {
-            throw new ErrorHandler(HttpStatus.CONFLICT, "Học viên đã có hóa đơn học phí đang mở cho khóa này");
-        }
-        if (enrollmentRepository.existsByCourseIdAndStudentIdAndStatusNot(
-                course.getId(), student.getId(), EnrollmentStatus.TERMINATED)) {
-            throw new ErrorHandler(HttpStatus.CONFLICT, "Học viên đã được ghi danh vào khóa học này");
+        Page<Lead> leads;
+        if (search == null || search.trim().isEmpty()) {
+            leads = leadRepository.findConsultedLeads(
+                    InvoiceType.TUITION_PAYMENT, ACTIVE_INVOICE_STATUSES, pageable);
+        } else {
+            leads = leadRepository.searchConsultedLeads(
+                    search.trim(), InvoiceType.TUITION_PAYMENT, ACTIVE_INVOICE_STATUSES, pageable);
         }
 
-        PaymentMethod method = request.getPaymentMethod();
-        if (method != PaymentMethod.CASH && method != PaymentMethod.BANK_TRANSFER) {
-            throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Phương thức thanh toán không hợp lệ");
+        if (leads.isEmpty()) {
+            return Page.empty(pageable);
         }
 
-        Invoice invoice = new Invoice();
-        invoice.setInvoiceCode(generateInvoiceCode());
-        invoice.setType(InvoiceType.TUITION_PAYMENT);
-        invoice.setCourseId(course.getId());
-        invoice.setStudentId(student.getId());
-        invoice.setAmount(course.getPrice());
-        invoice.setCreatedBy(actorId);
-        invoice.setPaymentMethod(method);
+        // Batch-fetch tất cả Course liên quan trong 1 query thay vì N+1
+        Set<Long> courseIds = leads.stream()
+                .map(Lead::getCourseId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        Map<Long, Course> courseMap = courseIds.isEmpty() ? Map.of()
+                : courseRepository.findAllById(courseIds).stream()
+                        .collect(Collectors.toMap(Course::getId, c -> c, (c1, c2) -> c1));
 
-        if (method == PaymentMethod.CASH) {
-            if (request.getProofUrl() == null || request.getProofUrl().isBlank()) {
-                throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Vui lòng tải ảnh chứng từ thu tiền mặt");
-            }
-            invoice.setStatus(InvoiceStatus.PAID);
-            invoice.setPaidAt(LocalDateTime.now());
-            invoice.setConfirmedBy(actorId);
-            invoice.setPaymentProofUrl(request.getProofUrl().trim());
-            Invoice saved = invoiceRepository.save(invoice);
-            eventPublisher.publishEvent(new InvoicePaidEvent(saved.getId()));
-            return new CreateInvoiceFromLeadResponse(toResponse(saved), null);
-        }
-
-        invoice.setStatus(InvoiceStatus.PENDING);
-        invoice.setDueAt(LocalDateTime.now().plusHours(24));
-        Invoice saved = invoiceRepository.save(invoice);
-        PaymentLinkResponse link = paymentLinkService.queuePaymentLink(saved.getId(), request.getEmail());
-        return new CreateInvoiceFromLeadResponse(toResponse(saved), link);
+        return leads.map(lead -> {
+            Course course = lead.getCourseId() == null ? null : courseMap.get(lead.getCourseId());
+            return new EligibleLeadResponse(
+                    lead.getId(), lead.getFullName(), lead.getEmail(), lead.getPhone(),
+                    lead.getCourseId(),
+                    course == null ? null : course.getTitle(),
+                    course == null ? null : course.getPrice(),
+                    lead.getConsultedAt(), lead.getAssignedConsultantId(), lead.getNote());
+        });
     }
 
     @Override
@@ -634,15 +544,159 @@ public class TuitionServiceImpl implements TuitionService {
 
     @Override
     @Transactional
-    public InvoiceResponse refund(Long invoiceId, RefundInvoiceRequest request) {
+    public RequestDetailResponse submitRefundApprovalRequest(Long invoiceId, SubmitRefundApprovalRequest request) {
         requireAdmin();
+        validateRefundApprovalRequest(invoiceId, request);
+
+        Invoice original = getInvoice(invoiceId);
+        RequestCreateRequest req = new RequestCreateRequest();
+        req.setRequestType(RequestType.INVOICE_REFUND.name());
+        req.setTargetEntityId(invoiceId);
+        req.setTitle("Yêu cầu duyệt hoàn tiền hóa đơn " + original.getInvoiceCode());
+        req.setDescription(request.getReason() != null ? request.getReason().trim() : null);
+
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("amount", request.getAmount());
+        payload.put("reason", request.getReason() != null ? request.getReason().trim() : null);
+        req.setPayload(payload);
+
+        RequestDetailResponse created = requestService.create(req);
+        auditLogService.log("REFUND_APPROVAL_REQUEST", "Invoice", invoiceId,
+                "Gửi yêu cầu duyệt hoàn tiền cho hóa đơn " + original.getInvoiceCode()
+                        + " với số tiền dự kiến " + request.getAmount());
+        return created;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public void validateRefundApprovalRequest(Long invoiceId, SubmitRefundApprovalRequest request) {
+        Invoice original = invoiceRepository.findById(invoiceId)
+                .orElseThrow(() -> new ErrorHandler(HttpStatus.NOT_FOUND, "Hóa đơn không tồn tại"));
+        requireTuitionInvoice(original);
+        if (original.getStatus() != InvoiceStatus.PAID) {
+            throw new ErrorHandler(HttpStatus.CONFLICT, "Chỉ hoàn tiền cho hóa đơn đã PAID");
+        }
+        Course originalCourse = getCourse(original.getCourseId());
+        if (originalCourse.getCourseType() != CourseType.OFFLINE) {
+            throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Chỉ hoàn tiền cho hóa đơn khóa OFFLINE");
+        }
+        if (invoiceRepository.existsByOriginalInvoiceId(original.getId())) {
+            throw new ErrorHandler(HttpStatus.CONFLICT, "Hóa đơn gốc đã có chứng từ hoàn tiền");
+        }
+        if (request == null || request.getAmount() == null
+                || request.getAmount().compareTo(BigDecimal.ZERO) <= 0
+                || request.getAmount().compareTo(original.getAmount()) > 0) {
+            throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Số tiền hoàn phải lớn hơn 0 và không vượt số tiền đã thu");
+        }
+        if (request.getReason() == null || request.getReason().trim().isEmpty()) {
+            throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Vui lòng nhập lý do hoàn tiền");
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public RefundApprovalStatusResponse getRefundApprovalStatus(Long invoiceId) {
+        requireAdmin();
+        Invoice original = getInvoice(invoiceId);
+        requireTuitionInvoice(original);
+        Request latest = requestRepository.findLatestByTargetAndType("INVOICE", invoiceId, RequestType.INVOICE_REFUND)
+                .orElse(null);
+        if (latest == null) {
+            return RefundApprovalStatusResponse.none();
+        }
+        String status = switch (latest.getStatus()) {
+            case PENDING -> "PENDING_APPROVAL";
+            case APPROVED -> "APPROVED";
+            case REJECTED -> "REJECTED";
+            case CANCELLED -> "CANCELLED";
+        };
+        BigDecimal requestedAmount = null;
+        String reason = null;
+        if (latest.getPayload() != null) {
+            Object amount = latest.getPayload().get("amount");
+            if (amount instanceof Number n) requestedAmount = BigDecimal.valueOf(n.doubleValue());
+            else if (amount != null) {
+                try { requestedAmount = new BigDecimal(String.valueOf(amount)); } catch (NumberFormatException ignored) {}
+            }
+            Object payloadReason = latest.getPayload().get("reason");
+            reason = payloadReason == null ? null : String.valueOf(payloadReason);
+        }
+        boolean canRecordRefund = latest.getStatus() == RequestStatus.APPROVED
+                && !invoiceRepository.existsByOriginalInvoiceId(invoiceId);
+        return new RefundApprovalStatusResponse(
+                status,
+                latest.getId(),
+                latest.getRequestCode(),
+                latest.getCreatedAt(),
+                latest.getRejectReason(),
+                latest.getResolvedAt(),
+                requestedAmount,
+                reason,
+                canRecordRefund);
+    }
+
+    @Override
+    @Transactional
+    public InvoiceResponse recordApprovedRefund(Long invoiceId, RefundInvoiceRequest request) {
+        requireAdmin();
+        Request approved = requestRepository.findLatestByTargetAndTypeAndStatus(
+                "INVOICE", invoiceId, RequestType.INVOICE_REFUND, RequestStatus.APPROVED)
+                .orElseThrow(() -> new ErrorHandler(HttpStatus.CONFLICT,
+                        "Hóa đơn chưa có yêu cầu hoàn tiền được phê duyệt"));
+        if (invoiceRepository.existsByOriginalInvoiceId(invoiceId)) {
+            throw new ErrorHandler(HttpStatus.CONFLICT, "Hóa đơn gốc đã có chứng từ hoàn tiền");
+        }
+        // Nếu khi gửi duyệt có số tiền dự kiến, lần ghi nhận phải khớp để đảm bảo đúng phê duyệt.
+        if (approved.getPayload() != null && approved.getPayload().get("amount") != null && request != null) {
+            try {
+                BigDecimal approvedAmount = new BigDecimal(String.valueOf(approved.getPayload().get("amount")));
+                if (request.getAmount() == null || approvedAmount.compareTo(request.getAmount()) != 0) {
+                    throw new ErrorHandler(HttpStatus.BAD_REQUEST,
+                            "Số tiền hoàn phải đúng số tiền đã được phê duyệt (" + approvedAmount.toPlainString() + ")");
+                }
+            } catch (NumberFormatException ignored) {
+                // bỏ qua nếu payload cũ không hợp lệ, vẫn validate theo hóa đơn gốc ở doRefund
+            }
+        }
+        validateRefundRecordRequest(request);
+        Long actorId = SecurityUtils.requireCurrentAccountId();
+        InvoiceResponse response = doRefund(invoiceId, request, actorId);
+        auditLogService.log("REFUND_RECORDED", "Invoice", invoiceId,
+                "Ghi nhận hoàn tiền đã thực hiện cho hóa đơn (theo yêu cầu " + approved.getRequestCode() + ")");
+        return response;
+    }
+
+    private void validateRefundRecordRequest(RefundInvoiceRequest request) {
+        if (request == null) {
+            throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Thiếu thông tin hoàn tiền");
+        }
+        if (request.getPaymentMethod() == null) {
+            throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Vui lòng chọn phương thức hoàn tiền");
+        }
+        if (request.getReason() == null || request.getReason().trim().isEmpty()) {
+            throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Vui lòng nhập lý do hoàn tiền");
+        }
+        if (request.getProofUrl() == null || request.getProofUrl().trim().isEmpty()) {
+            throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Vui lòng tải ảnh minh chứng hoàn tiền");
+        }
+        if (request.getPayerName() == null || request.getPayerName().trim().isEmpty()) {
+            throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Vui lòng nhập họ tên người nhận hoàn");
+        }
+        if (request.getPayerEmail() == null || request.getPayerEmail().trim().isEmpty()) {
+            throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Vui lòng nhập email người nhận hoàn");
+        }
+        if (request.getRefundedAt() != null && request.getRefundedAt().isAfter(LocalDateTime.now())) {
+            throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Ngày hoàn tiền không được ở tương lai");
+        }
+    }
+
+    private InvoiceResponse doRefund(Long invoiceId, RefundInvoiceRequest request, Long actorId) {
         Invoice original = invoiceRepository.findByIdForUpdate(invoiceId)
                 .orElseThrow(() -> new ErrorHandler(HttpStatus.NOT_FOUND, "Hóa đơn không tồn tại"));
         requireTuitionInvoice(original);
         if (original.getStatus() != InvoiceStatus.PAID) {
             throw new ErrorHandler(HttpStatus.CONFLICT, "Chỉ hoàn tiền cho hóa đơn đã PAID");
         }
-        // Hoàn tiền chỉ áp dụng khóa OFFLINE; khóa ONLINE không có nghiệp vụ hoàn tiền.
         Course originalCourse = getCourse(original.getCourseId());
         if (originalCourse.getCourseType() != CourseType.OFFLINE) {
             throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Chỉ hoàn tiền cho hóa đơn khóa OFFLINE");
@@ -655,15 +709,14 @@ public class TuitionServiceImpl implements TuitionService {
             throw new ErrorHandler(HttpStatus.CONFLICT, "Hóa đơn gốc đã có chứng từ hoàn tiền");
         }
 
-        Long actorId = SecurityUtils.requireCurrentAccountId();
         Invoice refund = new Invoice();
         refund.setInvoiceCode(generateInvoiceCode());
         refund.setType(InvoiceType.REFUND);
         refund.setOriginalInvoiceId(original.getId());
         refund.setStudentId(original.getStudentId());
         refund.setLeadId(original.getLeadId());
-        refund.setPayerName(request.getPayerName().trim());
-        refund.setPayerEmail(request.getPayerEmail().trim());
+        refund.setPayerName(request.getPayerName() != null ? request.getPayerName().trim() : null);
+        refund.setPayerEmail(request.getPayerEmail() != null ? request.getPayerEmail().trim() : null);
         refund.setPayerPhone(trimToNull(request.getPayerPhone()));
         refund.setCourseId(original.getCourseId());
         refund.setAmount(request.getAmount());
@@ -673,15 +726,13 @@ public class TuitionServiceImpl implements TuitionService {
         refund.setPaidAt(request.getRefundedAt() != null ? request.getRefundedAt() : LocalDateTime.now());
         refund.setConfirmedBy(actorId);
         refund.setCreatedBy(actorId);
-        refund.setReason(request.getReason().trim());
-        refund.setPaymentProofUrl(request.getProofUrl().trim());
+        refund.setReason(request.getReason() != null ? request.getReason().trim() : null);
+        refund.setPaymentProofUrl(request.getProofUrl() != null ? request.getProofUrl().trim() : null);
         Invoice saved = invoiceRepository.save(refund);
 
         auditLogService.log("REFUND", "Invoice", saved.getId(),
                 "Hoàn tiền cho hóa đơn " + original.getInvoiceCode() + " với số tiền " + saved.getAmount());
 
-        // Hoàn đủ 100%: chấm dứt ghi danh để ngừng quyền học và giải phóng chỗ.
-        // Hoàn một phần giữ nguyên ghi danh để học viên tiếp tục theo học.
         if (saved.getAmount().compareTo(original.getAmount()) == 0) {
             enrollmentService.terminateForFullRefund(original.getId(), actorId,
                     "Hoàn tiền toàn phần hóa đơn " + original.getInvoiceCode()
@@ -689,7 +740,6 @@ public class TuitionServiceImpl implements TuitionService {
         }
 
         eventPublisher.publishEvent(new InvoiceRefundedEvent(saved.getId()));
-
         return toResponse(saved);
     }
 
@@ -857,19 +907,6 @@ public class TuitionServiceImpl implements TuitionService {
             }
             return cb.and(predicates.toArray(Predicate[]::new));
         };
-    }
-
-    private void validateOwnerReferences(Long studentId, Long leadId) {
-        int owners = (studentId == null ? 0 : 1) + (leadId == null ? 0 : 1);
-        if (owners != 1) {
-            throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Cần cung cấp chính xác một studentId hoặc leadId");
-        }
-        if (studentId != null && !studentRepository.existsById(studentId)) {
-            throw new ErrorHandler(HttpStatus.NOT_FOUND, "Học viên không tồn tại");
-        }
-        if (leadId != null && !leadRepository.existsById(leadId)) {
-            throw new ErrorHandler(HttpStatus.NOT_FOUND, "Lead không tồn tại");
-        }
     }
 
     private Course getCourse(Long courseId) {

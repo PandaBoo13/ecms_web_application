@@ -25,8 +25,6 @@ interface Props {
 const CourseDetailActions = ({ course, onRefresh }: Props) => {
   const navigate = useNavigate();
   const { isAdmin } = useAuth();
-  const [submitting, setSubmitting] = useState(false);
-  const [generating, setGenerating] = useState(false);
 
   const [teacherModalOpen, setTeacherModalOpen] = useState(false);
   const [instructors, setInstructors] = useState<AccountResponse[]>([]);
@@ -50,20 +48,16 @@ const CourseDetailActions = ({ course, onRefresh }: Props) => {
 
   // ── HANDLERS ──
   const handleSubmitReview = async () => {
-    setSubmitting(true);
     try {
       await courseApi.submitReview(course.id);
       toast.success('Đã gửi duyệt khóa học');
       onRefresh();
     } catch (err) {
       toast.error((err as { message?: string })?.message || 'Gửi duyệt thất bại');
-    } finally {
-      setSubmitting(false);
     }
   };
 
   const handleApprove = async () => {
-    setSubmitting(true);
     try {
       await courseApi.review(course.id, true);
       toast.success(
@@ -74,22 +68,17 @@ const CourseDetailActions = ({ course, onRefresh }: Props) => {
       onRefresh();
     } catch (err) {
       toast.error((err as { message?: string })?.message || 'Phê duyệt thất bại');
-    } finally {
-      setSubmitting(false);
     }
   };
 
   // 🆕 Hàm chốt lịch (PLANNED -> PUBLISHED)
   const handleFinalize = async () => {
-    setSubmitting(true);
     try {
       await courseApi.finalizeSchedule(course.id);
       toast.success('Đã chốt lịch và xuất bản khóa học chính thức');
       onRefresh();
     } catch (err) {
       toast.error((err as { message?: string })?.message || 'Chốt lịch thất bại');
-    } finally {
-      setSubmitting(false);
     }
   };
 
@@ -166,7 +155,6 @@ const CourseDetailActions = ({ course, onRefresh }: Props) => {
   };
 
   const handleGenerateSessions = async () => {
-    setGenerating(true);
     try {
       const res = await sessionApi.generate(course.id);
       toast.success(res.message, { duration: 5000 });
@@ -187,8 +175,6 @@ const CourseDetailActions = ({ course, onRefresh }: Props) => {
       onRefresh();
     } catch (err) {
       toast.error((err as { message?: string })?.message || 'Sinh session thất bại');
-    } finally {
-      setGenerating(false);
     }
   };
 
@@ -353,7 +339,7 @@ const CourseDetailActions = ({ course, onRefresh }: Props) => {
         </Button>
         {menuItems.length > 0 && (
           <Dropdown menu={{ items: menuItems }} trigger={['click']} placement="bottomRight">
-            <Button type="primary" loading={submitting || generating}>
+            <Button type="primary" loading={copySubmitting}>
               Thao tác <DownOutlined />
             </Button>
           </Dropdown>
