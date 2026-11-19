@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Button, Select, Space, Tabs, Tag } from 'antd';
+import { useNavigate } from 'react-router-dom';
+import { Button, Select, Space, Tabs, Tag, Tooltip } from 'antd';
 import {
   ReloadOutlined,
   ClockCircleOutlined,
   CheckCircleOutlined,
   CloseCircleOutlined,
   InboxOutlined,
+  ExportOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import toast from 'react-hot-toast';
@@ -46,6 +48,7 @@ interface RequestStats {
 
 const RequestListPage = () => {
   const { t } = useTranslation();
+  const navigate = useNavigate();
 
   const [data, setData] = useState<RequestResponse[]>([]);
   const [loading, setLoading] = useState(false);
@@ -216,7 +219,47 @@ const RequestListPage = () => {
         dataIndex: 'title',
         key: 'title',
         ellipsis: true,
-        render: (v: string) => <span style={{ fontWeight: 500 }}>{v}</span>,
+        render: (v: string, rec: RequestResponse) => {
+          const isCourseRequest =
+            Boolean(rec.targetEntityId) &&
+            (rec.targetEntityType === 'COURSE' ||
+              String(rec.requestType).startsWith('COURSE_'));
+
+          if (!isCourseRequest) {
+            return <span style={{ fontWeight: 500 }}>{v}</span>;
+          }
+
+          return (
+            <Tooltip title="Mở trang chi tiết khóa học">
+              <span
+                role="button"
+                tabIndex={0}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigate(`/admin/courses/${rec.targetEntityId}`);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    navigate(`/admin/courses/${rec.targetEntityId}`);
+                  }
+                }}
+                style={{
+                  fontWeight: 500,
+                  color: '#1677ff',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                }}
+              >
+                <span>{v}</span>
+                <ExportOutlined style={{ fontSize: 12, flexShrink: 0 }} />
+              </span>
+            </Tooltip>
+          );
+        },
       },
       {
         title: t('request.column.type', 'Loại'),
@@ -254,7 +297,7 @@ const RequestListPage = () => {
         render: (v?: string) => <DateDisplay value={v} />,
       },
     ],
-    [t],
+    [t, navigate],
   );
 
   // ══════════════════════════════════════════════════════════════

@@ -2,16 +2,16 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Calendar,
-  Badge,
   Card,
   Space,
   Typography,
   Tooltip,
+  Popover,
   Button,
   Select,
   Spin,
   DatePicker,
-    Tag,
+  Tag,
   Segmented,
 } from 'antd';
 import type { CalendarProps } from 'antd';
@@ -21,6 +21,7 @@ import {
   CalendarOutlined,
   AppstoreOutlined,
   UnorderedListOutlined,
+  EnvironmentOutlined,
 } from '@ant-design/icons';
 import dayjs, { type Dayjs } from 'dayjs';
 import 'dayjs/locale/vi';
@@ -36,6 +37,12 @@ dayjs.locale('vi');
 
 const { Text } = Typography;
 
+type ScheduleSessionItem = SessionResponse & {
+  courseTitle?: string;
+  courseName?: string;
+  courseCode?: string;
+};
+
 // ════════════════════════════════════════════════════════════════════
 // SHIFT ZONES — 3 khu vực cố định theo ca
 // ════════════════════════════════════════════════════════════════════
@@ -48,12 +55,13 @@ interface ShiftZone {
 }
 
 const SHIFT_ZONES: ShiftZone[] = [
-  { key: 'MORNING',   label: 'Sáng',  color: '#faad14' },
-  { key: 'AFTERNOON', label: 'Chiều', color: '#13c2c2' },
-  { key: 'EVENING',   label: 'Tối',   color: '#722ed1' },
+  { key: 'MORNING', label: 'Sáng', color: '#d48806' },
+  { key: 'AFTERNOON', label: 'Chiều', color: '#08979c' },
+  { key: 'EVENING', label: 'Tối', color: '#531dab' },
 ];
 
 const MAX_PER_ZONE = 2;
+const MAX_LIST_ITEMS = 4;
 
 // ════════════════════════════════════════════════════════════════════
 // Helpers
@@ -72,11 +80,13 @@ const getShiftKey = (startTime: string, endTime: string): ShiftKey => {
   const startStr = dayjs(startTime).format('HH:mm');
   const endStr = dayjs(endTime).format('HH:mm');
 
-  const tpl = (Object.values(SCHEDULE_TEMPLATES) as Array<{
-    start: string;
-    end: string;
-    label: string;
-  }>).find((t) => t.start === startStr && t.end === endStr);
+  const tpl = (
+    Object.values(SCHEDULE_TEMPLATES) as Array<{
+      start: string;
+      end: string;
+      label: string;
+    }>
+  ).find((t) => t.start === startStr && t.end === endStr);
 
   if (tpl?.label) {
     const l = tpl.label.toLowerCase();
@@ -91,11 +101,19 @@ const getShiftKey = (startTime: string, endTime: string): ShiftKey => {
   return 'EVENING';
 };
 
-// Parse URL param `date` -> dayjs (fallback: hôm nay)
-const parseDateParam = (raw: string | null): Dayjs => {
-  if (!raw) return dayjs();
-  const d = dayjs(raw);
-  return d.isValid() ? d : dayjs();
+const getStatusBadge = (status?: string) => {
+  switch (status) {
+    case 'SCHEDULED':
+      return { label: 'Sắp diễn ra', color: '#1677ff', bg: '#e6f4ff' };
+    case 'ONGOING':
+      return { label: 'Đang diễn ra', color: '#08979c', bg: '#e6fffb' };
+    case 'COMPLETED':
+      return { label: 'Đã dạy xong', color: '#389e0d', bg: '#f6ffed' };
+    case 'CANCELLED':
+      return { label: 'Đã hủy', color: '#8c8c8c', bg: '#f5f5f5' };
+    default:
+      return { label: status || 'Không rõ', color: '#595959', bg: '#fafafa' };
+  }
 };
 
 // ════════════════════════════════════════════════════════════════════
@@ -107,15 +125,11 @@ const InstructorSchedulePage = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const [sessions, setSessions] = useState<SessionResponse[]>([]);
+  const [sessions, setSessions] = useState<ScheduleSessionItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string | undefined>();
   const [viewMode, setViewMode] = useState<ViewMode>('shift');
 
-  // ══════════════════════════════════════════════════════════════
-  // ⭐ URL là single source of truth cho currentDate
-  //    → reload / share / back-forward đều giữ đúng ngày
-  // ══════════════════════════════════════════════════════════════
   const dateStr = useMemo(() => {
     const raw = searchParams.get('date');
     if (raw) {
@@ -127,15 +141,9 @@ const InstructorSchedulePage = () => {
 
   const currentDate = useMemo(() => dayjs(dateStr), [dateStr]);
 
-  /**
-   * Ghi đè currentDate → URL (?date=YYYY-MM-DD)
-   * - Dùng `replace: true` để không làm rác history
-   * - No-op nếu ngày không đổi (tránh loop & refetch)
-   */
   const setCurrentDate = useCallback(
     (next: Dayjs | ((prev: Dayjs) => Dayjs)) => {
-      const value =
-        typeof next === 'function' ? next(dayjs(dateStr)) : next;
+      const value = typeof next === 'function' ? next(dayjs(dateStr)) : next;
       if (!value || !value.isValid()) return;
 
       const target = value.format('YYYY-MM-DD');
@@ -159,8 +167,9 @@ const InstructorSchedulePage = () => {
       const to = date.endOf('month').add(7, 'day').format('YYYY-MM-DD');
 
       const res = await sessionApi.getMySchedule({ from, to });
-      setSessions(res || []);
+      setSessions((res as ScheduleSessionItem[]) || []);
     } catch (error) {
+      console.error('fetchSchedule error:', error);
       toast.error('Không thể tải lịch giảng dạy');
     } finally {
       setLoading(false);
@@ -177,79 +186,182 @@ const InstructorSchedulePage = () => {
     return sessions.filter((s) => s.status === statusFilter);
   }, [sessions, statusFilter]);
 
+  const handleGoToCourseDetail = (session: ScheduleSessionItem) => {
+    if (!session.courseId) {
+      toast.error('Không tìm thấy thông tin khóa học');
+      return;
+    }
+    navigate(`/instructor/courses/${session.courseId}/edit`);
+  };
+
   // ══════════════════════════════════════════════════════════════
-  // RENDER — Session chip
+  // RENDER — Compact Session Chip (2 dòng gọn gàng, không gây tràn ô)
   // ══════════════════════════════════════════════════════════════
-  const renderSessionChip = (session: SessionResponse) => {
+  const renderSessionChip = (session: ScheduleSessionItem) => {
     const isCancelled = session.status === 'CANCELLED';
     const isSubstitute = Boolean(session.substituteTeacherId);
+    const statusMeta = getStatusBadge(session.status);
+    const roomText =
+      session.effectiveRoomName || session.roomName || 'Chưa xếp phòng';
+    const courseLabel =
+      session.courseTitle || session.courseName || session.courseCode || '';
 
-    let color = 'blue';
-    let borderColor = '#1677ff';
-    if (isCancelled) {
-      color = 'gray';
-      borderColor = '#d9d9d9';
-    } else if (isSubstitute) {
-      color = 'orange';
-      borderColor = '#fa8c16';
-    } else if (session.status === 'COMPLETED') {
-      color = 'green';
-      borderColor = '#52c41a';
+    let accentColor = statusMeta.color;
+    if (!isCancelled && isSubstitute) {
+      accentColor = '#fa8c16';
     }
 
     return (
       <Tooltip
         key={session.id}
+        mouseEnterDelay={0.25}
         title={
-          <div style={{ lineHeight: 1.6 }}>
-            <div>
-              <b>{session.title}</b>
+          <div style={{ lineHeight: 1.6, fontSize: 12 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 2 }}>
+              {session.title}
             </div>
-            <div>{getShiftName(session.startTime, session.endTime)}</div>
+            {courseLabel && (
+              <div>
+                Khóa học: <b>{courseLabel}</b>
+                {session.courseCode ? ` (${session.courseCode})` : ''}
+              </div>
+            )}
             <div>
-              Phòng:{' '}
-              {session.effectiveRoomName ||
-                session.roomName ||
-                'Chưa xếp'}
+              Thời gian: {getShiftName(session.startTime, session.endTime)} (
+              {dayjs(session.startTime).format('HH:mm')} –{' '}
+              {dayjs(session.endTime).format('HH:mm')})
             </div>
-            <div>Trạng thái: {session.status}</div>
+            <div>Phòng: {roomText}</div>
+            <div>Trạng thái: {statusMeta.label}</div>
             {isSubstitute && (
-              <div style={{ color: '#fa8c16' }}>* Bạn đang dạy thay</div>
+              <div style={{ color: '#ffc069', fontWeight: 600 }}>
+                • Bạn đang dạy thay buổi này
+              </div>
+            )}
+            {session.courseId && (
+              <div style={{ fontSize: 11, color: '#91caff', marginTop: 4 }}>
+                Bấm vào tên khóa học để mở chi tiết
+              </div>
             )}
           </div>
         }
       >
         <div
           style={{
-            padding: '2px 6px',
-            borderRadius: 3,
-            fontSize: 11,
-            lineHeight: 1.3,
-            backgroundColor: isCancelled ? '#f5f5f5' : `${borderColor}15`,
-            borderLeft: `3px solid ${borderColor}`,
-            color: isCancelled ? '#999' : '#333',
-            textDecoration: isCancelled ? 'line-through' : 'none',
-            cursor: 'pointer',
-            marginBottom: 2,
-            whiteSpace: 'nowrap',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
+            padding: '4px 6px',
+            borderRadius: 5,
+            backgroundColor: isCancelled ? '#f8fafc' : `${accentColor}0f`,
+            border: `1px solid ${isCancelled ? '#e2e8f0' : `${accentColor}30`}`,
+            borderLeft: `3px solid ${accentColor}`,
+            opacity: isCancelled ? 0.72 : 1,
+            transition: 'background-color 0.15s ease',
           }}
-          onClick={() =>
-            navigate(`/instructor/courses/${session.courseId}/edit`)
-          }
         >
+          {/* Dòng 1: Giờ + Dạy thay + Phòng */}
           <div
             style={{
-              fontWeight: 600,
-              color: isCancelled ? '#999' : borderColor,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 4,
+              lineHeight: 1.2,
+              marginBottom: 2,
             }}
           >
-            {dayjs(session.startTime).format('HH:mm')}–
-            {dayjs(session.endTime).format('HH:mm')}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span
+                style={{
+                  fontSize: 10.5,
+                  fontWeight: 700,
+                  color: isCancelled ? '#8c8c8c' : accentColor,
+                  textDecoration: isCancelled ? 'line-through' : 'none',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {dayjs(session.startTime).format('HH:mm')}–
+                {dayjs(session.endTime).format('HH:mm')}
+              </span>
+
+              {isSubstitute && !isCancelled && (
+                <span
+                  style={{
+                    fontSize: 9,
+                    fontWeight: 700,
+                    color: '#d46b08',
+                    backgroundColor: '#fff7e6',
+                    border: '1px solid #ffd591',
+                    borderRadius: 3,
+                    padding: '0 3px',
+                    lineHeight: '13px',
+                  }}
+                >
+                  Thay
+                </span>
+              )}
+            </div>
+
+            <span
+              style={{
+                fontSize: 10,
+                color: '#64748b',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                maxWidth: 72,
+              }}
+            >
+              {roomText}
+            </span>
           </div>
-          <div style={{ textOverflow: 'ellipsis', overflow: 'hidden' }}>
-            {session.title}
+
+          {/* Dòng 2: Tên khóa (clickable) + Tên buổi */}
+          <div
+            style={{
+              fontSize: 11,
+              lineHeight: 1.25,
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              color: isCancelled ? '#8c8c8c' : '#1e293b',
+              textDecoration: isCancelled ? 'line-through' : 'none',
+            }}
+          >
+            {courseLabel ? (
+              <>
+                <span
+                  role={session.courseId ? 'button' : undefined}
+                  tabIndex={session.courseId ? 0 : undefined}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleGoToCourseDetail(session);
+                  }}
+                  onKeyDown={(e) => {
+                    if (
+                      session.courseId &&
+                      (e.key === 'Enter' || e.key === ' ')
+                    ) {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleGoToCourseDetail(session);
+                    }
+                  }}
+                  style={{
+                    fontWeight: 600,
+                    color: isCancelled
+                      ? '#8c8c8c'
+                      : session.courseId
+                        ? '#1677ff'
+                        : '#0f172a',
+                    cursor: session.courseId ? 'pointer' : 'default',
+                  }}
+                >
+                  {courseLabel}
+                </span>
+                <span style={{ color: '#64748b' }}> · {session.title}</span>
+              </>
+            ) : (
+              <span style={{ fontWeight: 600 }}>{session.title}</span>
+            )}
           </div>
         </div>
       </Tooltip>
@@ -257,10 +369,60 @@ const InstructorSchedulePage = () => {
   };
 
   // ══════════════════════════════════════════════════════════════
+  // RENDER — Popover hiển thị toàn bộ buổi khi tràn
+  // ══════════════════════════════════════════════════════════════
+  const renderOverflowTrigger = (
+    title: string,
+    allItems: ScheduleSessionItem[],
+    hiddenCount: number,
+  ) => (
+    <Popover
+      trigger="click"
+      placement="bottomLeft"
+      title={<span style={{ fontSize: 12.5 }}>{title}</span>}
+      content={
+        <div
+          style={{
+            width: 260,
+            maxHeight: 280,
+            overflowY: 'auto',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 5,
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {allItems.map((s) => renderSessionChip(s))}
+        </div>
+      }
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          fontSize: 10.5,
+          color: '#1677ff',
+          fontWeight: 600,
+          padding: '2px 6px',
+          borderRadius: 4,
+          backgroundColor: '#f0f7ff',
+          cursor: 'pointer',
+          textAlign: 'center',
+          marginTop: 2,
+        }}
+      >
+        +{hiddenCount} buổi khác
+      </div>
+    </Popover>
+  );
+
+  // ══════════════════════════════════════════════════════════════
   // RENDER — Mode "Theo ca"
   // ══════════════════════════════════════════════════════════════
-  const renderShiftMode = (daySessions: SessionResponse[]) => {
-    const grouped: Record<ShiftKey, SessionResponse[]> = {
+  const renderShiftMode = (
+    date: Dayjs,
+    daySessions: ScheduleSessionItem[],
+  ) => {
+    const grouped: Record<ShiftKey, ScheduleSessionItem[]> = {
       MORNING: [],
       AFTERNOON: [],
       EVENING: [],
@@ -275,8 +437,8 @@ const InstructorSchedulePage = () => {
         style={{
           display: 'flex',
           flexDirection: 'column',
-          gap: 4,
-          marginTop: 3,
+          gap: 6,
+          marginTop: 4,
         }}
       >
         {SHIFT_ZONES.map((zone) => {
@@ -293,44 +455,39 @@ const InstructorSchedulePage = () => {
                   display: 'flex',
                   alignItems: 'center',
                   gap: 4,
-                  marginBottom: 2,
-                  fontSize: 9,
+                  marginBottom: 3,
+                  fontSize: 10,
                   fontWeight: 700,
                   color: zone.color,
-                  textTransform: 'uppercase',
-                  letterSpacing: 0.4,
-                  lineHeight: 1,
+                  letterSpacing: 0.3,
+                  lineHeight: 1.1,
                 }}
               >
                 <span
                   style={{
-                    width: 5,
-                    height: 5,
+                    width: 6,
+                    height: 6,
                     borderRadius: '50%',
                     backgroundColor: zone.color,
                     flexShrink: 0,
                   }}
                 />
                 <span>{zone.label}</span>
-                <span style={{ color: '#999', fontWeight: 400 }}>
-                  · {items.length}
+                <span style={{ color: '#94a3b8', fontWeight: 500 }}>
+                  ({items.length})
                 </span>
               </div>
 
-              {visible.map((s) => renderSessionChip(s))}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {visible.map((s) => renderSessionChip(s))}
+              </div>
 
-              {overflow > 0 && (
-                <div
-                  style={{
-                    fontSize: 10,
-                    color: '#999',
-                    paddingLeft: 6,
-                    fontStyle: 'italic',
-                  }}
-                >
-                  +{overflow} buổi
-                </div>
-              )}
+              {overflow > 0 &&
+                renderOverflowTrigger(
+                  `Ca ${zone.label} · ${date.format('DD/MM/YYYY')}`,
+                  items,
+                  overflow,
+                )}
             </div>
           );
         })}
@@ -341,17 +498,29 @@ const InstructorSchedulePage = () => {
   // ══════════════════════════════════════════════════════════════
   // RENDER — Mode "Danh sách"
   // ══════════════════════════════════════════════════════════════
-  const renderListMode = (daySessions: SessionResponse[]) => {
+  const renderListMode = (
+    date: Dayjs,
+    daySessions: ScheduleSessionItem[],
+  ) => {
+    const visible = daySessions.slice(0, MAX_LIST_ITEMS);
+    const overflow = daySessions.length - visible.length;
+
     return (
       <div
         style={{
           display: 'flex',
           flexDirection: 'column',
-          gap: 2,
-          marginTop: 3,
+          gap: 4,
+          marginTop: 4,
         }}
       >
-        {daySessions.map((s) => renderSessionChip(s))}
+        {visible.map((s) => renderSessionChip(s))}
+        {overflow > 0 &&
+          renderOverflowTrigger(
+            `Lịch dạy ngày ${date.format('DD/MM/YYYY')}`,
+            daySessions,
+            overflow,
+          )}
       </div>
     );
   };
@@ -371,8 +540,8 @@ const InstructorSchedulePage = () => {
     if (daySessions.length === 0) return null;
 
     return viewMode === 'shift'
-      ? renderShiftMode(daySessions)
-      : renderListMode(daySessions);
+      ? renderShiftMode(date, daySessions)
+      : renderListMode(date, daySessions);
   };
 
   // ══════════════════════════════════════════════════════════════
@@ -380,18 +549,43 @@ const InstructorSchedulePage = () => {
   // ══════════════════════════════════════════════════════════════
   return (
     <PageContainer>
+      {/* CSS gỡ scrollbar nội bộ trong ô Calendar & tinh chỉnh khoảng cách */}
+      <style>{`
+        .instructor-schedule-calendar .ant-picker-cell-inner.ant-picker-calendar-date {
+          height: auto !important;
+          min-height: 96px;
+          padding: 4px 6px 6px !important;
+          margin: 0 !important;
+        }
+        .instructor-schedule-calendar .ant-picker-calendar-date-content {
+          height: auto !important;
+          overflow: visible !important;
+        }
+        .instructor-schedule-calendar .ant-picker-calendar-date-value {
+          font-size: 12.5px;
+          font-weight: 600;
+          line-height: 20px;
+        }
+        .instructor-schedule-calendar .ant-picker-content th {
+          padding-bottom: 8px !important;
+          font-size: 12px;
+          font-weight: 600;
+          color: #64748b;
+        }
+      `}</style>
+
       <PageHeader
         title="Lịch giảng dạy"
         subtitle={
-          <Space size={6}>
-            <span>Xem lịch dạy của bạn theo tháng</span>
+          <Space size={8}>
+            <span>Theo dõi lịch dạy theo tháng</span>
             <Tag color="blue" style={{ marginInlineEnd: 0 }}>
-              Đang chọn: {currentDate.format('DD/MM/YYYY')}
+              Tháng {currentDate.format('MM/YYYY')}
             </Tag>
           </Space>
         }
         extra={
-          <Space wrap>
+          <Space wrap size={8}>
             <Segmented
               value={viewMode}
               onChange={(v) => setViewMode(v as ViewMode)}
@@ -410,9 +604,9 @@ const InstructorSchedulePage = () => {
             />
 
             <Select
-              placeholder="Lọc trạng thái"
+              placeholder="Trạng thái"
               allowClear
-              style={{ width: 160 }}
+              style={{ width: 145 }}
               value={statusFilter}
               onChange={setStatusFilter}
               options={[
@@ -445,8 +639,7 @@ const InstructorSchedulePage = () => {
               format="DD/MM/YYYY"
               allowClear={false}
               suffixIcon={<CalendarOutlined />}
-              placeholder="Chọn ngày"
-              style={{ width: 150 }}
+              style={{ width: 136 }}
             />
           </Space>
         }
@@ -454,75 +647,116 @@ const InstructorSchedulePage = () => {
 
       <Card
         variant="borderless"
-        style={{ borderRadius: 8, boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}
+        styles={{ body: { padding: '16px 20px' } }}
+        style={{
+          position: 'relative',
+          borderRadius: 10,
+          boxShadow: '0 1px 3px rgba(15, 23, 42, 0.08)',
+        }}
       >
         {loading && (
           <div
             style={{
               position: 'absolute',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              background: 'rgba(255,255,255,0.6)',
+              inset: 0,
+              background: 'rgba(255,255,255,0.65)',
               zIndex: 10,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
+              borderRadius: 10,
             }}
           >
             <Spin size="large" tip="Đang tải lịch..." />
           </div>
         )}
 
-        {/* Legend: trạng thái + ca */}
+        {/* Thanh chú thích gọn */}
         <div
           style={{
-            marginBottom: 16,
+            marginBottom: 14,
+            padding: '8px 12px',
+            backgroundColor: '#f8fafc',
+            borderRadius: 8,
+            border: '1px solid #f1f5f9',
             display: 'flex',
             gap: 16,
             flexWrap: 'wrap',
             alignItems: 'center',
+            justifyContent: 'space-between',
           }}
         >
-          <Space>
-            <Badge color="blue" text="GV chính" />
-          </Space>
-          <Space>
-            <Badge color="orange" text="Dạy thay" />
-          </Space>
-          <Space>
-            <Badge color="green" text="Đã dạy" />
-          </Space>
-          <Space>
-            <Badge color="gray" text="Đã hủy" />
-          </Space>
-
-          <div style={{ width: 1, height: 20, background: '#e5e5e5' }} />
-
-          {SHIFT_ZONES.map((z) => (
-            <Space key={z.key} size={6}>
+          <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'center' }}>
+            {[
+              { label: 'Sắp diễn ra', color: '#1677ff' },
+              { label: 'Đang diễn ra', color: '#08979c' },
+              { label: 'Đã dạy xong', color: '#389e0d' },
+              { label: 'Dạy thay', color: '#fa8c16' },
+              { label: 'Đã hủy', color: '#8c8c8c' },
+            ].map((item) => (
               <span
+                key={item.label}
                 style={{
-                  width: 8,
-                  height: 8,
-                  borderRadius: '50%',
-                  backgroundColor: z.color,
-                  display: 'inline-block',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  fontSize: 12,
+                  color: '#475569',
                 }}
-              />
-              <Text style={{ fontSize: 12 }}>{z.label}</Text>
-            </Space>
-          ))}
+              >
+                <span
+                  style={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: 2,
+                    backgroundColor: item.color,
+                    display: 'inline-block',
+                  }}
+                />
+                {item.label}
+              </span>
+            ))}
+          </div>
+
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+            <Text type="secondary" style={{ fontSize: 11.5 }}>
+              Ca học:
+            </Text>
+            {SHIFT_ZONES.map((z) => (
+              <span
+                key={z.key}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 5,
+                  fontSize: 12,
+                  fontWeight: 500,
+                  color: '#334155',
+                }}
+              >
+                <span
+                  style={{
+                    width: 7,
+                    height: 7,
+                    borderRadius: '50%',
+                    backgroundColor: z.color,
+                  }}
+                />
+                {z.label}
+              </span>
+            ))}
+          </div>
         </div>
 
-        <Calendar
-          value={currentDate}
-          cellRender={cellRender}
-          onPanelChange={(value) => setCurrentDate(value)}
-          onSelect={(date) => setCurrentDate(date)}
-          headerRender={() => null}
-        />
+        <div className="instructor-schedule-calendar">
+          <Calendar
+            value={currentDate}
+            cellRender={cellRender}
+            onPanelChange={(value) => setCurrentDate(value)}
+            onSelect={(date) => setCurrentDate(date)}
+            headerRender={() => null}
+          />
+        </div>
       </Card>
     </PageContainer>
   );

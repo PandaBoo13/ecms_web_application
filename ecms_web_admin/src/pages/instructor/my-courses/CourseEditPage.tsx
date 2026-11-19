@@ -13,7 +13,11 @@ import {
   Modal,
   Tooltip,
 } from 'antd';
-import { SendOutlined, ClockCircleOutlined } from '@ant-design/icons';
+import {
+  SendOutlined,
+  ClockCircleOutlined,
+  RollbackOutlined,
+} from '@ant-design/icons';
 import toast from 'react-hot-toast';
 
 import PageContainer from '@/components/common/PageContainer';
@@ -29,9 +33,7 @@ import ResourceManager from '@/components/course/ResourceManager';
 import CourseSessionList from '@/components/course/CourseSessionList';
 import CourseQuestionList from '@/components/course/CourseQuestionList';
 import QuizListCard from '@/components/course/QuizListCard';
-// 🆕 Import 2 component dùng chung từ Admin
 import CourseEnrollmentList from '@/components/course/CourseEnrollmentList';
-
 import CourseProgressCharts from '@/components/course/CourseProgressCharts';
 
 import { courseApi } from '@/services/api/course';
@@ -49,8 +51,9 @@ const CourseEditPage = () => {
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Trạng thái đang gửi kiểm duyệt
+  // Trạng thái gửi & thu hồi kiểm duyệt
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+  const [isWithdrawingReview, setIsWithdrawingReview] = useState(false);
 
   // ══════════════════════════════════════════════════════════════
   // FETCH COURSE
@@ -142,6 +145,48 @@ const CourseEditPage = () => {
     });
   };
 
+  // ══════════════════════════════════════════════════════════════
+  // THU HỒI YÊU CẦU KIỂM DUYỆT
+  // ══════════════════════════════════════════════════════════════
+  const handleWithdrawReview = () => {
+    if (!course) return;
+
+    Modal.confirm({
+      title: 'Thu hồi yêu cầu kiểm duyệt',
+      width: 480,
+      content: (
+        <div>
+          <p style={{ marginBottom: 8 }}>
+            Bạn có chắc muốn thu hồi yêu cầu kiểm duyệt của khóa học{' '}
+            <b>{course.title}</b>?
+          </p>
+          <p style={{ color: '#8c8c8c', marginBottom: 0 }}>
+            Khóa học sẽ chuyển về trạng thái <b>Bản nháp (DRAFT)</b> để bạn tiếp
+            tục chỉnh sửa và gửi duyệt lại sau.
+          </p>
+        </div>
+      ),
+      okText: 'Thu hồi yêu cầu',
+      okButtonProps: { danger: true, icon: <RollbackOutlined /> },
+      cancelText: 'Hủy',
+      onOk: async () => {
+        setIsWithdrawingReview(true);
+        try {
+          await courseApi.withdrawReview(course.id);
+          toast.success('Đã thu hồi yêu cầu kiểm duyệt');
+          handleSilentRefresh();
+        } catch (err) {
+          toast.error(
+            (err as { message?: string })?.message ||
+              'Không thể thu hồi yêu cầu kiểm duyệt',
+          );
+        } finally {
+          setIsWithdrawingReview(false);
+        }
+      },
+    });
+  };
+
   if (isInitialLoading) return <PageLoading tip="Đang tải khóa học..." />;
   if (error)
     return (
@@ -154,8 +199,7 @@ const CourseEditPage = () => {
   if (!course) return <ErrorState description="Không tìm thấy khóa học" />;
 
   const isLocked = ['ONGOING', 'FINISHED', 'CANCELLED'].includes(course.status);
-  
-  // Chỉ cho phép gửi duyệt khi khóa học đang ở trạng thái Nháp (DRAFT)
+
   const canSubmitReview = course.status === 'DRAFT';
   const isPendingReview = course.status === 'PENDING_REVIEW';
 
@@ -198,10 +242,12 @@ const CourseEditPage = () => {
       label: 'Quiz',
       children: <QuizListCard courseId={courseId} />,
     },
-    // 🆕 THÊM TAB HỌC VIÊN
     {
       key: 'enrollments',
-      label: course.courseType === 'ONLINE' ? 'Người đã mua khóa' : 'Danh sách học viên',
+      label:
+        course.courseType === 'ONLINE'
+          ? 'Người đã mua khóa'
+          : 'Danh sách học viên',
       children: (
         <CourseEnrollmentList
           courseId={courseId}
@@ -211,20 +257,17 @@ const CourseEditPage = () => {
         />
       ),
     },
-    // 🆕 THÊM TAB TIẾN ĐỘ (Dùng chung component với Admin)
     {
       key: 'progress',
       label: 'Tiến độ lớp học',
       children: (
         <div className="flex flex-col gap-6">
-       
           <CourseProgressCharts courseId={courseId} />
         </div>
       ),
     },
   ];
 
-  // Nếu là khóa OFFLINE, chèn thêm tab Buổi học.
   if (course.courseType === 'OFFLINE') {
     tabItems.splice(2, 0, {
       key: 'sessions',
@@ -269,16 +312,27 @@ const CourseEditPage = () => {
               </Button>
             )}
 
-            {/* Nút disabled khi đang chờ duyệt */}
+            {/* Trạng thái & nút thu hồi khi đang chờ duyệt */}
             {isPendingReview && (
-              <Tooltip title="Khóa học đang chờ admin kiểm duyệt">
-                <Button icon={<ClockCircleOutlined />} disabled>
-                  Đang chờ duyệt
+              <>
+                <Tooltip title="Khóa học đang chờ admin kiểm duyệt">
+                  <Button icon={<ClockCircleOutlined />} disabled>
+                    Đang chờ duyệt
+                  </Button>
+                </Tooltip>
+
+                <Button
+                  danger
+                  icon={<RollbackOutlined />}
+                  loading={isWithdrawingReview}
+                  onClick={handleWithdrawReview}
+                >
+                  Thu hồi yêu cầu
                 </Button>
-              </Tooltip>
+              </>
             )}
 
-            {/* Các thao tác phụ (Copy, Sinh Session...) - Đã tự động ẩn nút Admin */}
+            {/* Các thao tác phụ (Copy, Sinh Session...) */}
             <CourseDetailActions
               course={course}
               onRefresh={handleSilentRefresh}
@@ -317,7 +371,17 @@ const CourseEditPage = () => {
           icon={<ClockCircleOutlined />}
           style={{ marginBottom: 16 }}
           message="Khóa học đang chờ admin kiểm duyệt"
-          description="Bạn sẽ nhận được thông báo khi có kết quả. Trong thời gian này khóa học tạm khóa chỉnh sửa."
+          description="Bạn sẽ nhận được thông báo khi có kết quả. Nếu cần chỉnh sửa lại nội dung, bạn có thể thu hồi yêu cầu kiểm duyệt."
+          action={
+            <Button
+              danger
+              icon={<RollbackOutlined />}
+              loading={isWithdrawingReview}
+              onClick={handleWithdrawReview}
+            >
+              Thu hồi yêu cầu
+            </Button>
+          }
         />
       )}
 
