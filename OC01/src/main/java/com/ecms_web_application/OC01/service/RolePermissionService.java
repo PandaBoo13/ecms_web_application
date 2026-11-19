@@ -7,6 +7,7 @@ public interface RolePermissionService {
     List<AccountPermissionResponse> listByRole(Long roleId);
     void assign(Long roleId, Long permissionId);
     void assignBatch(Long roleId, List<Long> permissionIds);
+    void sync(Long roleId, List<Long> permissionIds);
     void remove(Long roleId, Long permissionId);
     void removeAll(Long roleId);
     void activate(Long roleId, Long permissionId);

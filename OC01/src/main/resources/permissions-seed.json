@@ -264,6 +264,36 @@
         "description": "Xóa khách hàng tiềm năng"
     },
     {
+        "method": "POST",
+        "path": "/api/leads/{id}/claim",
+        "module": "lead",
+        "description": "Tiếp nhận nhanh khách hàng (Fast-Claim)"
+    },
+    {
+        "method": "GET",
+        "path": "/api/leads/consultants/work-status",
+        "module": "lead",
+        "description": "Lấy trạng thái ca trực tư vấn viên"
+    },
+    {
+        "method": "PUT",
+        "path": "/api/leads/consultants/work-status",
+        "module": "lead",
+        "description": "Cập nhật trạng thái ca trực tư vấn viên"
+    },
+    {
+        "method": "GET",
+        "path": "/api/leads/consultants/performance",
+        "module": "lead",
+        "description": "Xem bảng hiệu suất tư vấn viên"
+    },
+    {
+        "method": "GET",
+        "path": "/api/leads/statistics/summary",
+        "module": "lead",
+        "description": "Xem thống kê tuyển sinh và hiệu suất tư vấn"
+    },
+    {
         "method": "GET",
         "path": "/api/students",
         "module": "student",

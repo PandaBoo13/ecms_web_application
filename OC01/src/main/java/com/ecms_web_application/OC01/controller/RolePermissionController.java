@@ -38,6 +38,12 @@ public class RolePermissionController {
         return ResponseEntity.status(HttpStatus.CREATED).body(new RequestResponse("Gán batch quyền cho role thành công"));
     }
 
+    @PutMapping("/sync")
+    public ResponseEntity<RequestResponse> sync(@PathVariable Long roleId, @Valid @RequestBody AssignPermissionsBatchRequest req) {
+        service.sync(roleId, req.getPermissionIds());
+        return ResponseEntity.ok(new RequestResponse("Đồng bộ quyền cho role thành công"));
+    }
+
     @DeleteMapping("/{permissionId}")
     public ResponseEntity<RequestResponse> remove(@PathVariable Long roleId, @PathVariable Long permissionId) {
         service.remove(roleId, permissionId);

@@ -21,4 +21,8 @@ public class AccountPermissionResponse {
     private Boolean isEnabled;
     private LocalDateTime assignedAt;
     private LocalDateTime updatedAt;
+
+    public Long getId() {
+        return permissionId;
+    }
 }
