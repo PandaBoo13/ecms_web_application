@@ -12,6 +12,7 @@ import type {
   LeadInteractionCreatePayload,
   LeadPlacementTest,
   LeadPlacementTestCreatePayload,
+  LeadStatisticsResponse,
 } from '../types/lead';
 
 export const leadApi = {
@@ -127,6 +128,11 @@ export const leadApi = {
 
   claim: async (leadId: number): Promise<Lead> => {
     const { data } = await api.post<RequestResponse<Lead>>(`/api/leads/${leadId}/claim`);
+    return data.data;
+  },
+
+  getStatistics: async (params?: { consultantId?: number; startDate?: string; endDate?: string }): Promise<LeadStatisticsResponse> => {
+    const { data } = await api.get<RequestResponse<LeadStatisticsResponse>>('/api/leads/statistics/summary', { params });
     return data.data;
   },
 };

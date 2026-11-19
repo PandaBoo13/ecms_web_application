@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Badge, Button, Dropdown, Empty, List, Tabs, Tag, Tooltip, Typography } from 'antd';
-import { BellOutlined, CheckOutlined, DeleteOutlined } from '@ant-design/icons';
+import { BellOutlined, CheckOutlined, DeleteOutlined, ThunderboltOutlined } from '@ant-design/icons';
 import toast from 'react-hot-toast';
 
 import { useAuth } from '@/hooks/useAuth';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { notificationApi } from '@/services/api/notification';
+import { leadApi } from '@/services/api/leads';
 import type { NotificationResponse } from '@/services/types/notification';
 
 const { Text } = Typography;
@@ -124,6 +125,44 @@ const NotificationDropdown = () => {
     return () => unsub();
   }, [subscribe, user?.accountId]);
 
+  useEffect(() => {
+    // Lắng nghe sự kiện khách hàng đã được TVV nhận -> lập tức biến mất khỏi chuông của các TVV khác
+    const unsub = subscribe('/topic/leads/fast-claim', (payload: any) => {
+      if (!payload || payload.type !== 'LEAD_CLAIMED') return;
+
+      const claimedLeadId = Number(payload.leadId);
+      const isOtherConsultant =
+        user?.accountId !== payload.claimedById &&
+        (user?.roleCode === 'LEAD' || user?.roleCode === 'CONSULTANT');
+
+      if (isOtherConsultant) {
+        setNotifications((prev) => {
+          const target = prev.find(
+            (n) =>
+              (n.referenceType?.toUpperCase() === 'LEAD' && Number(n.referenceId) === claimedLeadId) ||
+              (n.extraData &&
+                typeof n.extraData === 'object' &&
+                Number((n.extraData as any).leadId) === claimedLeadId)
+          );
+          if (target && !target.isRead) {
+            setUnreadCount((c) => Math.max(0, c - 1));
+          }
+          return prev.filter(
+            (n) =>
+              !(
+                (n.referenceType?.toUpperCase() === 'LEAD' && Number(n.referenceId) === claimedLeadId) ||
+                (n.extraData &&
+                  typeof n.extraData === 'object' &&
+                  Number((n.extraData as any).leadId) === claimedLeadId)
+              )
+          );
+        });
+      }
+    });
+
+    return () => unsub();
+  }, [subscribe, user?.accountId, user?.roleCode]);
+
   // ═══ Actions ═══
   const handleMarkRead = async (n: NotificationResponse) => {
     if (n.isRead) return;
@@ -202,6 +241,29 @@ const NotificationDropdown = () => {
     } catch (err) {
       const e2 = err as { message?: string };
       toast.error(e2?.message || 'Xóa thất bại');
+    }
+  };
+
+  const handleQuickClaim = async (e: React.MouseEvent, n: NotificationResponse) => {
+    e.stopPropagation();
+    const leadId =
+      n.referenceId ||
+      (n.extraData && typeof n.extraData === 'object' && 'leadId' in n.extraData
+        ? Number(n.extraData.leadId)
+        : null);
+    if (!leadId) {
+      toast.error('Không tìm thấy mã khách hàng');
+      return;
+    }
+    try {
+      await leadApi.claim(leadId);
+      toast.success('🎉 Tiếp nhận khách hàng thành công!');
+      await handleMarkRead(n);
+      setOpen(false);
+      navigate(`/admin/leads?leadId=${leadId}`);
+    } catch (err) {
+      const e2 = err as { message?: string };
+      toast.error(e2?.message || 'Khách hàng này đã được nhân viên khác tiếp nhận');
     }
   };
 
@@ -288,6 +350,20 @@ const NotificationDropdown = () => {
                   transition: 'background 0.15s',
                 }}
                 actions={[
+                  ((item.notificationType || '').toUpperCase() === 'LEAD' ||
+                    (item.referenceType || '').toUpperCase() === 'LEAD') && (
+                    <Tooltip key="claim" title="Tiếp nhận khách hàng này ngay">
+                      <Button
+                        type="primary"
+                        size="small"
+                        icon={<ThunderboltOutlined />}
+                        style={{ fontSize: 11, height: 24, padding: '0 8px' }}
+                        onClick={(e) => handleQuickClaim(e, item)}
+                      >
+                        Nhận
+                      </Button>
+                    </Tooltip>
+                  ),
                   <Tooltip key="del" title="Xóa">
                     <Button
                       type="text"
@@ -297,7 +373,7 @@ const NotificationDropdown = () => {
                       onClick={(e) => handleDelete(e, item)}
                     />
                   </Tooltip>,
-                ]}
+                ].filter(Boolean)}
               >
                 <List.Item.Meta
                   title={

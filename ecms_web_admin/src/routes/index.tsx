@@ -29,6 +29,7 @@ import SystemLogPage from '@/pages/admin/system/SystemLogPage';
 import ReportsPage from '@/pages/admin/reports/ReportsPage';
 import SettingsPage from '@/pages/admin/settings/SettingsPage';
 import LeadListPage from '@/pages/admin/leads/LeadListPage';
+import ConsultantStatisticsPage from '@/pages/admin/leads/ConsultantStatisticsPage';
 import StudentListPage from '@/pages/admin/students/StudentListPage';
 import CategoryListPage from '@/pages/admin/categories/CategoryListPage';
 import TuitionPage from '@/pages/admin/tuition/TuitionPage';
@@ -98,6 +99,7 @@ export default function AppRouter() {
           {/* ── Dành cho ADMIN và TƯ VẤN VIÊN (LEAD / CONSULTANT) ── */}
           <Route element={<ProtectedRoute allowedRoles={[ROLE.ADMIN, ROLE.LEAD, ROLE.CONSULTANT]} />}>
             <Route path="/admin/leads" element={<LeadListPage />} />
+            <Route path="/admin/leads/statistics" element={<ConsultantStatisticsPage />} />
             <Route path="/admin/students" element={<StudentListPage />} />
             <Route path="/admin/categories" element={<CategoryListPage />} />
             <Route path="/admin/courses" element={<CourseListPage />} />

@@ -196,4 +196,32 @@ export interface FastClaimLeadPayload {
   claimedBy?: string;
 }
 
+export interface LeadTimePoint {
+  period: string;
+  totalLeads: number;
+  cumulativeLeads: number;
+  convertedLeads: number;
+  cumulativeConverted: number;
+}
+
+export interface LeadDistributionPoint {
+  status: string;
+  label: string;
+  count: number;
+  percentage: number;
+  color: string;
+}
+
+export interface LeadStatisticsResponse {
+  totalLeads: number;
+  newLeads: number;
+  inProgressLeads: number;
+  consultedLeads: number;
+  convertedLeads: number;
+  conversionRate: number;
+  timeline: LeadTimePoint[];
+  distribution: LeadDistributionPoint[];
+  consultants: ConsultantPerformance[];
+}
+
 

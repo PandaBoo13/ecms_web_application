@@ -48,6 +48,7 @@ const MENU_KEY_TRANSLATION_MAP: Record<string, string> = {
   '/admin/dashboard': 'menu.dashboard',
   'leads': 'menu.leads',
   '/admin/leads': 'menu.leadList',
+  '/admin/leads/statistics': 'menu.leadStatistics',
   'students': 'menu.students',
   '/admin/students': 'menu.studentList',
   'tuition': 'Tài chính',

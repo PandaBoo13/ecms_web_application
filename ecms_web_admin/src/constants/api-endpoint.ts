@@ -145,6 +145,7 @@ SESSION_MY_SCHEDULE: '/api/sessions/my-schedule',
   // Role ↔ Permission
   RBAC_ROLE_PERMISSIONS: (roleId: number) => `/api/rbac/roles/${roleId}/permissions`,
   RBAC_ROLE_PERMISSIONS_BATCH: (roleId: number) => `/api/rbac/roles/${roleId}/permissions/batch`,
+  RBAC_ROLE_PERMISSIONS_SYNC: (roleId: number) => `/api/rbac/roles/${roleId}/permissions/sync`,
   RBAC_ROLE_PERMISSION_DETAIL: (roleId: number, permissionId: number) =>
     `/api/rbac/roles/${roleId}/permissions/${permissionId}`,
   RBAC_ROLE_PERMISSION_ACTIVATE: (roleId: number, permissionId: number) =>

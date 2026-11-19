@@ -29,6 +29,7 @@ export const en: Record<keyof typeof vi, string> = {
   'menu.dashboard': 'Dashboard',
   'menu.leads': 'Admissions (Lead)',
   'menu.leadList': 'Lead Directory',
+  'menu.leadStatistics': 'Lead & Performance Stats',
   'menu.students': 'Students',
   'menu.studentList': 'Student Directory',
   'menu.courses': 'Courses',

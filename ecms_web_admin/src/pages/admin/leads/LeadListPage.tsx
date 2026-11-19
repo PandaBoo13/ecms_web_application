@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import {
   Button,
   Space,
@@ -46,6 +46,7 @@ import {
   FileTextOutlined,
   MoreOutlined,
   DollarOutlined,
+  BarChartOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import toast from 'react-hot-toast';
@@ -88,6 +89,7 @@ interface LeadStats {
 }
 
 const LeadListPage = () => {
+  const navigate = useNavigate();
   const { t } = useTranslation();
   const { user, isConsultant } = useAuth();
   const isTvv = user?.roleCode === 'LEAD' || user?.roleCode === 'CONSULTANT' || Boolean(isConsultant?.());
@@ -889,6 +891,20 @@ const LeadListPage = () => {
         }
         extra={
           <Space>
+            <Button
+              icon={<BarChartOutlined />}
+              onClick={() => navigate('/admin/leads/statistics')}
+              style={{
+                borderRadius: 8,
+                height: 38,
+                fontWeight: 600,
+                color: '#1677ff',
+                borderColor: '#91caff',
+                background: '#e6f4ff',
+              }}
+            >
+              📊 Thống kê & Hiệu suất
+            </Button>
             <Button
               icon={<ReloadOutlined spin={loading} />}
               onClick={handleRefresh}
