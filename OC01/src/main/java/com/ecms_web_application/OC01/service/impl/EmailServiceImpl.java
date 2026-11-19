@@ -319,4 +319,58 @@ public class EmailServiceImpl implements EmailService {
                 + "<td style='padding:8px 0'>" + valueHtml + "</td>"
                 + "</tr>";
     }
+
+    @Override
+    public void sendStudentAccountCredentialsEmail(String to, String fullName, String studentCode,
+                                                  String password, String courseName, String loginUrl) {
+        log.info("==========================================================");
+        log.info("[CẤP TÀI KHOẢN HỌC VIÊN KHI GHI DANH]");
+        log.info("Họ tên: {}", fullName);
+        log.info("Mã học viên: {}", studentCode);
+        log.info("Email đăng nhập: {}", to);
+        log.info("Mật khẩu khởi tạo: {}", password);
+        log.info("Khóa học: {}", courseName);
+        log.info("Link đăng nhập: {}", loginUrl);
+        log.info("==========================================================");
+
+        String effectiveLoginUrl = (loginUrl != null && !loginUrl.isBlank()) ? loginUrl : "http://localhost:5174/login";
+        String body = "<p>Xin chào <strong>" + esc(fullName) + "</strong>,</p>"
+                + "<p>Chúc mừng bạn đã được <strong>ghi danh thành công</strong> vào khóa học <strong>" + esc(courseName) + "</strong> tại Trung tâm ECMS!</p>"
+                + "<p>Dưới đây là thông tin tài khoản học tập trực tuyến của bạn:</p>"
+                + "<div style='background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:16px;margin:16px 0;line-height:1.8'>"
+                + "  <div>• <b>Mã học viên:</b> <span style='color:#1677ff;font-weight:bold'>" + esc(studentCode) + "</span></div>"
+                + "  <div>• <b>Tên đăng nhập (Email):</b> <b>" + esc(to) + "</b></div>"
+                + "  <div>• <b>Mật khẩu đăng nhập:</b> <span style='background:#e0f2fe;color:#0369a1;padding:2px 8px;border-radius:4px;font-family:monospace;font-size:15px;font-weight:bold'>" + esc(password) + "</span></div>"
+                + "</div>"
+                + "<div style='text-align:center;margin:24px 0'>"
+                + "  <a href='" + esc(effectiveLoginUrl) + "' style='background:#1677ff;color:#ffffff;text-decoration:none;padding:12px 28px;border-radius:6px;font-weight:bold;display:inline-block'>"
+                + "    Đăng nhập vào hệ thống học tập"
+                + "  </a>"
+                + "</div>"
+                + "<p class='muted' style='font-size:13px'>* <i>Lưu ý:</i> Vì lý do bảo mật, vui lòng đăng nhập và đổi mật khẩu sau lần đăng nhập đầu tiên.</p>";
+
+        doSend(to, "[ECMS] Chúc mừng bạn đã ghi danh - Thông tin tài khoản học tập",
+                buildHtml("Thông Tin Tài Khoản Học Tập ECMS", body), false);
+    }
+
+    @Override
+    public void sendEnrollmentNotificationEmail(String to, String fullName, String studentCode,
+                                               String courseName, String loginUrl) {
+        log.info("==========================================================");
+        log.info("[THÔNG BÁO GHI DANH KHÓA HỌC MỚI] Email: {} | Khóa: {}", to, courseName);
+        log.info("==========================================================");
+
+        String effectiveLoginUrl = (loginUrl != null && !loginUrl.isBlank()) ? loginUrl : "http://localhost:5174/login";
+        String body = "<p>Xin chào <strong>" + esc(fullName) + "</strong> (Mã HV: <b>" + esc(studentCode) + "</b>),</p>"
+                + "<p>Bạn đã được <strong>ghi danh thành công</strong> vào khóa học mới: <strong>" + esc(courseName) + "</strong> tại Trung tâm ECMS!</p>"
+                + "<p>Bạn có thể sử dụng tài khoản học viên hiện có để đăng nhập và bắt đầu lộ trình học tập ngay hôm nay.</p>"
+                + "<div style='text-align:center;margin:24px 0'>"
+                + "  <a href='" + esc(effectiveLoginUrl) + "' style='background:#10b981;color:#ffffff;text-decoration:none;padding:12px 28px;border-radius:6px;font-weight:bold;display:inline-block'>"
+                + "    Vào học ngay"
+                + "  </a>"
+                + "</div>";
+
+        doSend(to, "[ECMS] Xác nhận ghi danh thành công khóa học " + courseName,
+                buildHtml("Xác Nhận Ghi Danh Khóa Học", body), false);
+    }
 }

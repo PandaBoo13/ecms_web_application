@@ -140,6 +140,12 @@ public class NotificationServiceImpl implements NotificationService {
                     return toIds(accountRepo.findByRoleCode("INSTRUCTOR"));
                 case "ALL_ADMINS":
                     return toIds(accountRepo.findByRoleCode("ADMIN"));
+                case "ALL_CONSULTANTS", "ALL_LEADS":
+                    return toIds(accountRepo.findByRoleCode("LEAD"));
+                case "ADMIN_AND_CONSULTANT", "ALL_STAFF":
+                    Set<Long> staffIds = new LinkedHashSet<>(toIds(accountRepo.findByRoleCode("ADMIN")));
+                    staffIds.addAll(toIds(accountRepo.findByRoleCode("LEAD")));
+                    return new ArrayList<>(staffIds);
                 case "ALL_USERS":
                     return accountRepo.findAll().stream()
                             .filter(a -> Boolean.TRUE.equals(a.getIsActive()) && a.getDeletedAt() == null)

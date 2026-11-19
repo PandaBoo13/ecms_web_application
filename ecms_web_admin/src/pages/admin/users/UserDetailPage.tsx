@@ -317,7 +317,9 @@ const UserDetailPage = () => {
                   </div>
                 </Descriptions.Item>
                 <Descriptions.Item label="Vai trò hệ thống">
-                  <span className="font-semibold text-slate-800">{user.roleCode || '—'}</span>
+                  <span className="font-semibold text-slate-800">
+                    {user.roleCode === 'LEAD' ? 'CONSULTANT' : user.roleCode || '—'}
+                  </span>
                 </Descriptions.Item>
                 <Descriptions.Item label="Đăng nhập cuối">
                   <DateDisplay value={user.lastLoginAt} format="long" />
@@ -421,7 +423,9 @@ const UserDetailPage = () => {
                 </span>
                 <div className="bg-slate-50 p-3 rounded-lg border border-slate-200/70">
                   <div className="flex items-center justify-between">
-                    <span className="font-bold text-slate-800">{user.roleCode || 'Chưa gán'}</span>
+                    <span className="font-bold text-slate-800">
+                      {user.roleCode === 'LEAD' ? 'CONSULTANT' : user.roleCode || 'Chưa gán'}
+                    </span>
                     {user.roleCode && <StatusTag status={user.roleCode} />}
                   </div>
                 </div>

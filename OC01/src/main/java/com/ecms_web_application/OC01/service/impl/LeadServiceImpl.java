@@ -11,6 +11,8 @@ import com.ecms_web_application.OC01.dto.response.LeadDetailResponse;
 import com.ecms_web_application.OC01.dto.response.LeadInteractionResponse;
 import com.ecms_web_application.OC01.dto.response.LeadPlacementTestResponse;
 import com.ecms_web_application.OC01.dto.response.LeadResponse;
+import com.ecms_web_application.OC01.dto.request.NotificationRequest;
+import com.ecms_web_application.OC01.entity.Account;
 import com.ecms_web_application.OC01.entity.Lead;
 import com.ecms_web_application.OC01.entity.LeadAssignmentLog;
 import com.ecms_web_application.OC01.entity.LeadInteraction;
@@ -25,6 +27,7 @@ import com.ecms_web_application.OC01.repository.InvoiceRepository;
 import com.ecms_web_application.OC01.repository.LeadAssignmentLogRepository;
 import com.ecms_web_application.OC01.repository.LeadRepository;
 import com.ecms_web_application.OC01.service.LeadService;
+import com.ecms_web_application.OC01.service.NotificationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -39,6 +42,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -58,6 +62,7 @@ public class LeadServiceImpl implements LeadService {
     private final AccountRepository accountRepository;
     private final InvoiceRepository invoiceRepository;
     private final CourseRepository courseRepository;
+    private final NotificationService notificationService;
 
     @Override
     @Transactional(readOnly = true)
@@ -182,6 +187,9 @@ public class LeadServiceImpl implements LeadService {
                     currentUserId);
         }
 
+        // Bắn thông báo Realtime đến Admin & Tư vấn viên
+        notifyNewLead(saved);
+
         log.info("Tạo mới Lead id={}, fullName={}, status={}", saved.getId(), saved.getFullName(), saved.getStatus());
         return toResponse(saved);
     }
@@ -214,10 +222,11 @@ public class LeadServiceImpl implements LeadService {
         lead.setEmail(email);
         lead.setPhone(phone);
         lead.setCourseId(course.getId());
-        lead.setSourceName("Website");
+        lead.setSourceName("Website - Tư vấn");
         lead.setChannelType("ONLINE");
         lead.setStatus("NEW");
-        lead.setNote(emptyToNull(request.getNote()));
+        String note = emptyToNull(request.getNote());
+        lead.setNote(note != null ? note : "Khách đăng ký nhận tư vấn khóa học '" + course.getTitle() + "'");
         lead.setInteractions(new ArrayList<>());
 
         Lead saved = leadRepository.save(lead);
@@ -575,6 +584,59 @@ public class LeadServiceImpl implements LeadService {
         response.setCreatedAt(
                 lead.getPlacementTestCreatedAt() != null ? lead.getPlacementTestCreatedAt() : lead.getCreatedAt());
         return response;
+    }
+
+    private void notifyNewLead(Lead lead) {
+        try {
+            String courseTitle = "Khóa học #" + lead.getCourseId();
+            if (lead.getCourseId() != null) {
+                var cOpt = courseRepository.findById(lead.getCourseId());
+                if (cOpt.isPresent() && cOpt.get().getTitle() != null) {
+                    courseTitle = cOpt.get().getTitle();
+                }
+            }
+
+            String source = (lead.getSourceName() != null && !lead.getSourceName().isBlank())
+                    ? lead.getSourceName()
+                    : "Website";
+
+            String content = String.format("Khách hàng %s (SĐT: %s) vừa đăng ký tư vấn %s qua %s.",
+                    lead.getFullName(), lead.getPhone(), courseTitle, source);
+
+            NotificationRequest.NotificationRequestBuilder notiBuilder = NotificationRequest.builder()
+                    .notificationType("LEAD")
+                    .title("Khách hàng mới đăng ký tư vấn")
+                    .content(content)
+                    .referenceType("LEAD")
+                    .referenceId(lead.getId())
+                    .priority("HIGH")
+                    .extraData(Map.of(
+                            "leadId", lead.getId(),
+                            "fullName", lead.getFullName(),
+                            "phone", lead.getPhone(),
+                            "courseId", lead.getCourseId() != null ? lead.getCourseId() : 0,
+                            "url", "/admin/leads?leadId=" + lead.getId()
+                    ));
+
+            if (lead.getAssignedConsultantId() != null) {
+                // Đã gán TVV cụ thể -> gửi cho ADMINs và chính TVV đó
+                List<Account> admins = accountRepository.findByRoleCode("ADMIN");
+                Set<Long> receivers = admins.stream()
+                        .filter(a -> Boolean.TRUE.equals(a.getIsActive()) && a.getDeletedAt() == null)
+                        .map(Account::getId)
+                        .collect(Collectors.toCollection(LinkedHashSet::new));
+                receivers.add(lead.getAssignedConsultantId());
+                notiBuilder.receiverAccountIds(new ArrayList<>(receivers));
+            } else {
+                // Nằm trong hàng đợi (Queue) -> Gửi cho toàn bộ ADMIN và LEAD (Tư vấn viên)
+                notiBuilder.receiverRole("ADMIN_AND_CONSULTANT");
+            }
+
+            notificationService.sendNotification(notiBuilder.build());
+            log.info("[LeadNotification] Đã phát thông báo thành công cho Lead id={}", lead.getId());
+        } catch (Exception e) {
+            log.warn("[LeadNotification] Không thể gửi thông báo cho Lead id={}: {}", lead.getId(), e.getMessage());
+        }
     }
 
     private String emptyToNull(String str) {

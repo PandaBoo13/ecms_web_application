@@ -632,7 +632,7 @@ const CourseSessionList = ({ courseId, sessions: initialSessions, onRefresh, cou
 
           {generateResult.skipped && generateResult.skipped.length > 0 && (
             <>
-              <Divider style={{ margin: '12px 0' }} orientation="left">
+              <Divider style={{ margin: '12px 0' }} titlePlacement="left">
                 <Text type="secondary" style={{ fontSize: 12 }}>
                   <CalendarOutlined /> Bỏ qua ({generateResult.skipped.length})
                 </Text>

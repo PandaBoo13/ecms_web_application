@@ -12,6 +12,7 @@ import type {
   LeadInteractionCreatePayload,
   LeadPlacementTest,
   LeadPlacementTestCreatePayload,
+  LeadStatisticsResponse,
 } from '../types/lead';
 
 export const leadApi = {
@@ -109,6 +110,30 @@ export const leadApi = {
 
   delete: async (id: number): Promise<void> => {
     await api.delete<RequestResponse<void>>(API_ENDPOINT.LEAD_DETAIL(id));
+  },
+
+  getPerformance: async (): Promise<any> => {
+    const { data } = await api.get<RequestResponse<any>>('/api/leads/consultants/performance');
+    return data.data;
+  },
+
+  getWorkStatus: async (): Promise<{ workStatus: string }> => {
+    const { data } = await api.get<RequestResponse<{ workStatus: string }>>('/api/leads/consultants/work-status');
+    return data.data;
+  },
+
+  updateWorkStatus: async (workStatus: string): Promise<void> => {
+    await api.put('/api/leads/consultants/work-status', { workStatus });
+  },
+
+  claim: async (leadId: number): Promise<Lead> => {
+    const { data } = await api.post<RequestResponse<Lead>>(`/api/leads/${leadId}/claim`);
+    return data.data;
+  },
+
+  getStatistics: async (params?: { consultantId?: number; startDate?: string; endDate?: string }): Promise<LeadStatisticsResponse> => {
+    const { data } = await api.get<RequestResponse<LeadStatisticsResponse>>('/api/leads/statistics/summary', { params });
+    return data.data;
   },
 };
 

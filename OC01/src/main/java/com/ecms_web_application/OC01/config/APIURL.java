@@ -50,6 +50,7 @@ public class APIURL {
         // PUBLIC POST — Các endpoint POST công khai (khách chưa đăng nhập)
         // ============================================================
         public static final String[] PUBLIC_POST_URLS = {
+                        "/api/leads",
                         "/api/public/tuition/checkout",
                         "/api/public/leads/register",
                         "/api/tuition/payments/vnpay/ipn",

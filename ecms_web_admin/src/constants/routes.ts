@@ -25,6 +25,7 @@ export const ADMIN_MENU: MenuItem[] = [
     roles: [ROLE.ADMIN, ROLE.LEAD, ROLE.CONSULTANT],
     children: [
       { key: '/admin/leads', label: 'Danh sách Lead', path: '/admin/leads', roles: [ROLE.ADMIN, ROLE.LEAD, ROLE.CONSULTANT] },
+      { key: '/admin/leads/statistics', label: 'Thống kê & Hiệu suất', path: '/admin/leads/statistics', roles: [ROLE.ADMIN, ROLE.LEAD, ROLE.CONSULTANT] },
     ],
   },
   {

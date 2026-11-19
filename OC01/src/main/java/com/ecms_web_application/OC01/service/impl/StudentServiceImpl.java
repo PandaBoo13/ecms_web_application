@@ -227,44 +227,53 @@ public class StudentServiceImpl implements StudentService {
         LocalDateTime now = LocalDateTime.now();
         Long effectiveCourseId = request.getCourseId() != null ? request.getCourseId() : lead.getCourseId();
 
-        // A lead can be created for an email that already belongs to an existing
-        // student (for example, a returning student buying another offline course).
-        // Reuse that student instead of inserting a duplicate email.
-        String leadEmail = lead.getEmail() != null ? lead.getEmail().trim() : "";
-        if (!leadEmail.isBlank()) {
-            Optional<Student> existingByEmail = studentRepository.findByEmailIgnoreCase(leadEmail);
-            if (existingByEmail.isPresent()) {
-                Student existingStudent = existingByEmail.get();
-                if ("INACTIVE".equalsIgnoreCase(existingStudent.getStatus())) {
-                    throw new ErrorHandler(HttpStatus.CONFLICT,
-                            "Học viên đã ngừng hoạt động; không thể ghi danh từ Lead này");
+        // 2.1 Kiểm tra học viên cũ theo Email hoặc User ID hoặc Số điện thoại
+        Student existingStudent = null;
+        String normalizedEmail = lead.getEmail() != null ? lead.getEmail().trim().toLowerCase() : "";
+        if (!normalizedEmail.isBlank()) {
+            existingStudent = studentRepository.findByEmailIgnoreCase(normalizedEmail).orElse(null);
+            if (existingStudent == null) {
+                Account acc = accountRepository.findByEmail(normalizedEmail).orElse(null);
+                if (acc != null) {
+                    existingStudent = studentRepository.findByUserId(acc.getId()).orElse(null);
                 }
-                if (ensureAccountForExistingStudent) {
-                    ensureStudentAccount(existingStudent);
-                    studentRepository.save(existingStudent);
-                }
-
-                lead.setStudentId(existingStudent.getId());
-                lead.setConvertedAt(now);
-                if (!"CONSULTED".equalsIgnoreCase(lead.getStatus())) {
-                    lead.setStatus("CONSULTED");
-                    lead.setConsultedAt(now);
-                }
-                leadRepository.save(lead);
-
-                if (effectiveCourseId != null) {
-                    AcademicHistory history = new AcademicHistory();
-                    history.setStudentId(existingStudent.getId());
-                    history.setLeadId(lead.getId());
-                    history.setCourseId(effectiveCourseId);
-                    history.setClassId(request.getClassId());
-                    academicHistoryRepository.save(history);
-                }
-
-                log.info("Liên kết Lead id={} với Student hiện có id={} theo email",
-                        lead.getId(), existingStudent.getId());
-                return toResponse(existingStudent);
             }
+        }
+        if (existingStudent == null && lead.getPhone() != null && !lead.getPhone().isBlank()) {
+            existingStudent = studentRepository.findByPhone(lead.getPhone().trim()).orElse(null);
+        }
+
+        // Nếu là học viên cũ: liên kết Lead với hồ sơ học viên đã có, thêm lịch sử học tập
+        if (existingStudent != null) {
+            if ("INACTIVE".equalsIgnoreCase(existingStudent.getStatus())) {
+                throw new ErrorHandler(HttpStatus.CONFLICT,
+                        "Học viên đã ngừng hoạt động; không thể ghi danh từ Lead này");
+            }
+            if (ensureAccountForExistingStudent) {
+                ensureStudentAccount(existingStudent);
+                studentRepository.save(existingStudent);
+            }
+
+            log.info("Nhận diện học viên cũ: leadId={}, studentId={}, studentCode={}", leadId, existingStudent.getId(), existingStudent.getStudentCode());
+            lead.setStudentId(existingStudent.getId());
+            lead.setConvertedAt(now);
+            if (!"CONSULTED".equalsIgnoreCase(lead.getStatus())) {
+                lead.setStatus("CONSULTED");
+                lead.setConsultedAt(now);
+            }
+            leadRepository.save(lead);
+
+            if (effectiveCourseId != null) {
+                AcademicHistory history = new AcademicHistory();
+                history.setStudentId(existingStudent.getId());
+                history.setLeadId(lead.getId());
+                history.setCourseId(effectiveCourseId);
+                history.setClassId(request.getClassId());
+                academicHistoryRepository.save(history);
+            }
+
+            recordStatusLog(existingStudent.getId(), null, "ACTIVE", "Học viên cũ đăng ký thêm khóa học từ Lead #" + lead.getId(), actorId);
+            return toResponse(existingStudent);
         }
 
         // 3. Tạo mới Student (học viên mới)
@@ -391,6 +400,52 @@ public class StudentServiceImpl implements StudentService {
             if (!newStatus.equalsIgnoreCase(student.getStatus())) {
                 recordStatusLog(student.getId(), student.getStatus(), newStatus, "Cập nhật trạng thái qua API", SecurityUtils.getCurrentAccountId());
                 student.setStatus(newStatus);
+            }
+        }
+
+        // Cập nhật mật khẩu nếu có
+        if (request.getPassword() != null && !request.getPassword().isBlank()) {
+            String rawPassword = request.getPassword().trim();
+            if (rawPassword.length() < 6) {
+                throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Mật khẩu phải từ 6 ký tự trở lên");
+            }
+            Account account = null;
+            if (student.getUserId() != null) {
+                account = accountRepository.findById(student.getUserId()).orElse(null);
+            }
+            if (account == null && student.getEmail() != null) {
+                account = accountRepository.findByEmail(student.getEmail()).orElse(null);
+                if (account != null && student.getUserId() == null) {
+                    student.setUserId(account.getId());
+                }
+            }
+            if (account != null) {
+                account.setPasswordHash(passwordEncoder.encode(rawPassword));
+                account.setIsLocked(false);
+                account.setFailedLoginCount(0);
+                accountRepository.save(account);
+                authSessionRepository.revokeAllByAccountId(account.getId(), LocalDateTime.now(), "Admin cập nhật mật khẩu");
+                log.info("Admin đã cập nhật mật khẩu cho học viên id={}, accountId={}", student.getId(), account.getId());
+            } else if (student.getEmail() != null && !student.getEmail().isBlank()) {
+                Account newAcc = new Account();
+                newAcc.setEmail(student.getEmail().trim().toLowerCase());
+                newAcc.setPasswordHash(passwordEncoder.encode(rawPassword));
+                newAcc.setRole(roleRepository.findByCode("STUDENT").orElse(null));
+                newAcc.setIsActive(true);
+                newAcc.setIsLocked(false);
+                newAcc.setFailedLoginCount(0);
+
+                UserProfile profile = new UserProfile();
+                profile.setAccount(newAcc);
+                profile.setFullName(student.getFullName());
+                profile.setPhone(student.getPhone());
+                newAcc.setUserProfile(profile);
+
+                Account savedAcc = accountRepository.save(newAcc);
+                student.setUserId(savedAcc.getId());
+                log.info("Admin đã khởi tạo tài khoản và đặt mật khẩu cho học viên id={}, accountId={}", student.getId(), savedAcc.getId());
+            } else {
+                throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Học viên chưa có email nên không thể tạo/cập nhật tài khoản và mật khẩu");
             }
         }
 

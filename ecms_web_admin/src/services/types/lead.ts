@@ -37,6 +37,8 @@ export interface Lead {
   status: LeadStatus;
   convertedAt?: string;
   sourceId?: number;
+  sourceName?: string;
+  channelType?: string;
   assignedConsultantId?: number;
   assignedConsultantName?: string;
   assignedConsultantEmail?: string;
@@ -108,6 +110,8 @@ export interface LeadFilterParams {
   status?: LeadStatus;
   courseId?: number;
   sourceId?: number;
+  sourceName?: string;
+  channelType?: string;
   consultantId?: number;
   inQueue?: boolean;
   hasOpenInvoice?: boolean;
@@ -123,6 +127,8 @@ export interface LeadCreatePayload {
   phone?: string;
   courseId?: number;
   sourceId?: number;
+  sourceName?: string;
+  channelType?: string;
   assignedConsultantId?: number;
   status?: LeadStatus;
   note?: string;
@@ -134,6 +140,8 @@ export interface LeadUpdatePayload {
   phone?: string;
   courseId?: number;
   sourceId?: number;
+  sourceName?: string;
+  channelType?: string;
   studentId?: number;
   assignedConsultantId?: number;
   status?: LeadStatus;
@@ -160,4 +168,60 @@ export interface LeadPlacementTestCreatePayload {
   notes?: string;
   evaluatedAt?: string;
 }
+
+export interface ConsultantPerformance {
+  consultantId: number;
+  name: string;
+  email: string;
+  phone?: string;
+  avatarUrl?: string;
+  workStatus: string;
+  totalLeads: number;
+  convertedLeads: number;
+  consultingCount?: number;
+  consultedCount?: number;
+  conversionRate: number;
+}
+
+export interface FastClaimLeadPayload {
+  leadId: number;
+  leadCode?: string;
+  fullName: string;
+  phone?: string;
+  courseTitle?: string;
+  demandType?: string;
+  type?: string;
+  timestamp?: string;
+  claimedById?: number;
+  claimedBy?: string;
+}
+
+export interface LeadTimePoint {
+  period: string;
+  totalLeads: number;
+  cumulativeLeads: number;
+  convertedLeads: number;
+  cumulativeConverted: number;
+}
+
+export interface LeadDistributionPoint {
+  status: string;
+  label: string;
+  count: number;
+  percentage: number;
+  color: string;
+}
+
+export interface LeadStatisticsResponse {
+  totalLeads: number;
+  newLeads: number;
+  inProgressLeads: number;
+  consultedLeads: number;
+  convertedLeads: number;
+  conversionRate: number;
+  timeline: LeadTimePoint[];
+  distribution: LeadDistributionPoint[];
+  consultants: ConsultantPerformance[];
+}
+
 

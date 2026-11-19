@@ -26,6 +26,9 @@ import com.ecms_web_application.OC01.entity.enums.EnrollmentStatus;
 import com.ecms_web_application.OC01.entity.enums.InvoiceStatus;
 import com.ecms_web_application.OC01.entity.enums.InvoiceType;
 import com.ecms_web_application.OC01.entity.enums.PaymentMethod;
+import com.ecms_web_application.OC01.dto.request.StudentConvertFromLeadRequest;
+import com.ecms_web_application.OC01.dto.response.StudentResponse;
+import com.ecms_web_application.OC01.entity.Account;
 import com.ecms_web_application.OC01.entity.enums.RequestStatus;
 import com.ecms_web_application.OC01.entity.enums.RequestType;
 import com.ecms_web_application.OC01.entity.request.Request;
@@ -46,6 +49,9 @@ import com.ecms_web_application.OC01.service.TuitionService;
 import com.ecms_web_application.OC01.service.request.RequestService;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import com.ecms_web_application.OC01.dto.request.NotificationRequest;
+import com.ecms_web_application.OC01.service.NotificationService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -71,6 +77,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class TuitionServiceImpl implements TuitionService {
     private final InvoiceRepository invoiceRepository;
     private final CourseRepository courseRepository;
@@ -82,6 +89,7 @@ public class TuitionServiceImpl implements TuitionService {
     private final ApplicationEventPublisher eventPublisher;
     private final TuitionPaymentLinkService paymentLinkService;
     private final AuditLogService auditLogService;
+    private final NotificationService notificationService;
     private final RequestService requestService;
     private final RequestRepository requestRepository;
 
@@ -113,9 +121,6 @@ public class TuitionServiceImpl implements TuitionService {
 
     private Invoice createOrReuseOnlineCheckoutInvoice(Long courseId, OnlineCheckoutRequest request, Long accountId) {
         Course course = getCourse(courseId);
-        if (course.getCourseType() != CourseType.ONLINE) {
-            throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Checkout này chỉ áp dụng cho khóa ONLINE");
-        }
         if (course.getStatus() != CourseStatus.PUBLISHED) {
             throw new ErrorHandler(HttpStatus.CONFLICT, "Khóa học hiện chưa được mở bán");
         }
@@ -210,10 +215,35 @@ public class TuitionServiceImpl implements TuitionService {
         lead.setPhone(request.getPayerPhone().trim());
         lead.setCourseId(courseId);
         lead.setStatus("NEW");
-        lead.setSourceName("Website");
+        lead.setSourceName("Website - Mua ngay");
         lead.setChannelType("ONLINE");
-        lead.setNote("Khách để lại thông tin khi mua khóa học online");
-        return leadRepository.save(lead);
+        Course course = courseRepository.findById(courseId).orElse(null);
+        String courseTitle = course != null ? course.getTitle() : "Khóa học #" + courseId;
+        lead.setNote("Khách đặt mua trực tuyến khóa học '" + courseTitle + "' (chờ thanh toán)");
+        Lead saved = leadRepository.save(lead);
+        sendNewLeadBuyNowNotification(saved, courseId);
+        return saved;
+    }
+
+    private void sendNewLeadBuyNowNotification(Lead lead, Long courseId) {
+        try {
+            Course course = courseRepository.findById(courseId).orElse(null);
+            String courseTitle = course != null ? course.getTitle() : "Khóa học #" + courseId;
+            NotificationRequest noti = NotificationRequest.builder()
+                    .notificationType("LEAD")
+                    .title("Khách đặt mua ngay khóa học")
+                    .content("Khách hàng " + lead.getFullName() + " (" + lead.getPhone() + ") vừa đặt mua ngay khóa học '" + courseTitle + "' trên Website.")
+                    .referenceType("lead")
+                    .referenceId(lead.getId())
+                    .receiverRole("ADMIN_AND_CONSULTANT")
+                    .priority("HIGH")
+                    .extraData(Map.of("url", "/admin/leads?leadId=" + lead.getId()))
+                    .build();
+            notificationService.sendNotification(noti);
+            log.info("[BuyNowNotification] Đã gửi thông báo cho Lead mua ngay id={}", lead.getId());
+        } catch (Exception e) {
+            log.warn("[BuyNowNotification] Không thể gửi thông báo cho Lead mua ngay: {}", e.getMessage());
+        }
     }
 
     private Invoice findCheckoutInvoice(Long courseId, CheckoutOwner owner, Lead lead, InvoiceStatus status) {

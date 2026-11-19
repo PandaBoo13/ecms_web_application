@@ -33,10 +33,12 @@ import {
   QuestionCircleOutlined,
   TeamOutlined,
   ArrowLeftOutlined,
+  CreditCardOutlined,
+  SafetyCertificateOutlined,
 } from '@ant-design/icons';
 import toast from 'react-hot-toast';
+import { useAuth } from '@/hooks/useAuth';
 
-// 🆕 Cập nhật lại đường dẫn import API theo cấu trúc mới
 import { courseApi, progressApi, resourceApi, sessionApi } from '@/services/api/course';
 // Nếu báo lỗi không tìm thấy, đổi thành import từ thư mục file tương ứng
 
@@ -53,7 +55,6 @@ import StatusTag from '@/components/common/StatusTag';
 import LeadRegistrationModal from '@/components/lead/LeadRegistrationModal';
 import LeadRegistrationForm from '@/components/lead/LeadRegistrationForm';
 import FloatingLeadButton from '@/components/lead/FloatingLeadButton';
-import { useAuth } from '@/hooks/useAuth';
 
 const { Title, Paragraph, Text } = Typography;
 
@@ -84,6 +85,15 @@ export default function CourseDetailPage() {
   const [loading, setLoading] = useState(true);
   const [consultModalOpen, setConsultModalOpen] = useState(false);
   const [purchaseStatus, setPurchaseStatus] = useState<'CHECKING' | 'AVAILABLE' | 'OWNED'>('CHECKING');
+
+  const handleBuyOnlineCourse = () => {
+    if (!course) return;
+    if (purchaseStatus === 'OWNED') {
+      navigate('/student/my-courses');
+      return;
+    }
+    navigate(`/checkout/${course.id}`);
+  };
 
   useEffect(() => {
     if (!id || isNaN(Number(id))) {
@@ -635,10 +645,10 @@ export default function CourseDetailPage() {
 
                           <Card size="small" style={{ borderLeft: '4px solid #f59e0b' }}>
                             <Title level={5} style={{ margin: 0, color: '#d97706' }}>
-                              Bước 3: Xác nhận giữ chỗ (Enrollment) & Đóng cọc (Tuition)
+                              Bước 3: Xác nhận ghi danh (Enrollment) & Đóng cọc (Tuition)
                             </Title>
                             <Paragraph style={{ margin: '6px 0 0', color: '#475569', fontSize: 14 }}>
-                              Hệ thống kiểm tra sĩ số lớp còn chỗ để giữ chỗ cho học viên. Bộ phận học phí phát hành hóa đơn tiền cọc để khách hoàn tất thanh toán.
+                              Hệ thống kiểm tra sĩ số lớp cho học viên. Bộ phận học phí phát hành hóa đơn tiền cọc để khách hoàn tất thanh toán.
                             </Paragraph>
                           </Card>
 
@@ -658,16 +668,82 @@ export default function CourseDetailPage() {
               />
             </Card>
 
-            {/* FORM ĐĂNG KÝ TƯ VẤN TRỰC TIẾP DƯỚI CHÂN TRANG KHÓA HỌC */}
+            {/* 1. KHỐI MUA & THANH TOÁN TRỰC TUYẾN */}
+            <Card
+              id="checkout-box"
+              style={{
+                borderRadius: 16,
+                border: '1px solid #86efac',
+                background: 'linear-gradient(135deg, #f0fdf4 0%, #ffffff 100%)',
+                boxShadow: '0 4px 16px rgba(16, 185, 129, 0.1)',
+                marginBottom: 24,
+              }}
+            >
+              <Row gutter={[24, 24]} align="middle">
+                <Col xs={24} md={16}>
+                  <Tag color="success" style={{ marginBottom: 8, fontSize: 12, padding: '2px 8px' }}>
+                    {course.courseType === 'ONLINE' ? 'KHÓA HỌC TRỰC TUYẾN (ONLINE) — VÀO HỌC NGAY' : 'KHÓA HỌC TRỰC TIẾP (OFFLINE) — THANH TOÁN MUA NGAY'}
+                  </Tag>
+                  <Title level={4} style={{ margin: '4px 0 8px', color: '#0f172a' }}>
+                    Đăng Ký & Mua Khóa Học Trực Tuyến
+                  </Title>
+                  <Paragraph type="secondary" style={{ marginBottom: 12, fontSize: 14 }}>
+                    Thanh toán trực tuyến an toàn qua VNPAY, mở quyền truy cập hoặc ghi danh nhanh chóng mà không cần chờ gọi điện xác nhận.
+                  </Paragraph>
+                  <Space size={16} wrap>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#16a34a', fontSize: 13 }}>
+                      <CheckCircleOutlined /> Kích hoạt tự động
+                    </span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#16a34a', fontSize: 13 }}>
+                      <SafetyCertificateOutlined /> Bảo mật cổng VNPAY
+                    </span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#16a34a', fontSize: 13 }}>
+                      <PlayCircleOutlined /> Linh hoạt tiện lợi
+                    </span>
+                  </Space>
+                </Col>
+                <Col xs={24} md={8} style={{ textAlign: 'center' }}>
+                  <div style={{ marginBottom: 8 }}>
+                    <Text type="secondary" style={{ fontSize: 13 }}>Học phí:</Text>
+                    <div style={{ fontSize: 26, fontWeight: 700, color: '#10b981' }}>
+                      <MoneyDisplay value={course.isFree ? 0 : course.price} />
+                    </div>
+                  </div>
+                  <Button
+                    type="primary"
+                    size="large"
+                    icon={course.isFree ? <PlayCircleOutlined /> : <CreditCardOutlined />}
+                    onClick={handleBuyOnlineCourse}
+                    block
+                    style={{
+                      height: 48,
+                      fontSize: 16,
+                      fontWeight: 700,
+                      background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                      borderColor: '#059669',
+                      boxShadow: '0 4px 14px rgba(16, 185, 129, 0.35)',
+                    }}
+                  >
+                    {purchaseStatus === 'OWNED'
+                      ? 'Đã sở hữu khóa học (Vào học ngay)'
+                      : course.isFree
+                        ? 'Vào học ngay miễn phí'
+                        : 'Thanh toán & Mua ngay'}
+                  </Button>
+                </Col>
+              </Row>
+            </Card>
+
+            {/* 2. KHỐI ĐĂNG KÝ TƯ VẤN TRỰC TIẾP */}
             <Card
               id="consult-form"
               title={
                 <div>
                   <Title level={4} style={{ margin: 0, color: '#0f172a' }}>
-                    Đăng Ký Tư Vấn Khóa Học Này
+                    Hoặc Đăng Ký Nhận Tư Vấn Chi Tiết
                   </Title>
                   <Text type="secondary" style={{ fontSize: 13 }}>
-                    Chuyên viên ECMS sẽ gọi điện tư vấn chi tiết lịch học, ưu đãi và xếp lịch test miễn phí
+                    Chuyên viên ECMS sẽ gọi điện tư vấn chi tiết lộ trình, giải đáp thắc mắc và hỗ trợ xếp lớp phù hợp nhất với bạn
                   </Text>
                 </div>
               }
@@ -732,72 +808,64 @@ export default function CourseDetailPage() {
                   </div>
                 </div>
 
-                {/* Nút hành động chính */}
+                {/* Nút hành động chính (Áp dụng cho CẢ Online và Offline) */}
                 <Space direction="vertical" size={12} style={{ width: '100%', marginBottom: 24 }}>
-                  {course.courseType === 'ONLINE' && !course.isFree && (
-                    <>
-                      <Button
-                        type="primary"
-                        size="large"
-                        icon={<DollarOutlined />}
-                        block
-                        disabled={purchaseStatus !== 'AVAILABLE'}
-                        loading={purchaseStatus === 'CHECKING'}
-                        style={{
-                          height: 48,
-                          fontSize: 16,
-                          fontWeight: 700,
-                          background: purchaseStatus === 'OWNED' ? undefined : 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                          borderColor: purchaseStatus === 'OWNED' ? undefined : '#059669',
-                        }}
-                        onClick={() => {
-                          // Guest checkout is allowed; the account is provisioned after successful payment.
-                          navigate(`/checkout/${course.id}`);
-                        }}
-                      >
-                        {purchaseStatus === 'OWNED'
-                          ? 'Đã mua khóa học'
-                          : purchaseStatus === 'CHECKING' ? 'Đang kiểm tra...' : 'Mua khóa học'}
-                      </Button>
-                      {purchaseStatus === 'OWNED' && (
-                        <Text type="success" style={{ display: 'block', textAlign: 'center' }}>
-                          Bạn đã mua khóa học này.
-                        </Text>
-                      )}
-                    </>
-                  )}
                   <Button
                     type="primary"
+                    size="large"
+                    icon={course.isFree ? <PlayCircleOutlined /> : <CreditCardOutlined />}
+                    block
+                    style={{
+                      height: 50,
+                      fontSize: 16,
+                      fontWeight: 700,
+                      background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                      borderColor: '#059669',
+                      boxShadow: '0 4px 14px rgba(16, 185, 129, 0.35)',
+                    }}
+                    onClick={handleBuyOnlineCourse}
+                  >
+                    {purchaseStatus === 'OWNED'
+                      ? 'Đã sở hữu khóa học (Vào học ngay)'
+                      : course.isFree
+                        ? 'Vào học ngay miễn phí'
+                        : 'Mua khóa học ngay'}
+                  </Button>
+
+                  <Button
+                    type="default"
                     size="large"
                     icon={<SendOutlined />}
                     block
                     style={{
                       height: 48,
                       fontSize: 16,
-                      fontWeight: 700,
-                      background: 'linear-gradient(135deg, #1677ff 0%, #0958d9 100%)',
-                      boxShadow: '0 4px 12px rgba(22, 119, 255, 0.35)',
+                      fontWeight: 600,
+                      borderColor: '#1677ff',
+                      color: '#1677ff',
                     }}
                     onClick={() => setConsultModalOpen(true)}
                   >
                     Đăng ký nhận tư vấn ngay
                   </Button>
 
-                  <Button
-                    size="large"
-                    icon={<AuditOutlined />}
-                    block
-                    style={{
-                      height: 48,
-                      fontSize: 15,
-                      fontWeight: 600,
-                      borderColor: '#0284c7',
-                      color: '#0284c7',
-                    }}
-                    onClick={() => setConsultModalOpen(true)}
-                  >
-                    Đăng ký kiểm tra trình độ đầu vào
-                  </Button>
+                  {course.courseType === 'OFFLINE' && (
+                    <Button
+                      size="large"
+                      icon={<AuditOutlined />}
+                      block
+                      style={{
+                        height: 48,
+                        fontSize: 15,
+                        fontWeight: 600,
+                        borderColor: '#0284c7',
+                        color: '#0284c7',
+                      }}
+                      onClick={() => setConsultModalOpen(true)}
+                    >
+                      Đăng ký kiểm tra trình độ đầu vào
+                    </Button>
+                  )}
                 </Space>
 
                 <Divider style={{ margin: '16px 0' }} />
@@ -861,7 +929,7 @@ export default function CourseDetailPage() {
         onClose={() => setConsultModalOpen(false)}
       />
 
-      {/* FLOATING ACTION BUTTON */}
+      {/* FLOATING ACTION BUTTON (Nút tư vấn nhanh) */}
       <FloatingLeadButton onClick={() => setConsultModalOpen(true)} />
     </div>
   );

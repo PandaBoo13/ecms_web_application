@@ -339,7 +339,7 @@ const CourseDetailActions = ({ course, onRefresh }: Props) => {
         </Button>
         {menuItems.length > 0 && (
           <Dropdown menu={{ items: menuItems }} trigger={['click']} placement="bottomRight">
-            <Button type="primary">
+            <Button type="primary" loading={copySubmitting}>
               Thao tác <DownOutlined />
             </Button>
           </Dropdown>

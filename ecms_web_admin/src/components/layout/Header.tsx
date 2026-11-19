@@ -5,15 +5,23 @@ import LanguageDropdown from './LanguageDropdown';
 import NotificationDropdown from './NotificationDropdown';
 import ChatWidget from '@/components/chat/ChatWidget';
 import AIAgentWidget from '@/components/ai/AIAgentWidget';
+import ConsultantWorkStatusWidget from '@/components/lead/ConsultantWorkStatusWidget';
 import { useUIStore } from '@/stores/uiStore';
+import { useAuth } from '@/hooks/useAuth';
 
 const { Header: AntHeader } = Layout;
 const { useBreakpoint } = Grid;
 
 const Header = () => {
   const { sidebarCollapsed, toggleSidebar } = useUIStore();
+  const { user } = useAuth();
   const screens = useBreakpoint();
   const isMobile = !screens.md; // < 768px
+
+  const isStaff =
+    user?.roleCode === 'LEAD' ||
+    user?.roleCode === 'CONSULTANT' ||
+    user?.roleCode === 'ADMIN';
 
   return (
     <AntHeader
@@ -42,6 +50,7 @@ const Header = () => {
 
       {/* flexShrink: 0 để cụm bên phải không bị ép nhỏ lại */}
       <Space size={isMobile ? 4 : 12} align="center" style={{ flexShrink: 0 }}>
+        {isStaff && !isMobile && <ConsultantWorkStatusWidget />}
         <LanguageDropdown />
         <NotificationDropdown />
         <ChatWidget />

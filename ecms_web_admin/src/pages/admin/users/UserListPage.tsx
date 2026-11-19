@@ -34,6 +34,8 @@ import {
   ClearOutlined,
   SafetyCertificateOutlined,
   ArrowRightOutlined,
+  CustomerServiceOutlined,
+  ReadOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import toast from 'react-hot-toast';
@@ -41,7 +43,6 @@ import toast from 'react-hot-toast';
 import PageContainer from '@/components/common/PageContainer';
 import PageHeader from '@/components/common/PageHeader';
 import DataTable from '@/components/common/DataTable';
-import StatusTag from '@/components/common/StatusTag';
 import UserAvatar from '@/components/common/UserAvatar';
 import DateDisplay from '@/components/common/DateDisplay';
 import StatsCard from '@/components/common/StatsCard';
@@ -57,6 +58,57 @@ import type {
 
 const { Option } = Select;
 const { TextArea } = Input;
+
+const ROLE_CONFIG: Record<
+  string,
+  { displayCode: string; label: string; color: string; bg: string; text: string; border: string; icon: React.ReactNode }
+> = {
+  ADMIN: {
+    displayCode: 'ADMIN',
+    label: 'Quản trị viên',
+    color: 'red',
+    bg: '#fef2f2',
+    text: '#dc2626',
+    border: '#fecaca',
+    icon: <SafetyCertificateOutlined />,
+  },
+  INSTRUCTOR: {
+    displayCode: 'INSTRUCTOR',
+    label: 'Giảng viên',
+    color: 'blue',
+    bg: '#eff6ff',
+    text: '#2563eb',
+    border: '#bfdbfe',
+    icon: <ReadOutlined />,
+  },
+  LEAD: {
+    displayCode: 'CONSULTANT',
+    label: 'Tư vấn viên',
+    color: 'cyan',
+    bg: '#ecfeff',
+    text: '#0891b2',
+    border: '#a5f3fc',
+    icon: <CustomerServiceOutlined />,
+  },
+  CONSULTANT: {
+    displayCode: 'CONSULTANT',
+    label: 'Tư vấn viên',
+    color: 'cyan',
+    bg: '#ecfeff',
+    text: '#0891b2',
+    border: '#a5f3fc',
+    icon: <CustomerServiceOutlined />,
+  },
+  STUDENT: {
+    displayCode: 'STUDENT',
+    label: 'Học viên',
+    color: 'green',
+    bg: '#f0fdf4',
+    text: '#16a34a',
+    border: '#bbf7d0',
+    icon: <UserOutlined />,
+  },
+};
 
 const UserListPage = () => {
   const { t } = useTranslation();
@@ -341,9 +393,28 @@ const UserListPage = () => {
         title: t('user.role'),
         dataIndex: 'roleCode',
         key: 'roleCode',
-        width: 130,
+        width: 160,
         align: 'center',
-        render: (role?: string) => (role ? <StatusTag status={role} /> : <span>—</span>),
+        render: (role?: string) => {
+          if (!role) return <span>—</span>;
+          const cfg = ROLE_CONFIG[role] || {
+            displayCode: role,
+            label: role,
+            color: 'default',
+            icon: <TeamOutlined />,
+          };
+          return (
+            <Tooltip title={cfg.label}>
+              <Tag
+                color={cfg.color}
+                icon={cfg.icon}
+                className="!inline-flex !items-center !gap-1.5 !px-2.5 !py-0.5 !rounded-md !text-xs !font-bold !tracking-wide"
+              >
+                {cfg.displayCode}
+              </Tag>
+            </Tooltip>
+          );
+        },
       },
       {
         title: t('user.status'),
@@ -576,39 +647,132 @@ const UserListPage = () => {
           onSearch={(v) => setKeyword(v)}
           searchPlaceholder={t('user.searchPlaceholder')}
           extra={
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2.5">
               <Select
-                placeholder={t('user.filterRole')}
+                placeholder={
+                  <Space className="text-slate-400">
+                    <TeamOutlined />
+                    <span>{t('user.filterRole')}</span>
+                  </Space>
+                }
                 allowClear
-                style={{ width: 170 }}
+                style={{ minWidth: 240 }}
                 value={roleFilter}
                 onChange={setRoleFilter}
                 className="!rounded-lg"
+                popupMatchSelectWidth={false}
+                dropdownStyle={{
+                  minWidth: 280,
+                  padding: 8,
+                  borderRadius: 12,
+                  boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
+                }}
               >
                 {roles.length > 0 ? (
-                  roles.map((r) => (
-                    <Option key={r.code} value={r.code}>
-                      {r.code} {r.description ? `(${r.description})` : ''}
-                    </Option>
-                  ))
+                  roles.map((r) => {
+                    const cfg = ROLE_CONFIG[r.code] || {
+                      displayCode: r.code,
+                      label: r.description || r.code,
+                      color: 'default',
+                      bg: '#f8fafc',
+                      text: '#475569',
+                      border: '#e2e8f0',
+                      icon: <TeamOutlined />,
+                    };
+                    return (
+                      <Option key={r.code} value={r.code} label={`${cfg.displayCode} (${cfg.label})`}>
+                        <div className="flex items-center justify-between py-1.5 px-1 gap-3">
+                          <Space size={8}>
+                            <div
+                              style={{
+                                width: 26,
+                                height: 26,
+                                borderRadius: 6,
+                                backgroundColor: cfg.bg,
+                                color: cfg.text,
+                                border: `1px solid ${cfg.border}`,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: 13,
+                              }}
+                            >
+                              {cfg.icon}
+                            </div>
+                            <span className="font-semibold text-slate-800 text-[13px]">
+                              {cfg.displayCode}
+                            </span>
+                          </Space>
+                          <Tag
+                            color={cfg.color}
+                            className="!m-0 !text-xs !px-2 !py-0.5 !rounded-full !font-medium"
+                          >
+                            {cfg.label}
+                          </Tag>
+                        </div>
+                      </Option>
+                    );
+                  })
                 ) : (
-                  <>
-                    <Option value="ADMIN">ADMIN</Option>
-                    <Option value="INSTRUCTOR">INSTRUCTOR</Option>
-                    <Option value="STUDENT">STUDENT</Option>
-                  </>
+                  Object.keys(ROLE_CONFIG).filter(k => k !== 'CONSULTANT').map((code) => {
+                    const cfg = ROLE_CONFIG[code];
+                    return (
+                      <Option key={code} value={code} label={`${cfg.displayCode} (${cfg.label})`}>
+                        <div className="flex items-center justify-between py-1.5 px-1 gap-3">
+                          <Space size={8}>
+                            <div
+                              style={{
+                                width: 26,
+                                height: 26,
+                                borderRadius: 6,
+                                backgroundColor: cfg.bg,
+                                color: cfg.text,
+                                border: `1px solid ${cfg.border}`,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: 13,
+                              }}
+                            >
+                              {cfg.icon}
+                            </div>
+                            <span className="font-semibold text-slate-800 text-[13px]">
+                              {cfg.displayCode}
+                            </span>
+                          </Space>
+                          <Tag
+                            color={cfg.color}
+                            className="!m-0 !text-xs !px-2 !py-0.5 !rounded-full !font-medium"
+                          >
+                            {cfg.label}
+                          </Tag>
+                        </div>
+                      </Option>
+                    );
+                  })
                 )}
               </Select>
               <Select
                 placeholder={t('user.filterStatus')}
                 allowClear
-                style={{ width: 150 }}
+                style={{ minWidth: 160 }}
                 value={activeFilter}
                 onChange={setActiveFilter}
                 className="!rounded-lg"
+                dropdownStyle={{ borderRadius: 10 }}
               >
-                <Option value={true}>{t('user.active')}</Option>
-                <Option value={false}>{t('user.locked')}</Option>
+                <Option value={true} label={t('user.active')}>
+                  <div className="flex items-center gap-2 py-0.5">
+                    <CheckCircleOutlined className="text-emerald-500" />
+                    <span>{t('user.active')}</span>
+                  </div>
+                </Option>
+                <Option value={false} label={t('user.locked')}>
+                  <div className="flex items-center gap-2 py-0.5">
+                    <LockOutlined className="text-rose-500" />
+                    <span>{t('user.locked')}</span>
+                  </div>
+                </Option>
               </Select>
               {(keyword || roleFilter || activeFilter !== undefined) && (
                 <Button
@@ -683,20 +847,38 @@ const UserListPage = () => {
                 label={<span className="font-medium text-slate-700">{t('user.role')}</span>}
                 rules={[{ required: true, message: 'Vui lòng chọn vai trò' }]}
               >
-                <Select placeholder="Chọn vai trò" className="!rounded-lg">
-                  {roles.map((r) => (
-                    <Option key={r.code} value={r.code}>
-                      <Space>
-                        <Tag color="blue">{r.code}</Tag>
-                        <span className="text-xs text-slate-500">{r.description}</span>
-                      </Space>
-                    </Option>
-                  ))}
+                <Select
+                  placeholder="Chọn vai trò"
+                  className="!rounded-lg"
+                  popupMatchSelectWidth={false}
+                  dropdownStyle={{ minWidth: 260, padding: 6, borderRadius: 10 }}
+                >
+                  {roles.map((r) => {
+                    const cfg = ROLE_CONFIG[r.code] || {
+                      displayCode: r.code,
+                      label: r.description || r.code,
+                      color: 'default',
+                      icon: <TeamOutlined />,
+                    };
+                    return (
+                      <Option key={r.code} value={r.code}>
+                        <div className="flex items-center justify-between py-1">
+                          <Space size={6}>
+                            <Tag color={cfg.color} icon={cfg.icon} className="!m-0 !font-bold">
+                              {cfg.displayCode}
+                            </Tag>
+                          </Space>
+                          <span className="text-xs text-slate-500">{cfg.label}</span>
+                        </div>
+                      </Option>
+                    );
+                  })}
                   {roles.length === 0 && (
                     <>
-                      <Option value="ADMIN">ADMIN</Option>
-                      <Option value="INSTRUCTOR">INSTRUCTOR</Option>
-                      <Option value="STUDENT">STUDENT</Option>
+                      <Option value="ADMIN">ADMIN (Quản trị viên)</Option>
+                      <Option value="INSTRUCTOR">INSTRUCTOR (Giảng viên)</Option>
+                      <Option value="LEAD">CONSULTANT (Tư vấn viên)</Option>
+                      <Option value="STUDENT">STUDENT (Học viên)</Option>
                     </>
                   )}
                 </Select>
@@ -901,7 +1083,18 @@ const UserListPage = () => {
                 <div className="text-xs text-slate-500 font-mono truncate">{selectedUser.email}</div>
                 <div className="mt-2 flex items-center gap-1.5 flex-wrap">
                   {selectedUser.roleCode ? (
-                    <StatusTag status={selectedUser.roleCode} />
+                    (() => {
+                      const cfg = ROLE_CONFIG[selectedUser.roleCode];
+                      return (
+                        <Tag
+                          color={cfg?.color || 'default'}
+                          icon={cfg?.icon}
+                          className="!inline-flex !items-center !gap-1 !px-2.5 !py-0.5 !rounded-md !font-bold"
+                        >
+                          {cfg?.displayCode || selectedUser.roleCode} · {cfg?.label || ''}
+                        </Tag>
+                      );
+                    })()
                   ) : (
                     <Tag>Chưa có role</Tag>
                   )}
@@ -969,7 +1162,11 @@ const UserListPage = () => {
                 {selectedUser.phone || <span className="text-slate-400">Chưa cập nhật</span>}
               </Descriptions.Item>
               <Descriptions.Item label="Vai trò">
-                <span className="font-medium text-slate-700">{selectedUser.roleCode || '—'}</span>
+                <span className="font-medium text-slate-800">
+                  {ROLE_CONFIG[selectedUser.roleCode || '']?.displayCode
+                    ? `${ROLE_CONFIG[selectedUser.roleCode!].displayCode} (${ROLE_CONFIG[selectedUser.roleCode!].label})`
+                    : selectedUser.roleCode || '—'}
+                </span>
               </Descriptions.Item>
               <Descriptions.Item label="Xác minh email">
                 {selectedUser.emailVerifiedAt ? (

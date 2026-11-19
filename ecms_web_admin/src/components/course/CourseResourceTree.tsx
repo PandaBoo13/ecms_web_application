@@ -6,7 +6,6 @@ import {
   Tag,
   Space,
   Empty,
-  Typography,
   Button,
   Popconfirm,
   Tooltip,
@@ -29,7 +28,7 @@ import toast from 'react-hot-toast';
 import InlineEdit from '@/components/common/InlineEdit';
 import type { CourseResourceResponse } from '@/services/types/course';
 
-const { Text } = Typography;
+// const { Text } = Typography;
 
 export interface ResourceReorderUpdate {
   id: number;

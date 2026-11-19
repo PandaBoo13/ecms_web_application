@@ -27,6 +27,7 @@ export const vi = {
   'menu.dashboard': 'Tổng quan',
   'menu.leads': 'Tuyển sinh (Lead)',
   'menu.leadList': 'Danh sách Lead',
+  'menu.leadStatistics': 'Thống kê & Hiệu suất',
   'menu.students': 'Học viên',
   'menu.studentList': 'Danh sách học viên',
   'menu.courses': 'Khóa học',

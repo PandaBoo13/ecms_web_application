@@ -39,6 +39,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
+import org.springframework.context.ApplicationEventPublisher;
+import com.ecms_web_application.OC01.event.EnrollmentCreatedEvent;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -98,8 +100,10 @@ public class EnrollmentServiceImpl implements EnrollmentService {
     private final com.ecms_web_application.OC01.service.ProgressCalculationService progressCalculationService;
     private final EntityManager entityManager;
     private final PlatformTransactionManager transactionManager;
+    private final ApplicationEventPublisher eventPublisher;
     private final RequestRepository requestRepository;
     private final RequestService requestService;
+
 
     @Override
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -151,8 +155,11 @@ public class EnrollmentServiceImpl implements EnrollmentService {
             return student.getId();
         }
         if (invoice.getLeadId() == null) {
-            throw new ErrorHandler(HttpStatus.CONFLICT,
-                    "Hóa đơn OFFLINE phải liên kết với hồ sơ học viên hoặc Lead mới");
+            Long leadId = ensureLeadForInvoice(invoice);
+            if (leadId == null) {
+                throw new ErrorHandler(HttpStatus.CONFLICT,
+                        "Hóa đơn OFFLINE phải liên kết với hồ sơ học viên hoặc Lead mới");
+            }
         }
         StudentConvertFromLeadRequest request = new StudentConvertFromLeadRequest();
         request.setLeadId(invoice.getLeadId());
@@ -1350,6 +1357,7 @@ public class EnrollmentServiceImpl implements EnrollmentService {
         enrollment.setStatus(status);
         Enrollment saved = enrollmentRepository.save(enrollment);
         saveStatusLog(saved.getId(), null, status, "Tạo ghi danh từ hóa đơn đã thanh toán", actorId);
+        eventPublisher.publishEvent(new EnrollmentCreatedEvent(saved.getId()));
         return response(saved);
     }
 

@@ -18,6 +18,10 @@ public class WebMvcConfig implements WebMvcConfigurer {
                 .toUri()
                 .toString();
 
+        if (!uploadPath.endsWith("/")) {
+            uploadPath += "/";
+        }
+
         registry.addResourceHandler("/uploads/**")
                 .addResourceLocations(uploadPath);
     }

@@ -38,4 +38,7 @@ public class StudentUpdateRequest {
 
     @Pattern(regexp = "^$|^(ACTIVE|INACTIVE)$", message = "Trạng thái chỉ có thể là ACTIVE hoặc INACTIVE")
     private String status;
+
+    @Size(min = 6, max = 100, message = "Mật khẩu phải từ 6 đến 100 ký tự")
+    private String password;
 }
