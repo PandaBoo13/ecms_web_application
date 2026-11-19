@@ -1,6 +1,6 @@
 package com.ecms_web_application.OC01.controller;
 
-import com.ecms_web_application.OC01.config.security.PermissionSyncer;
+//import com.ecms_web_application.OC01.config.security.PermissionSyncer;
 import com.ecms_web_application.OC01.dto.request.AccountLockRequest;
 import com.ecms_web_application.OC01.dto.request.rbac.*;
 import com.ecms_web_application.OC01.dto.response.RequestResponse;
@@ -31,7 +31,7 @@ public class RBACController {
     private final RoleService roleService;
     private final PermissionService permissionService;
     private final AccountRoleService accountRoleService;
-    private final PermissionSyncer permissionSyncer;
+//    private final PermissionSyncer permissionSyncer;
 
     // ============================================================
     // 1. ROLE MANAGEMENT
@@ -132,11 +132,11 @@ public class RBACController {
         return ResponseEntity.ok(new RequestResponse("Xóa permission thành công"));
     }
 
-    @PostMapping("/permissions/sync")
-    public ResponseEntity<RequestResponse> syncPermissions() {
-        String result = permissionSyncer.sync();
-        return ResponseEntity.ok(new RequestResponse(result, "Sync permission hoàn tất"));
-    }
+//    @PostMapping("/permissions/sync")
+//    public ResponseEntity<RequestResponse> syncPermissions() {
+//        String result = permissionSyncer.sync();
+//        return ResponseEntity.ok(new RequestResponse(result, "Sync permission hoàn tất"));
+//    }
 
     // ============================================================
     // 3. ACCOUNT ROLE MANAGEMENT

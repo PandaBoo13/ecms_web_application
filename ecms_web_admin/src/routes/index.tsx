@@ -34,7 +34,6 @@ import CategoryListPage from '@/pages/admin/categories/CategoryListPage';
 import TuitionPage from '@/pages/admin/tuition/TuitionPage';
 import RefundPage from '@/pages/admin/tuition/RefundPage';
 import EnrollmentPage from '@/pages/admin/enrollment/EnrollmentPage';
-import PendingEnrollmentPage from '@/pages/admin/enrollment/PendingEnrollmentPage';
 import RequestListPage from '@/pages/admin/requests/RequestListPage';
 import RoomListPage from '@/pages/admin/rooms/RoomListPage';
 
@@ -83,7 +82,6 @@ export default function AppRouter() {
             <Route path="/admin/tuition" element={<TuitionPage />} />
             <Route path="/admin/refunds" element={<RefundPage />} />
             <Route path="/admin/enrollments" element={<EnrollmentPage />} />
-            <Route path="/admin/enrollments/pending" element={<PendingEnrollmentPage />} />
             <Route path="/admin/tuition-enrollment" element={<Navigate to="/admin/tuition" replace />} />
             {/* ⚠️ /admin/courses/create dành cho Admin, phải đứng TRƯỚC /:id */}
             <Route path="/admin/courses/create" element={<AdminCourseCreatePage />} />

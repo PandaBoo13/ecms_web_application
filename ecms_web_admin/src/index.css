@@ -271,3 +271,21 @@ button {
 .animate-fade-in {
   animation: fadeIn 0.25s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
+
+
+/* ── Course enrollment row highlight animation ── */
+@keyframes row-highlight-fade {
+  0% {
+    background-color: #bae0ff !important;
+  }
+  35% {
+    background-color: #e6f4ff !important;
+  }
+  100% {
+    background-color: transparent !important;
+  }
+}
+
+.highlight-enrollment-row > td {
+  animation: row-highlight-fade 4.5s ease-out forwards;
+}

@@ -1,6 +1,7 @@
 package com.ecms_web_application.OC01.entity;
 
 import com.ecms_web_application.OC01.entity.enums.EnrollmentStatus;
+import com.ecms_web_application.OC01.entity.enums.CompletionResult;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -86,6 +87,10 @@ public class Enrollment {
 
     @Column(name = "completed_by")
     private Long completedBy;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "completion_result", length = 10)
+    private CompletionResult completionResult;
 
     @PrePersist
     void onCreate() {

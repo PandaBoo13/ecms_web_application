@@ -23,7 +23,6 @@ import AssignmentDetailPage from '@/pages/student/assignments/AssignmentDetailPa
 import GradesPage from '@/pages/student/grades/GradesPage';
 import ProfilePage from '@/pages/ProfilePage';
 import TuitionPage from '@/pages/student/tuition/TuitionPage';
-import EnrollmentPage from '@/pages/student/enrollment/EnrollmentPage';
 import PaymentLinkPage from '@/pages/payment/PaymentLinkPage';
 import VnpayReturnPage from '@/pages/payment/VnpayReturnPage';
 import OnlineCheckoutPage from '@/pages/checkout/OnlineCheckoutPage';
@@ -63,7 +62,7 @@ export default function AppRouter() {
           
           <Route path="/student/courses" element={<MyCoursesPage />} />
           <Route path="/student/tuition" element={<TuitionPage />} />
-          <Route path="/student/enrollments" element={<EnrollmentPage />} />
+          <Route path="/student/enrollments" element={<Navigate to="/student/courses" replace />} />
           <Route path="/student/courses/:id/learn" element={<CourseLearnPage />} />
           <Route path="/student/assignments" element={<AssignmentListPage />} />
           <Route path="/student/assignments/:id" element={<AssignmentDetailPage />} />

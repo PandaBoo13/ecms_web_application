@@ -33,6 +33,10 @@ import RequestDetailDrawer from './RequestDetailDrawer';
 // Đủ cho demo, nếu production > 500 request/nhóm → cần BE support search mảng requestType.
 const GROUP_FETCH_SIZE = 200;
 
+// §2.3: đơn xin nghỉ buổi học do giảng viên xử lý tại màn hình điểm danh.
+// Admin chỉ xem trạng thái đơn trong buổi điểm danh → ẩn khỏi toàn bộ module request.
+const ADMIN_EXCLUDED_REQUEST_TYPE = 'LEAVE_FEEDBACK';
+
 interface RequestStats {
   total: number;
   pending: number;
@@ -68,10 +72,10 @@ const RequestListPage = () => {
   const fetchStats = useCallback(async () => {
     try {
       const [all, pending, approved, rejected] = await Promise.all([
-        requestApi.search({ page: 0, size: 1 }),
-        requestApi.search({ page: 0, size: 1, status: 'PENDING' }),
-        requestApi.search({ page: 0, size: 1, status: 'APPROVED' }),
-        requestApi.search({ page: 0, size: 1, status: 'REJECTED' }),
+        requestApi.search({ page: 0, size: 1, excludeRequestType: ADMIN_EXCLUDED_REQUEST_TYPE }),
+        requestApi.search({ page: 0, size: 1, status: 'PENDING', excludeRequestType: ADMIN_EXCLUDED_REQUEST_TYPE }),
+        requestApi.search({ page: 0, size: 1, status: 'APPROVED', excludeRequestType: ADMIN_EXCLUDED_REQUEST_TYPE }),
+        requestApi.search({ page: 0, size: 1, status: 'REJECTED', excludeRequestType: ADMIN_EXCLUDED_REQUEST_TYPE }),
       ]);
       setStats({
         total: all.totalElements,
@@ -92,6 +96,7 @@ const RequestListPage = () => {
     try {
       const group = getGroupByKey(activeTab);
       const baseParams = {
+        excludeRequestType: ADMIN_EXCLUDED_REQUEST_TYPE,
         status: statusFilter,
         keyword: keyword.trim() || undefined,
         sortBy: 'createdAt',
@@ -260,7 +265,9 @@ const RequestListPage = () => {
       { key: 'all', label: t('request.tab.all', 'Tất cả') },
       ...REQUEST_GROUPS.map((g) => ({
         key: g.key,
-        label: t(g.labelKey, g.key),
+        label: g.key === 'grade_review'
+          ? t(g.labelKey, 'Kiểm duyệt điểm')
+          : t(g.labelKey, g.key),
       })),
     ],
     [t],
@@ -394,7 +401,7 @@ const RequestListPage = () => {
             'Tìm theo mã, tiêu đề, người gửi...',
           )}
           onRow={(record) => ({
-            onDoubleClick: () => handleOpenDetail(record.id),
+            onClick: () => void handleOpenDetail(record.id),
             style: { cursor: 'pointer' },
           })}
           extra={

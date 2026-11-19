@@ -6,10 +6,12 @@ import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 
 import java.util.List;
+import com.ecms_web_application.OC01.entity.enums.CompletionResult;
 
 public record CompleteEnrollmentsRequest(
         @NotNull @Positive Long courseId,
         @NotEmpty
         @Size(max = 100, message = "Mỗi lần xét hoàn thành tối đa 100 học viên")
-        List<@NotNull @Positive Long> enrollmentIds
+        List<@NotNull @Positive Long> enrollmentIds,
+        @NotNull CompletionResult result
 ) {}

@@ -15,6 +15,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Set;
 
 @RestController
 @RequestMapping("/api/files")
@@ -24,39 +25,77 @@ public class FileController {
 
     private final FileStorageService fileStorageService;
 
-    /**
-     * POST /api/files/upload
-     * Form-data: file (MultipartFile)
-     * Query: ?folder=avatars (tuỳ chọn)
-     */
+    private static final long MAX_DEFAULT_SIZE = 50L * 1024 * 1024;  // 50MB cho PDF, Slide, Tài liệu, Ảnh
+    private static final long MAX_VIDEO_SIZE   = 500L * 1024 * 1024; // 500MB cho Video
+
+    private static final Set<String> ALLOWED_EXTENSIONS = Set.of(
+            // Ảnh
+            ".jpg", ".jpeg", ".png", ".gif", ".webp",
+            // Tài liệu & Slide
+            ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".txt", ".csv",
+            // Nén
+            ".zip", ".rar",
+            // Video & Audio
+            ".mp4", ".mov", ".webm", ".mkv", ".avi", ".m4v",
+            ".mp3", ".wav", ".m4a", ".ogg"
+    );
+
+    private static final Set<String> ALLOWED_DOCUMENT_MIMES = Set.of(
+            "application/pdf",
+            "application/msword",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "application/vnd.ms-excel",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "application/vnd.ms-powerpoint",
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            "text/plain",
+            "text/csv",
+            "application/zip",
+            "application/x-zip-compressed",
+            "application/vnd.rar",
+            "application/x-rar-compressed",
+            // Windows/trình duyệt đôi khi gửi mime này cho .mkv, .docx, .pptx
+            "application/octet-stream"
+    );
+
     @PostMapping("/upload")
     public ResponseEntity<RequestResponse> upload(
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "folder", required = false) String folder) {
 
-        // 1. Validate file cơ bản
         if (file == null || file.isEmpty()) {
             throw new ErrorHandler(HttpStatus.BAD_REQUEST, "File không được để trống");
         }
 
-        // 2. Giới hạn dung lượng (5MB)
-        long MAX_SIZE = 5 * 1024 * 1024;
-        if (file.getSize() > MAX_SIZE) {
+        String originalFilename = file.getOriginalFilename();
+        String extension = fileStorageService.getFileExtension(originalFilename);
+        String contentType = file.getContentType() != null ? file.getContentType().toLowerCase() : "";
+
+        // 1. Kiểm tra phần mở rộng & MIME type
+        boolean isAllowedExt = ALLOWED_EXTENSIONS.contains(extension);
+        boolean isAllowedMime = contentType.startsWith("image/")
+                || contentType.startsWith("video/")
+                || contentType.startsWith("audio/")
+                || ALLOWED_DOCUMENT_MIMES.contains(contentType);
+
+        if (!isAllowedExt || !isAllowedMime) {
             throw new ErrorHandler(HttpStatus.BAD_REQUEST,
-                    "File không được vượt quá 5MB");
+                    "Định dạng file không được hỗ trợ. Chấp nhận: Ảnh, PDF, Video, Audio, Word, Excel, PowerPoint, ZIP");
         }
 
-        // 3. Chỉ cho phép ảnh
-        String contentType = file.getContentType();
-        if (contentType == null || !contentType.startsWith("image/")) {
+        // 2. Kiểm tra dung lượng theo nhóm file
+        boolean isVideo = contentType.startsWith("video/")
+                || Set.of(".mp4", ".mov", ".webm", ".mkv", ".avi", ".m4v").contains(extension);
+        long maxAllowedSize = isVideo ? MAX_VIDEO_SIZE : MAX_DEFAULT_SIZE;
+
+        if (file.getSize() > maxAllowedSize) {
+            String limitLabel = isVideo ? "500MB" : "50MB";
             throw new ErrorHandler(HttpStatus.BAD_REQUEST,
-                    "Chỉ chấp nhận file ảnh");
+                    "Dung lượng file không được vượt quá " + limitLabel);
         }
 
         try {
-            // 4. Lưu file, trả path có prefix /uploads/
             String url = fileStorageService.storeFileWithPrefix(file, folder);
-
             return ResponseEntity.ok(
                     new RequestResponse(Map.of("url", url), "Upload thành công"));
         } catch (IOException e) {

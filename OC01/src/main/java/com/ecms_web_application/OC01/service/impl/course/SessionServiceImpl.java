@@ -2,9 +2,7 @@ package com.ecms_web_application.OC01.service.impl.course;
 
 import com.ecms_web_application.OC01.dto.request.course.SessionCancelRequest;
 import com.ecms_web_application.OC01.dto.request.course.SessionCreateRequest;
-import com.ecms_web_application.OC01.dto.response.course.SessionGenerationResult;
-import com.ecms_web_application.OC01.dto.response.course.SessionResponse;
-import com.ecms_web_application.OC01.dto.response.course.SessionScheduleResponse;
+import com.ecms_web_application.OC01.dto.response.course.*;
 import com.ecms_web_application.OC01.entity.Account;
 import com.ecms_web_application.OC01.entity.Enrollment;
 import com.ecms_web_application.OC01.entity.Student;
@@ -379,6 +377,16 @@ public class SessionServiceImpl implements SessionService {
     }
 
     @Override
+    public List<InstructorAttendanceSessionResponse> getMyAttendanceSessions(Long accountId, LocalDate from, LocalDate to) {
+        return List.of();
+    }
+
+    @Override
+    public List<InstructorAttendanceCourseResponse> getMyAttendanceCourses(Long accountId) {
+        return List.of();
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public List<SessionScheduleResponse> getMyStudentSchedule(Long accountId, LocalDate from, LocalDate to) {
         return sessionRepository.findStudentScheduleWithCourse(accountId, from, to)
@@ -388,4 +396,6 @@ public class SessionServiceImpl implements SessionService {
     private Session getOrThrow(Long id) {
         return sessionRepository.findById(id).orElseThrow(() -> new ErrorHandler(HttpStatus.NOT_FOUND, "Session không tồn tại"));
     }
+
+
 }

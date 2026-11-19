@@ -29,27 +29,52 @@ export interface InvoiceResponse {
   courseType: 'ONLINE' | 'OFFLINE' | null;
 }
 
-export interface CreateInvoiceRequest {
-  courseId: number;
-  studentId?: number;
-  leadId?: number;
-  amount: number;
-  dueAt?: string;
+export interface CreateInvoiceFromLeadRequest {
+  leadId: number;
+  paymentMethod: 'CASH' | 'BANK_TRANSFER';
+  /** Bắt buộc khi thu tiền mặt. */
+  proofUrl?: string;
+  /** Bỏ trống → dùng email của lead. */
+  email?: string;
+}
+
+export interface CreateInvoiceFromLeadResponse {
+  invoice: InvoiceResponse;
+  paymentLink: PaymentLinkResponse | null;
 }
 
 export interface ReasonRequest { reason: string }
 
-export interface RefundRequest {
+/** Gửi yêu cầu duyệt hoàn tiền (chưa thực hiện thủ công). */
+export interface SubmitRefundApprovalRequest {
+  amount: number;
+  reason: string;
+}
+
+export type RefundApprovalUiStatus = 'NONE' | 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
+
+export interface RefundApprovalStatusResponse {
+  status: RefundApprovalUiStatus;
+  requestId: number | null;
+  requestCode: string | null;
+  requestedAt: string | null;
+  rejectReason: string | null;
+  resolvedAt: string | null;
+  requestedAmount: number | null;
+  reason: string | null;
+  canRecordRefund: boolean;
+}
+
+/** Ghi nhận hoàn tiền đã thực hiện thủ công (sau khi được duyệt). */
+export interface RecordRefundRequest {
   amount: number;
   paymentMethod: PaymentMethod;
   transactionReference?: string;
   reason: string;
-  /** Ảnh minh chứng hoàn tiền — bắt buộc với mọi phương thức. */
   proofUrl: string;
   payerName: string;
   payerEmail: string;
   payerPhone?: string;
-  /** Ngày hoàn tiền thực tế; bỏ trống thì backend dùng thời điểm ghi nhận. */
   refundedAt?: string;
 }
 
@@ -65,25 +90,6 @@ export interface EligibleLeadResponse {
   consultedAt: string | null;
   assignedConsultantId: number | null;
   note: string | null;
-}
-
-export interface CreateInvoiceFromLeadRequest {
-  leadId: number;
-  paymentMethod: 'CASH' | 'BANK_TRANSFER';
-  /** Bắt buộc khi thu tiền mặt. */
-  proofUrl?: string;
-  /** Bỏ trống → dùng email của lead. */
-  email?: string;
-}
-
-export interface CreateInvoiceFromStudentRequest {
-  studentId: number;
-  courseId: number;
-  paymentMethod: 'CASH' | 'BANK_TRANSFER';
-  /** Bắt buộc khi thu tiền mặt. */
-  proofUrl?: string;
-  /** Bỏ trống → dùng email của học viên. */
-  email?: string;
 }
 
 export interface PaymentLinkResponse {
@@ -104,7 +110,4 @@ export interface TuitionInvoiceStats {
   cancelled: number;
 }
 
-export interface CreateInvoiceFromLeadResponse {
-  invoice: InvoiceResponse;
-  paymentLink: PaymentLinkResponse | null;
-}
+

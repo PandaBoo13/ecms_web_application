@@ -1,8 +1,10 @@
 package com.ecms_web_application.OC01.service.impl.course;
 
 import com.ecms_web_application.OC01.entity.course.Course;
+import com.ecms_web_application.OC01.entity.enums.EnrollmentStatus;
 import com.ecms_web_application.OC01.entity.enums.CourseStatus;
 import com.ecms_web_application.OC01.repository.CourseRepository;
+import com.ecms_web_application.OC01.repository.EnrollmentRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -10,6 +12,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.util.List;
 
 /**
  * Scheduler tự động chuyển COURSE:
@@ -27,6 +30,7 @@ import java.time.LocalDate;
 public class CourseActivationScheduler {
 
     private final CourseRepository courseRepository;
+    private final EnrollmentRepository enrollmentRepository;
 
     @Scheduled(cron = "0 5 0 * * *", zone = "Asia/Ho_Chi_Minh")
     @Transactional
@@ -37,7 +41,8 @@ public class CourseActivationScheduler {
         for (Course c : courseRepository.findByStatus(CourseStatus.PUBLISHED)) {
             if (c.getStartDate() == null || c.getStartDate().isAfter(today)) continue;
 
-            int current = c.getCurrentStudents() != null ? c.getCurrentStudents() : 0;
+            int current = Math.toIntExact(enrollmentRepository.countByCourseIdAndStatusIn(
+                    c.getId(), List.of(EnrollmentStatus.PENDING, EnrollmentStatus.ACTIVE)));
             int min = c.getMinStudents() != null ? c.getMinStudents() : 0;
 
             if (min > 0 && current >= min) {

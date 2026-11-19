@@ -258,6 +258,9 @@ export const API_ENDPOINT = {
   ENROLLMENT_COMPLETE: (id: number) => `/api/enrollments/${id}/complete`,
   ENROLLMENT_COMPLETE_BULK: '/api/enrollments/complete/bulk',
 
+  // REQUEST
+  REQUESTS: '/api/requests',
+
   // ══════════════════════════════════════════════════════════════
   // AI AGENT
   // ══════════════════════════════════════════════════════════════

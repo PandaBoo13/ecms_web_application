@@ -227,6 +227,46 @@ public class StudentServiceImpl implements StudentService {
         LocalDateTime now = LocalDateTime.now();
         Long effectiveCourseId = request.getCourseId() != null ? request.getCourseId() : lead.getCourseId();
 
+        // A lead can be created for an email that already belongs to an existing
+        // student (for example, a returning student buying another offline course).
+        // Reuse that student instead of inserting a duplicate email.
+        String leadEmail = lead.getEmail() != null ? lead.getEmail().trim() : "";
+        if (!leadEmail.isBlank()) {
+            Optional<Student> existingByEmail = studentRepository.findByEmailIgnoreCase(leadEmail);
+            if (existingByEmail.isPresent()) {
+                Student existingStudent = existingByEmail.get();
+                if ("INACTIVE".equalsIgnoreCase(existingStudent.getStatus())) {
+                    throw new ErrorHandler(HttpStatus.CONFLICT,
+                            "Học viên đã ngừng hoạt động; không thể ghi danh từ Lead này");
+                }
+                if (ensureAccountForExistingStudent) {
+                    ensureStudentAccount(existingStudent);
+                    studentRepository.save(existingStudent);
+                }
+
+                lead.setStudentId(existingStudent.getId());
+                lead.setConvertedAt(now);
+                if (!"CONSULTED".equalsIgnoreCase(lead.getStatus())) {
+                    lead.setStatus("CONSULTED");
+                    lead.setConsultedAt(now);
+                }
+                leadRepository.save(lead);
+
+                if (effectiveCourseId != null) {
+                    AcademicHistory history = new AcademicHistory();
+                    history.setStudentId(existingStudent.getId());
+                    history.setLeadId(lead.getId());
+                    history.setCourseId(effectiveCourseId);
+                    history.setClassId(request.getClassId());
+                    academicHistoryRepository.save(history);
+                }
+
+                log.info("Liên kết Lead id={} với Student hiện có id={} theo email",
+                        lead.getId(), existingStudent.getId());
+                return toResponse(existingStudent);
+            }
+        }
+
         // 3. Tạo mới Student (học viên mới)
         String studentCode = generateUniqueStudentCode();
         Student student = new Student();

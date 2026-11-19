@@ -1,11 +1,13 @@
 import type { EnrollmentStatus } from '@/services/types/enrollment';
 
+export type EnrollmentStatusFilter = EnrollmentStatus | 'COMPLETED_PASSED' | 'COMPLETED_FAILED';
+
 /** Nhãn tiếng Việt cho trạng thái ghi danh — dùng thống nhất toàn bộ UI admin. */
 export const ENROLLMENT_STATUS_LABEL: Record<EnrollmentStatus, string> = {
   PENDING: 'Chờ khai giảng',
   ACTIVE: 'Đang học',
   RESERVED: 'Bảo lưu',
-  TERMINATED: 'Đã chấm dứt',
+  TERMINATED: 'Bỏ học',
   COMPLETED: 'Hoàn thành',
 };
 
@@ -21,8 +23,14 @@ export const ENROLLMENT_STATUS_OPTIONS = (
   Object.keys(ENROLLMENT_STATUS_LABEL) as EnrollmentStatus[]
 ).map((value) => ({ value, label: ENROLLMENT_STATUS_LABEL[value] }));
 
+export const ENROLLMENT_STATUS_FILTER_OPTIONS: Array<{ value: EnrollmentStatusFilter; label: string }> = [
+  ...ENROLLMENT_STATUS_OPTIONS,
+  { value: 'COMPLETED_PASSED', label: 'Hoàn thành (Đạt)' },
+  { value: 'COMPLETED_FAILED', label: 'Hoàn thành (Không đạt)' },
+];
+
 export const ENROLLMENT_STATUS_FLOW =
-  'Chờ khai giảng → Đang học → Hoàn thành · Đang học ⇄ Bảo lưu · Bất kỳ → Đã kết thúc';
+  'Chờ khai giảng → Đang học → Hoàn thành (Đạt / Không đạt) · Đang học ⇄ Bảo lưu · Bất kỳ → Bỏ học';
 
 export const HOLD_REASON_PRESETS = [
   'Học viên xin tạm nghỉ',

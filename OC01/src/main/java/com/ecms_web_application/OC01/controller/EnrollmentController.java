@@ -1,24 +1,25 @@
 package com.ecms_web_application.OC01.controller;
 
-import com.ecms_web_application.OC01.dto.request.enrollment.CreateEnrollmentRequest;
-import com.ecms_web_application.OC01.dto.request.enrollment.CreateOfflineEnrollmentsRequest;
 import com.ecms_web_application.OC01.dto.request.enrollment.CompleteEnrollmentsRequest;
+import com.ecms_web_application.OC01.dto.request.enrollment.CompleteEnrollmentRequest;
 import com.ecms_web_application.OC01.dto.request.enrollment.RecordFinalScoreRequest;
 import com.ecms_web_application.OC01.dto.request.enrollment.ReserveEnrollmentRequest;
 import com.ecms_web_application.OC01.dto.request.enrollment.TerminateEnrollmentRequest;
 import com.ecms_web_application.OC01.dto.response.RequestResponse;
-import com.ecms_web_application.OC01.entity.enums.CourseType;
 import com.ecms_web_application.OC01.entity.enums.EnrollmentStatus;
 import com.ecms_web_application.OC01.entity.enums.EnrollmentType;
+import com.ecms_web_application.OC01.entity.enums.CompletionResult;
 import com.ecms_web_application.OC01.service.EnrollmentService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
-import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/api/enrollments")
@@ -26,39 +27,40 @@ import org.springframework.web.bind.annotation.*;
 public class EnrollmentController {
     private final EnrollmentService enrollmentService;
 
-    @PostMapping("/offline")
-    public ResponseEntity<RequestResponse> createOffline(@Valid @RequestBody CreateEnrollmentRequest request) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(new RequestResponse(
-                enrollmentService.createOffline(request.getInvoiceId()), "Tạo ghi danh OFFLINE thành công"));
-    }
-
-    @PostMapping("/pending/bulk")
-    public ResponseEntity<RequestResponse> createPendingBatch(
-            @Valid @RequestBody CreateOfflineEnrollmentsRequest request) {
-        return ResponseEntity.ok(new RequestResponse(
-                enrollmentService.createPendingBatch(request.invoiceIds()),
-                "Đã xử lý danh sách hóa đơn chờ ghi danh"));
-    }
-
     @PostMapping("/complete/bulk")
     public ResponseEntity<RequestResponse> completeBatch(
             @Valid @RequestBody CompleteEnrollmentsRequest request) {
         return ResponseEntity.ok(new RequestResponse(
-                enrollmentService.completeBatch(request.courseId(), request.enrollmentIds()),
+                enrollmentService.completeBatch(request.courseId(), request.enrollmentIds(), request.result()),
                 "Đã xử lý xét hoàn thành học viên"));
     }
 
-    @GetMapping("/pending/eligible")
-    public ResponseEntity<RequestResponse> pendingCandidates(
-            @RequestParam(required = false) Long courseId,
-            @RequestParam(required = false) CourseType courseType,
-            @RequestParam(required = false) String search,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
-        Pageable pageable = PageRequest.of(Math.max(page, 0), Math.max(1, Math.min(size, 100)));
-        return ResponseEntity.ok(new RequestResponse(
-                enrollmentService.searchPendingCandidates(courseId, courseType, search, pageable),
-                "Lấy danh sách hóa đơn chờ ghi danh thành công"));
+    @GetMapping("/course/{courseId}/roster/export")
+    public ResponseEntity<byte[]> exportCourseRoster(@PathVariable Long courseId) {
+        byte[] file = enrollmentService.exportCourseRoster(courseId);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=course-" + courseId + "-roster.xlsx")
+                .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .body(file);
+    }
+
+    @PostMapping(value = "/course/{courseId}/final-scores/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<RequestResponse> importFinalScores(@PathVariable Long courseId,
+            @RequestParam("file") MultipartFile file) {
+        return ResponseEntity.ok(new RequestResponse(enrollmentService.importFinalScores(courseId, file),
+                "Đã xử lý nhập điểm cuối khóa"));
+    }
+
+    @GetMapping("/course/{courseId}/grade-review-status")
+    public ResponseEntity<RequestResponse> getGradeReviewStatus(@PathVariable Long courseId) {
+        return ResponseEntity.ok(new RequestResponse(enrollmentService.getGradeReviewStatus(courseId),
+                "Lấy trạng thái duyệt bảng điểm thành công"));
+    }
+
+    @PostMapping("/course/{courseId}/grade-review/submit")
+    public ResponseEntity<RequestResponse> submitGradeReview(@PathVariable Long courseId) {
+        return ResponseEntity.ok(new RequestResponse(enrollmentService.submitGradeReview(courseId),
+                "Đã gửi yêu cầu phê duyệt bảng điểm"));
     }
 
     @GetMapping("/summary")
@@ -71,6 +73,7 @@ public class EnrollmentController {
     public ResponseEntity<RequestResponse> search(
             @RequestParam(required = false) EnrollmentType type,
             @RequestParam(required = false) EnrollmentStatus status,
+            @RequestParam(required = false) CompletionResult completionResult,
             @RequestParam(required = false) Long courseId,
             @RequestParam(required = false) Long studentId,
             @RequestParam(required = false) Long accountId,
@@ -81,7 +84,7 @@ public class EnrollmentController {
         Pageable pageable = PageRequest.of(Math.max(page, 0), Math.max(1, Math.min(size, 100)),
                 Sort.by(Sort.Direction.DESC, "enrolledAt").and(Sort.by(Sort.Direction.DESC, "id")));
         return ResponseEntity.ok(new RequestResponse(enrollmentService.search(
-                type, status, courseId, studentId, accountId, search,
+                type, status, completionResult, courseId, studentId, accountId, search,
                 includeCompletionEligibility, pageable), "Lấy danh sách ghi danh thành công"));
     }
 
@@ -131,8 +134,9 @@ public class EnrollmentController {
     }
 
     @PostMapping("/{enrollmentId}/complete")
-    public ResponseEntity<RequestResponse> complete(@PathVariable Long enrollmentId) {
-        return ResponseEntity.ok(new RequestResponse(enrollmentService.complete(enrollmentId),
+    public ResponseEntity<RequestResponse> complete(@PathVariable Long enrollmentId,
+            @Valid @RequestBody CompleteEnrollmentRequest request) {
+        return ResponseEntity.ok(new RequestResponse(enrollmentService.complete(enrollmentId, request),
                 "Đánh dấu hoàn thành khóa học thành công"));
     }
 }

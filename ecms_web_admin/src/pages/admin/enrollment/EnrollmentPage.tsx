@@ -18,7 +18,8 @@ import PageContainer from '@/components/common/PageContainer';
 import PageHeader from '@/components/common/PageHeader';
 import StatsCard from '@/components/common/StatsCard';
 import EnrollmentStatusTag from '@/components/enrollment/EnrollmentStatusTag';
-import { ENROLLMENT_STATUS_LABEL } from '@/constants/enrollment';
+import { ENROLLMENT_STATUS_FILTER_OPTIONS } from '@/constants/enrollment';
+import type { EnrollmentStatusFilter } from '@/constants/enrollment';
 import { enrollmentApi } from '@/services/api/enrollment';
 import { showError } from '@/utils/errorHelper';
 import type {
@@ -26,14 +27,6 @@ import type {
 } from '@/services/types/enrollment';
 
 const { Text } = Typography;
-
-const STATUS_LABELS: Record<EnrollmentStatus, string> = {
-  PENDING: ENROLLMENT_STATUS_LABEL.PENDING,
-  ACTIVE: ENROLLMENT_STATUS_LABEL.ACTIVE,
-  RESERVED: ENROLLMENT_STATUS_LABEL.RESERVED,
-  TERMINATED: ENROLLMENT_STATUS_LABEL.TERMINATED,
-  COMPLETED: ENROLLMENT_STATUS_LABEL.COMPLETED,
-};
 
 const TYPE_LABELS: Record<EnrollmentType, string> = {
   OFFLINE: 'Khóa Offline',
@@ -43,7 +36,7 @@ const TYPE_LABELS: Record<EnrollmentType, string> = {
 export default function EnrollmentPage() {
   const [enrollmentRows, setEnrollmentRows] = useState<EnrollmentResponse[]>([]);
   const [loadingEnrollments, setLoadingEnrollments] = useState(false);
-  const [enrollmentStatus, setEnrollmentStatus] = useState<EnrollmentStatus | undefined>();
+  const [enrollmentStatus, setEnrollmentStatus] = useState<EnrollmentStatusFilter | undefined>();
   const [enrollmentType, setEnrollmentType] = useState<EnrollmentType | undefined>();
   const [enrollmentPage, setEnrollmentPage] = useState(0);
   const [enrollmentPageSize, setEnrollmentPageSize] = useState(20);
@@ -59,7 +52,10 @@ export default function EnrollmentPage() {
         page: enrollmentPage,
         size: enrollmentPageSize,
         type: enrollmentType,
-        status: enrollmentStatus,
+        status: enrollmentStatus === 'COMPLETED_PASSED' || enrollmentStatus === 'COMPLETED_FAILED'
+          ? 'COMPLETED' : enrollmentStatus,
+        completionResult: enrollmentStatus === 'COMPLETED_PASSED' ? 'PASSED'
+          : enrollmentStatus === 'COMPLETED_FAILED' ? 'FAILED' : undefined,
         search: enrollmentSearch || undefined,
         includeCompletionEligibility: true,
       });
@@ -115,7 +111,7 @@ export default function EnrollmentPage() {
           <div style={{ fontWeight: 600, color: '#1e293b' }}>
             {r.courseId && (r.studentId || r.accountId) ? (
               <Link
-                to={`/admin/courses/${r.courseId}?tab=enrollments&status=${r.status}&${r.studentId ? `studentId=${r.studentId}` : `accountId=${r.accountId}`}`}
+                to={`/admin/courses/${r.courseId}?tab=enrollments&highlight=${r.enrollmentId}`}
               >
                 {r.studentName || (r.studentId ? `Học viên #${r.studentId}` : `Tài khoản #${r.accountId}`)}
               </Link>
@@ -136,11 +132,17 @@ export default function EnrollmentPage() {
       title: 'Trạng thái',
       dataIndex: 'status',
       width: 150,
-      render: (status: EnrollmentStatus) => <EnrollmentStatusTag status={status} />,
+      render: (status: EnrollmentStatus, row) => (
+        <div>
+          {status === 'COMPLETED' && row.completionResult
+            ? <Tag color="purple">Hoàn thành ({row.completionResult === 'PASSED' ? 'Đạt' : 'Không đạt'})</Tag>
+            : <EnrollmentStatusTag status={status} />}
+        </div>
+      ),
     },
   ];
 
-  const selectEnrollmentStatus = (status?: EnrollmentStatus) => {
+  const selectEnrollmentStatus = (status?: EnrollmentStatusFilter) => {
     setEnrollmentStatus(status);
     setEnrollmentPage(0);
   };
@@ -211,14 +213,14 @@ export default function EnrollmentPage() {
           tooltip="Nhấn để lọc ghi danh đang bảo lưu"
         />
         <StatsCard
-          title="Đã chấm dứt"
+          title="Bỏ học"
           value={statusCounts.TERMINATED}
           icon={<StopOutlined />}
           color="#64748b"
           bgColor="#f1f5f9"
           active={enrollmentStatus === 'TERMINATED'}
           onClick={() => selectEnrollmentStatus(enrollmentStatus === 'TERMINATED' ? undefined : 'TERMINATED')}
-          tooltip="Nhấn để lọc ghi danh đã chấm dứt"
+          tooltip="Nhấn để lọc ghi danh đã bỏ học"
         />
         <StatsCard
           title="Hoàn thành"
@@ -226,8 +228,8 @@ export default function EnrollmentPage() {
           icon={<CheckCircleOutlined />}
           color="#722ed1"
           bgColor="#f5f3ff"
-          active={enrollmentStatus === 'COMPLETED'}
-          onClick={() => selectEnrollmentStatus(enrollmentStatus === 'COMPLETED' ? undefined : 'COMPLETED')}
+          active={enrollmentStatus === 'COMPLETED' || enrollmentStatus === 'COMPLETED_PASSED' || enrollmentStatus === 'COMPLETED_FAILED'}
+          onClick={() => selectEnrollmentStatus(enrollmentStatus === 'COMPLETED' || enrollmentStatus === 'COMPLETED_PASSED' || enrollmentStatus === 'COMPLETED_FAILED' ? undefined : 'COMPLETED')}
           tooltip="Nhấn để lọc ghi danh đã hoàn thành"
         />
       </div>
@@ -253,11 +255,10 @@ export default function EnrollmentPage() {
         <Select
           style={{ width: 200 }}
           value={enrollmentStatus ?? ''}
-          onChange={(value) => selectEnrollmentStatus(value ? (value as EnrollmentStatus) : undefined)}
+          onChange={(value) => selectEnrollmentStatus(value ? (value as EnrollmentStatusFilter) : undefined)}
           options={[
             { value: '', label: 'Tất cả trạng thái' },
-            ...(['PENDING', 'ACTIVE', 'RESERVED', 'TERMINATED', 'COMPLETED'] as EnrollmentStatus[])
-              .map((value) => ({ value, label: STATUS_LABELS[value] })),
+            ...ENROLLMENT_STATUS_FILTER_OPTIONS,
           ]}
         />
         <Select

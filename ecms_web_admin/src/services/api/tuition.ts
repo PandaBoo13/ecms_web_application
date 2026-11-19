@@ -4,21 +4,19 @@ import type { PageResponse, RequestResponse } from '../types/api';
 import type {
   CreateInvoiceFromLeadRequest,
   CreateInvoiceFromLeadResponse,
-  CreateInvoiceFromStudentRequest,
-  CreateInvoiceRequest,
   EligibleLeadResponse,
   InvoiceResponse,
   PaymentLinkResponse,
   ReasonRequest,
-  RefundRequest,
+  RecordRefundRequest,
+  RefundApprovalStatusResponse,
+  SubmitRefundApprovalRequest,
   TuitionInvoiceStats,
 } from '../types/tuition';
 
 export const tuitionApi = {
-  createOfflineInvoice: async (body: CreateInvoiceRequest) =>
-    (await api.post<RequestResponse<InvoiceResponse>>(API_ENDPOINT.TUITION_INVOICES, body)).data.data,
-  createOnlineCheckout: async (courseId: number) =>
-    (await api.post<RequestResponse<InvoiceResponse>>(API_ENDPOINT.TUITION_CHECKOUT, null, { params: { courseId } })).data.data,
+  createFromLead: async (body: CreateInvoiceFromLeadRequest) =>
+    (await api.post<RequestResponse<CreateInvoiceFromLeadResponse>>(API_ENDPOINT.TUITION_FROM_LEAD, body)).data.data,
   createVnpayPayment: async (invoiceId: number) =>
     (await api.post<RequestResponse<{ paymentUrl: string }>>(API_ENDPOINT.TUITION_VNPAY_START(invoiceId))).data.data,
   searchInvoices: async (params: Record<string, unknown>) =>
@@ -35,14 +33,14 @@ export const tuitionApi = {
     (await api.patch<RequestResponse<InvoiceResponse>>(API_ENDPOINT.TUITION_DUE_DATE(id), { dueAt })).data.data,
   cancelInvoice: async (id: number, body: ReasonRequest) =>
     (await api.post<RequestResponse<InvoiceResponse>>(API_ENDPOINT.TUITION_CANCEL(id), body)).data.data,
-  refundInvoice: async (id: number, body: RefundRequest) =>
-    (await api.post<RequestResponse<InvoiceResponse>>(API_ENDPOINT.TUITION_REFUND(id), body)).data.data,
+  submitRefundApproval: async (id: number, body: SubmitRefundApprovalRequest) =>
+    (await api.post<RequestResponse<unknown>>(API_ENDPOINT.TUITION_REFUND_APPROVAL(id), body)).data.data,
+  getRefundApprovalStatus: async (id: number) =>
+    (await api.get<RequestResponse<RefundApprovalStatusResponse>>(API_ENDPOINT.TUITION_REFUND_APPROVAL(id))).data.data,
+  recordApprovedRefund: async (id: number, body: RecordRefundRequest) =>
+    (await api.post<RequestResponse<InvoiceResponse>>(API_ENDPOINT.TUITION_REFUND_RECORD(id), body)).data.data,
   searchEligibleLeads: async (params: Record<string, unknown>) =>
     (await api.get<RequestResponse<PageResponse<EligibleLeadResponse>>>(API_ENDPOINT.TUITION_ELIGIBLE_LEADS, { params })).data.data,
-  createFromLead: async (body: CreateInvoiceFromLeadRequest) =>
-    (await api.post<RequestResponse<CreateInvoiceFromLeadResponse>>(API_ENDPOINT.TUITION_FROM_LEAD, body)).data.data,
-  createFromStudent: async (body: CreateInvoiceFromStudentRequest) =>
-    (await api.post<RequestResponse<CreateInvoiceFromLeadResponse>>(API_ENDPOINT.TUITION_FROM_STUDENT, body)).data.data,
   sendPaymentLink: async (id: number, email?: string) =>
     (await api.post<RequestResponse<PaymentLinkResponse>>(API_ENDPOINT.TUITION_PAYMENT_LINK(id), { email })).data.data,
 };

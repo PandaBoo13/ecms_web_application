@@ -24,6 +24,7 @@ export const REQUEST_TYPE_VALUES = [
   'COURSE_DELETE',
   'COURSE_PRICE_CHANGE',
   'COURSE_TEACHER_CHANGE',
+  'COURSE_GRADE_APPROVAL',
   // ===== SESSION =====
   'SCHEDULE_CHANGE',
   'SCHEDULE_CANCEL',
@@ -124,6 +125,8 @@ export interface RequestReviewRequest {
  */
 export interface RequestSearchParams {
   requestType?: RequestType | string;
+  /** Loại cần loại khỏi kết quả — Admin dùng để ẩn LEAVE_FEEDBACK (§2.3). */
+  excludeRequestType?: RequestType | string;
   status?: RequestStatus | string;
   requesterId?: number;
 
@@ -268,6 +271,7 @@ export const REQUEST_TYPE_LABELS: Partial<Record<RequestType, string>> = {
   COURSE_DELETE: 'Xóa khóa học',
   COURSE_PRICE_CHANGE: 'Đổi học phí',
   COURSE_TEACHER_CHANGE: 'Đổi giảng viên chính',
+  COURSE_GRADE_APPROVAL: 'Phê duyệt bảng điểm',
 
   SCHEDULE_CHANGE: 'Đổi lịch dạy',
   SCHEDULE_CANCEL: 'Hủy buổi học',
