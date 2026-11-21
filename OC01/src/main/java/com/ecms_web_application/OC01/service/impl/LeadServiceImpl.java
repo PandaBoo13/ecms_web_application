@@ -908,7 +908,7 @@ public class LeadServiceImpl implements LeadService {
                 .totalLeads(total)
                 .newLeads(newL)
                 .inProgressLeads(inProg)
-                .consultedLeads(consulted)
+                .consultedLeads(consultedOnly)
                 .convertedLeads(converted)
                 .conversionRate(convRate)
                 .timeline(timeline)
