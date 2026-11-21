@@ -1,9 +1,13 @@
 package com.ecms_web_application.OC01.service.impl.course;
 
 import com.ecms_web_application.OC01.config.SecurityUtils;
+import com.ecms_web_application.OC01.dto.request.NotificationRequest;
 import com.ecms_web_application.OC01.dto.request.course.*;
 import com.ecms_web_application.OC01.dto.response.course.*;
 import com.ecms_web_application.OC01.entity.*;
+import com.ecms_web_application.OC01.entity.course.Course;
+import com.ecms_web_application.OC01.entity.course.CourseResource;
+import com.ecms_web_application.OC01.entity.course.Question;
 import com.ecms_web_application.OC01.entity.enums.*;
 import com.ecms_web_application.OC01.entity.request.Request;
 import com.ecms_web_application.OC01.exception.ErrorHandler;
@@ -13,6 +17,7 @@ import com.ecms_web_application.OC01.repository.*;
 import com.ecms_web_application.OC01.service.AuditLogService;
 import com.ecms_web_application.OC01.service.CourseConflictService;
 import com.ecms_web_application.OC01.service.CourseService;
+import com.ecms_web_application.OC01.service.NotificationService;
 import com.ecms_web_application.OC01.service.SessionService;
 import com.ecms_web_application.OC01.service.handler.RequestHandlerRegistry;
 import lombok.RequiredArgsConstructor;
@@ -35,9 +40,6 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import com.ecms_web_application.OC01.entity.course.Course;
-import com.ecms_web_application.OC01.entity.course.CourseResource;
-import com.ecms_web_application.OC01.entity.course.Question;
 
 @Service
 @RequiredArgsConstructor
@@ -50,6 +52,7 @@ public class CourseServiceImpl implements CourseService {
     private final CategoryRepository categoryRepository;
     private final RoomRepository roomRepository;
     private final QuestionRepository questionRepository;
+    private final StudentRepository studentRepository;
     private final AuditLogService auditLogService;
     private final SessionService sessionService;
     private final SessionRepository sessionRepository;
@@ -57,10 +60,11 @@ public class CourseServiceImpl implements CourseService {
     private final EnrollmentStatusLogRepository enrollmentStatusLogRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final CourseValidator courseValidator;
-    private final CourseModuleMapper mapper; // Thay thế CourseMapper cũ
+    private final CourseModuleMapper mapper;
     private final CourseConflictService courseConflictService;
     private final RequestRepository requestRepository;
     private final RequestHandlerRegistry requestHandlerRegistry;
+    private final NotificationService notificationService;
 
     private static final Pattern NON_ALNUM = Pattern.compile("[^a-z0-9]+");
 
@@ -116,6 +120,21 @@ public class CourseServiceImpl implements CourseService {
         Course saved = courseRepository.save(c);
         auditLogService.log("CREATE", "COURSE", saved.getId(), "Tạo khóa: " + saved.getTitle());
         log.info("Tạo course id={}, code={}", saved.getId(), saved.getCode());
+
+        // Nếu người tạo gán khóa học cho một giảng viên khác, thông báo cho giảng viên đó
+        if (saved.getTeacher() != null && !saved.getTeacher().getId().equals(current.getId())) {
+            notifyAccounts(
+                    List.of(saved.getTeacher().getId()),
+                    "COURSE_TEACHER_ASSIGNED",
+                    "Bạn được gán phụ trách khóa học mới",
+                    String.format("Khóa học \"%s\" (%s) vừa được tạo và phân công cho bạn phụ trách.",
+                            saved.getTitle(), saved.getCode()),
+                    saved,
+                    "NORMAL",
+                    false
+            );
+        }
+
         return mapper.toCourseResponse(saved);
     }
 
@@ -171,8 +190,8 @@ public class CourseServiceImpl implements CourseService {
         if (request.getOutcomes() != null) c.setOutcomes(request.getOutcomes());
         if (request.getCertificateTypeId() != null) c.setCertificateTypeId(request.getCertificateTypeId());
         if (request.getCertificateConfig() != null) c.setCertificateConfig(request.getCertificateConfig());
-        if (request.getLearningMode() != null)    c.setLearningMode(request.getLearningMode());
-        if (request.getAllowedRoomIds() != null)  c.setAllowedRoomIds(request.getAllowedRoomIds());
+        if (request.getLearningMode() != null) c.setLearningMode(request.getLearningMode());
+        if (request.getAllowedRoomIds() != null) c.setAllowedRoomIds(request.getAllowedRoomIds());
         if (request.getTotalSessionsExpected() != null) c.setTotalSessionsExpected(request.getTotalSessionsExpected());
         if (request.getPrice() != null) {
             if (request.getPrice().signum() < 0) {
@@ -206,12 +225,14 @@ public class CourseServiceImpl implements CourseService {
         Course c = getCourseOrThrow(id);
         assertCanEditOfflineInfo(c);
 
+        Long oldTeacherId = c.getTeacher() != null ? c.getTeacher().getId() : null;
+
         LocalDate startDate = request.getStartDate() != null ? request.getStartDate() : c.getStartDate();
-        LocalDate endDate   = request.getEndDate()   != null ? request.getEndDate()   : c.getEndDate();
+        LocalDate endDate = request.getEndDate() != null ? request.getEndDate() : c.getEndDate();
         Integer minStudents = request.getMinStudents() != null ? request.getMinStudents() : c.getMinStudents();
         Integer maxStudents = request.getMaxStudents() != null ? request.getMaxStudents() : c.getMaxStudents();
         LocalTime startTime = request.getSessionStartTime() != null ? request.getSessionStartTime() : c.getSessionStartTime();
-        LocalTime endTime   = request.getSessionEndTime()   != null ? request.getSessionEndTime()   : c.getSessionEndTime();
+        LocalTime endTime = request.getSessionEndTime() != null ? request.getSessionEndTime() : c.getSessionEndTime();
 
         if (startDate != null && endDate != null && startDate.isAfter(endDate)) {
             throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Ngày bắt đầu phải <= ngày kết thúc");
@@ -246,9 +267,28 @@ public class CourseServiceImpl implements CourseService {
 
         Course saved = courseRepository.save(c);
         auditLogService.log("UPDATE_OFFLINE", "COURSE", id, "Cập nhật cấu hình OFFLINE");
+
+        // Thông báo nếu giảng viên chính thay đổi trong cấu hình OFFLINE
+        Long newTeacherId = saved.getTeacher() != null ? saved.getTeacher().getId() : null;
+        if (newTeacherId != null && !Objects.equals(oldTeacherId, newTeacherId)) {
+            notifyAccounts(
+                    List.of(newTeacherId),
+                    "COURSE_TEACHER_ASSIGNED",
+                    "Phân công giảng dạy khóa học",
+                    String.format("Bạn vừa được phân công làm giảng viên chính cho khóa học OFFLINE \"%s\" (%s).",
+                            saved.getTitle(), saved.getCode()),
+                    saved,
+                    "HIGH",
+                    true
+            );
+        }
+
         return mapper.toCourseResponse(saved);
     }
 
+    // ============================================================
+    // SUBMIT FOR REVIEW
+    // ============================================================
     // ============================================================
     // SUBMIT FOR REVIEW
     // ============================================================
@@ -269,6 +309,17 @@ public class CourseServiceImpl implements CourseService {
         c.setStatus(CourseStatus.PENDING_REVIEW);
         Course saved = courseRepository.save(c);
         auditLogService.log("SUBMIT_REVIEW", "COURSE", id, null);
+
+        // Gửi thông báo cho toàn bộ ADMIN khi submit khóa học
+        notifyAdmins(
+                "COURSE_SUBMITTED",
+                "Yêu cầu kiểm duyệt khóa học mới",
+                String.format("Khóa học %s \"%s\" (%s) vừa được gửi yêu cầu kiểm duyệt.",
+                        saved.getCourseType(), saved.getTitle(), saved.getCode()),
+                saved,
+                "HIGH"
+        );
+
         return mapper.toCourseResponse(saved);
     }
 
@@ -303,6 +354,16 @@ public class CourseServiceImpl implements CourseService {
 
         auditLogService.log("WITHDRAW_REVIEW", "COURSE", courseId, "Thu hồi yêu cầu kiểm duyệt code=" + pendingRequest.getRequestCode());
         log.info("[Course] Withdraw review courseId={}, requestId={}, by={}", courseId, pendingRequest.getId(), currentId);
+
+        Course updated = getCourseOrThrow(courseId);
+        notifyAdmins(
+                "COURSE_REVIEW_WITHDRAWN",
+                "Yêu cầu duyệt khóa học đã được thu hồi",
+                String.format("Yêu cầu kiểm duyệt (%s) cho khóa học \"%s\" (%s) đã được thu hồi.",
+                        pendingRequest.getRequestCode(), updated.getTitle(), updated.getCode()),
+                updated,
+                "NORMAL"
+        );
     }
 
     // ============================================================
@@ -315,17 +376,59 @@ public class CourseServiceImpl implements CourseService {
         if (c.getStatus() != CourseStatus.PENDING_REVIEW) {
             throw new ErrorHandler(HttpStatus.CONFLICT, "Chỉ duyệt khóa ở PENDING_REVIEW");
         }
-        if (Boolean.TRUE.equals(request.getApproved())) {
-            c.setStatus(CourseStatus.PUBLISHED);
+
+        boolean isApproved = Boolean.TRUE.equals(request.getApproved());
+        if (isApproved) {
+            // Khóa OFFLINE duyệt nội dung xong chuyển sang PLANNED để xếp lịch/phòng/GV trước khi finalizeSchedule -> PUBLISHED
+            // Khóa ONLINE duyệt xong lên thẳng PUBLISHED
+            c.setStatus(c.getCourseType() == CourseType.OFFLINE
+                    ? CourseStatus.PLANNED
+                    : CourseStatus.PUBLISHED);
         } else {
             if (!StringUtils.hasText(request.getRejectReason())) {
                 throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Lý do từ chối là bắt buộc");
             }
             c.setStatus(CourseStatus.DRAFT);
         }
+
         Course saved = courseRepository.save(c);
-        auditLogService.log(Boolean.TRUE.equals(request.getApproved()) ? "APPROVE" : "REJECT",
-                "COURSE", id, request.getRejectReason());
+        auditLogService.log(
+                isApproved ? "APPROVE" : "REJECT",
+                "COURSE",
+                id,
+                isApproved ? "Duyệt khóa học -> " + saved.getStatus() : request.getRejectReason()
+        );
+
+        // Gửi thông báo cho giảng viên sở hữu & người tạo khóa học
+        List<Long> ownerIds = collectCourseOwnerIds(saved);
+        if (isApproved) {
+            boolean isOffline = saved.getCourseType() == CourseType.OFFLINE;
+            notifyAccounts(
+                    ownerIds,
+                    "COURSE_APPROVED",
+                    isOffline ? "Khóa học đã được duyệt nội dung" : "Khóa học đã được duyệt và xuất bản",
+                    isOffline
+                            ? String.format("Nội dung khóa học OFFLINE \"%s\" (%s) đã được phê duyệt và chuyển sang trạng thái chờ xếp lịch (PLANNED).",
+                            saved.getTitle(), saved.getCode())
+                            : String.format("Khóa học ONLINE \"%s\" (%s) đã được phê duyệt và xuất bản công khai.",
+                            saved.getTitle(), saved.getCode()),
+                    saved,
+                    "HIGH",
+                    true
+            );
+        } else {
+            notifyAccounts(
+                    ownerIds,
+                    "COURSE_REJECTED",
+                    "Yêu cầu duyệt khóa học bị từ chối",
+                    String.format("Khóa học \"%s\" (%s) bị từ chối duyệt và đã trả về bản nháp. Lý do: %s",
+                            saved.getTitle(), saved.getCode(), request.getRejectReason()),
+                    saved,
+                    "HIGH",
+                    true
+            );
+        }
+
         return mapper.toCourseResponse(saved);
     }
 
@@ -339,6 +442,18 @@ public class CourseServiceImpl implements CourseService {
         c.setStatus(CourseStatus.ARCHIVED);
         Course saved = courseRepository.save(c);
         auditLogService.log("ARCHIVE", "COURSE", id, null);
+
+        notifyAccounts(
+                collectCourseOwnerIds(saved),
+                "COURSE_ARCHIVED",
+                "Khóa học đã được lưu trữ",
+                String.format("Khóa học \"%s\" (%s) đã được chuyển sang trạng thái lưu trữ (ARCHIVED).",
+                        saved.getTitle(), saved.getCode()),
+                saved,
+                "NORMAL",
+                false
+        );
+
         return mapper.toCourseResponse(saved);
     }
 
@@ -355,6 +470,10 @@ public class CourseServiceImpl implements CourseService {
         if (!StringUtils.hasText(reason)) {
             throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Lý do hủy là bắt buộc");
         }
+
+        // Lấy danh sách accountId của học viên TRƯỚC khi chuyển enrollment sang TERMINATED
+        List<Long> enrolledStudentAccountIds = studentRepository.findAccountIdsByCourseId(id);
+
         c.setStatus(CourseStatus.CANCELLED);
         Course saved = courseRepository.save(c);
 
@@ -385,6 +504,33 @@ public class CourseServiceImpl implements CourseService {
         log.info("[Course] CANCELLED courseId={}, terminated {} enrollments", id, active.size());
 
         auditLogService.log("CANCEL", "COURSE", id, reason);
+
+        // 1. Thông báo cho giảng viên & người tạo khóa học
+        notifyAccounts(
+                collectCourseOwnerIds(saved),
+                "COURSE_CANCELLED",
+                "Khóa học đã bị hủy",
+                String.format("Khóa học \"%s\" (%s) đã bị hủy. Lý do: %s",
+                        saved.getTitle(), saved.getCode(), reason),
+                saved,
+                "URGENT",
+                true
+        );
+
+        // 2. Thông báo cho toàn bộ học viên đã ghi danh vào khóa học
+        if (enrolledStudentAccountIds != null && !enrolledStudentAccountIds.isEmpty()) {
+            notifyAccounts(
+                    enrolledStudentAccountIds,
+                    "COURSE_CANCELLED",
+                    "Thông báo hủy khóa học",
+                    String.format("Khóa học \"%s\" (%s) đã bị hủy. Lý do: %s. Vui lòng liên hệ trung tâm để được hỗ trợ bảo lưu hoặc hoàn học phí.",
+                            saved.getTitle(), saved.getCode(), reason),
+                    saved,
+                    "URGENT",
+                    true
+            );
+        }
+
         return mapper.toCourseResponse(saved);
     }
 
@@ -484,8 +630,39 @@ public class CourseServiceImpl implements CourseService {
         }
         assertCanChangeTeacher(c);
 
+        Long oldTeacherId = c.getTeacher() != null ? c.getTeacher().getId() : null;
+
         sessionService.changeCourseMainTeacher(courseId, newTeacherId);
         Course updated = getCourseOrThrow(courseId);
+
+        // Thông báo cho giảng viên mới được phân công
+        if (newTeacherId != null && !Objects.equals(oldTeacherId, newTeacherId)) {
+            notifyAccounts(
+                    List.of(newTeacherId),
+                    "COURSE_TEACHER_ASSIGNED",
+                    "Phân công giảng dạy khóa học",
+                    String.format("Bạn vừa được phân công làm giảng viên chính cho khóa học \"%s\" (%s).",
+                            updated.getTitle(), updated.getCode()),
+                    updated,
+                    "HIGH",
+                    true
+            );
+        }
+
+        // Thông báo cho giảng viên cũ nếu bị thay thế
+        if (oldTeacherId != null && !Objects.equals(oldTeacherId, newTeacherId)) {
+            notifyAccounts(
+                    List.of(oldTeacherId),
+                    "COURSE_TEACHER_REPLACED",
+                    "Thay đổi phân công giảng dạy",
+                    String.format("Bạn không còn là giảng viên chính của khóa học \"%s\" (%s).",
+                            updated.getTitle(), updated.getCode()),
+                    updated,
+                    "NORMAL",
+                    true
+            );
+        }
+
         return mapper.toCourseResponse(updated);
     }
 
@@ -586,7 +763,107 @@ public class CourseServiceImpl implements CourseService {
                 "scheduled " + scheduled + "/" + sessions.size() + " sessions → PUBLISHED");
         log.info("[Course] finalizeSchedule courseId={}, {} sessions → SCHEDULED, course → PUBLISHED", courseId, scheduled);
 
+        // Thông báo cho giảng viên & người tạo khóa học khi lịch đã được chốt và xuất bản
+        notifyAccounts(
+                collectCourseOwnerIds(saved),
+                "COURSE_PUBLISHED",
+                "Khóa học OFFLINE đã chốt lịch và xuất bản",
+                String.format("Lịch học của khóa \"%s\" (%s) đã được cố định (%d buổi) và mở cổng đăng ký.",
+                        saved.getTitle(), saved.getCode(), scheduled),
+                saved,
+                "HIGH",
+                true
+        );
+
         return mapper.toCourseResponse(saved);
+    }
+
+    // ============================================================
+    // NOTIFICATION HELPERS
+    // ============================================================
+    private List<Long> collectCourseOwnerIds(Course c) {
+        Set<Long> ids = new LinkedHashSet<>();
+        if (c.getCreatedBy() != null && c.getCreatedBy().getId() != null) {
+            ids.add(c.getCreatedBy().getId());
+        }
+        if (c.getTeacher() != null && c.getTeacher().getId() != null) {
+            ids.add(c.getTeacher().getId());
+        }
+        Long actorId = SecurityUtils.getCurrentAccountId();
+        if (actorId != null) {
+            ids.remove(actorId);
+        }
+        return new ArrayList<>(ids);
+    }
+
+    private Map<String, Object> buildCourseExtraData(Course c) {
+        Map<String, Object> extra = new LinkedHashMap<>();
+        extra.put("courseId", c.getId());
+        if (c.getCode() != null) extra.put("courseCode", c.getCode());
+        if (c.getCourseType() != null) extra.put("courseType", c.getCourseType().name());
+        if (c.getStatus() != null) extra.put("status", c.getStatus().name());
+        return extra;
+    }
+
+    private void notifyAccounts(List<Long> rawReceiverIds, String type, String title,
+                                String content, Course c, String priority, boolean sendEmail) {
+        if (rawReceiverIds == null || rawReceiverIds.isEmpty()) return;
+
+        Long actorId = SecurityUtils.getCurrentAccountId();
+        List<Long> validIds = rawReceiverIds.stream()
+                .filter(Objects::nonNull)
+                .filter(id -> !Objects.equals(id, actorId))
+                .filter(accountRepository::existsById)
+                .distinct()
+                .collect(Collectors.toList());
+
+        if (validIds.isEmpty()) return;
+
+        try {
+            NotificationRequest req = new NotificationRequest();
+            req.setSenderAccountId(actorId);
+            req.setReceiverAccountIds(validIds);
+            req.setNotificationType(type);
+            req.setTitle(title);
+            req.setContent(content);
+            req.setReferenceType("COURSE");
+            req.setReferenceId(c.getId());
+            req.setExtraData(buildCourseExtraData(c));
+            req.setPriority(priority);
+            req.setSendEmail(sendEmail);
+            notificationService.sendNotification(req);
+        } catch (Exception e) {
+            log.warn("[Course] Gửi thông báo '{}' thất bại cho courseId={}: {}", type, c.getId(), e.getMessage());
+        }
+    }
+
+    private void notifyAdmins(String type, String title, String content, Course c, String priority) {
+        Long actorId = SecurityUtils.getCurrentAccountId();
+        List<Long> adminIds = accountRepository.findByRoleCode("ADMIN").stream()
+                .filter(a -> Boolean.TRUE.equals(a.getIsActive()) && a.getDeletedAt() == null)
+                .map(Account::getId)
+                .filter(id -> !Objects.equals(id, actorId))
+                .distinct()
+                .collect(Collectors.toList());
+
+        if (adminIds.isEmpty()) return;
+
+        try {
+            NotificationRequest req = new NotificationRequest();
+            req.setSenderAccountId(actorId);
+            req.setReceiverAccountIds(adminIds);
+            req.setNotificationType(type);
+            req.setTitle(title);
+            req.setContent(content);
+            req.setReferenceType("COURSE");
+            req.setReferenceId(c.getId());
+            req.setExtraData(buildCourseExtraData(c));
+            req.setPriority(priority);
+            req.setSendEmail(false);
+            notificationService.sendNotification(req);
+        } catch (Exception e) {
+            log.warn("[Course] Gửi thông báo '{}' tới ADMIN thất bại cho courseId={}: {}", type, c.getId(), e.getMessage());
+        }
     }
 
     // ============================================================
@@ -668,26 +945,21 @@ public class CourseServiceImpl implements CourseService {
 
     @Override
     public List<EnrolledCourseResponse> getMyEnrolledCourses(Long accountId) {
-        // Gọi native query
         List<Object[]> results = courseRepository.findMyEnrolledCourses(accountId);
 
         return results.stream().map(row -> {
-            // 1. Ép kiểu an toàn cho ID (Postgres thường trả về BigInteger)
             Long enrollmentId = row[0] != null ? ((Number) row[0]).longValue() : null;
             Long courseId = row[1] != null ? ((Number) row[1]).longValue() : null;
 
-            // 2. Lấy các chuỗi
             String courseCode = (String) row[2];
             String courseTitle = (String) row[3];
             String thumbnailUrl = (String) row[4];
             String enrollmentStatus = (String) row[5];
 
-            // 3. Ép kiểu thời gian (Postgres trả về Timestamp)
             LocalDateTime enrolledAt = row[6] != null
                     ? ((Timestamp) row[6]).toLocalDateTime()
                     : null;
 
-            // 4. Ép kiểu số thực (BigDecimal hoặc Double)
             Double progressPercentage = row[7] != null
                     ? ((Number) row[7]).doubleValue()
                     : 0.0;
@@ -704,4 +976,6 @@ public class CourseServiceImpl implements CourseService {
                     .build();
         }).toList();
     }
+
+
 }
