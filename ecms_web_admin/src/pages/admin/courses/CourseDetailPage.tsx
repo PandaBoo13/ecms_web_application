@@ -20,6 +20,7 @@ import {
   DollarOutlined,
   BookOutlined,
   CalendarOutlined,
+  ScheduleOutlined,
 } from '@ant-design/icons';
 import toast from 'react-hot-toast';
 
@@ -45,6 +46,14 @@ import { resolveMaxFinalScore } from '@/utils/courseScore';
 
 const { Text } = Typography;
 
+const extractErrorMessage = (err: unknown, fallback: string): string => {
+  const e = err as {
+    response?: { data?: { message?: string } };
+    message?: string;
+  };
+  return e?.response?.data?.message || e?.message || fallback;
+};
+
 const CourseDetailPage = () => {
   const { id } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
@@ -54,6 +63,9 @@ const CourseDetailPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isPublishing, setIsPublishing] = useState(false);
+  const [activeTab, setActiveTab] = useState<string>(
+    searchParams.get('tab') === 'enrollments' ? 'enrollments' : 'info',
+  );
 
   const fetchCourse = useCallback(
     async (isSilent = false) => {
@@ -72,9 +84,7 @@ const CourseDetailPage = () => {
         const data = await courseApi.getById(courseId);
         setCourse(data);
       } catch (err) {
-        setError(
-          (err as { message?: string })?.message || 'Không tải được khóa học',
-        );
+        setError(extractErrorMessage(err, 'Không tải được khóa học'));
       } finally {
         if (!isSilent) {
           setLoading(false);
@@ -94,11 +104,14 @@ const CourseDetailPage = () => {
 
   // ══════════════════════════════════════════════════════════════
   // XUẤT BẢN KHÓA HỌC (PUBLISHED)
+  // - OFFLINE: PLANNED -> finalizeSchedule -> PUBLISHED
+  // - ONLINE : PENDING_REVIEW -> review(true) -> PUBLISHED
   // ══════════════════════════════════════════════════════════════
   const handlePublishCourse = () => {
     if (!course) return;
 
-    const isPlannedOffline = course.status === 'PLANNED';
+    const isPlannedOffline =
+      course.status === 'PLANNED' && course.courseType === 'OFFLINE';
     const isPendingOnline =
       course.status === 'PENDING_REVIEW' && course.courseType === 'ONLINE';
 
@@ -106,7 +119,7 @@ const CourseDetailPage = () => {
 
     Modal.confirm({
       title: 'Xuất bản khóa học',
-      width: 460,
+      width: 480,
       content: (
         <div style={{ lineHeight: 1.6 }}>
           <p style={{ marginBottom: 8 }}>
@@ -114,7 +127,7 @@ const CourseDetailPage = () => {
           </p>
           <p style={{ color: '#64748b', marginBottom: 0 }}>
             {isPlannedOffline
-              ? 'Lịch học sẽ được khóa cố định và mở cổng đăng ký/đóng học phí cho học viên.'
+              ? 'Hệ thống sẽ kiểm tra xung đột lịch giảng viên/phòng học, chuyển các buổi học sang SCHEDULED và mở cổng đăng ký cho học viên.'
               : 'Khóa học ONLINE sẽ chuyển sang trạng thái PUBLISHED và mở tuyển sinh ngay.'}
           </p>
         </div>
@@ -133,10 +146,21 @@ const CourseDetailPage = () => {
           toast.success('Đã xuất bản khóa học thành công');
           handleSilentRefresh();
         } catch (err) {
-          toast.error(
-            (err as { message?: string })?.message ||
-              'Không thể xuất bản khóa học',
-          );
+          const msg = extractErrorMessage(err, 'Không thể xuất bản khóa học');
+          if (isPlannedOffline) {
+            // Hiển thị Modal để đọc đầy đủ chi tiết thiếu cấu hình hoặc trùng lịch buổi học
+            Modal.error({
+              title: 'Chưa thể xuất bản khóa học OFFLINE',
+              width: 520,
+              content: (
+                <div style={{ whiteSpace: 'pre-line', lineHeight: 1.6 }}>
+                  {msg}
+                </div>
+              ),
+            });
+          } else {
+            toast.error(msg);
+          }
         } finally {
           setIsPublishing(false);
         }
@@ -159,8 +183,9 @@ const CourseDetailPage = () => {
             Xác nhận duyệt nội dung cho khóa học OFFLINE <b>{course.title}</b>?
           </p>
           <p style={{ color: '#64748b', marginBottom: 0 }}>
-            Khóa học sẽ chuyển sang trạng thái <b>PLANNED</b> để xếp lịch buổi
-            học, phòng học và giảng viên trước khi xuất bản.
+            Khóa học sẽ chuyển sang trạng thái <b>PLANNED</b> để cấu hình thời
+            gian, phòng học, giảng viên và sinh lịch buổi học trước khi xuất
+            bản.
           </p>
         </div>
       ),
@@ -171,12 +196,14 @@ const CourseDetailPage = () => {
         setIsPublishing(true);
         try {
           await courseApi.review(course.id, true);
-          toast.success('Đã duyệt nội dung, khóa học chuyển sang chờ xếp lịch');
+          toast.success('Đã duyệt nội dung, khóa học chuyển sang PLANNED');
+          if (course.courseType === 'OFFLINE') {
+            setActiveTab('sessions');
+          }
           handleSilentRefresh();
         } catch (err) {
           toast.error(
-            (err as { message?: string })?.message ||
-              'Không thể duyệt nội dung khóa học',
+            extractErrorMessage(err, 'Không thể duyệt nội dung khóa học'),
           );
         } finally {
           setIsPublishing(false);
@@ -197,16 +224,30 @@ const CourseDetailPage = () => {
   if (!course) return <ErrorState description="Không tìm thấy khóa học" />;
 
   const isOffline = course.courseType === 'OFFLINE';
-  const isLocked = ['ONGOING', 'FINISHED', 'CANCELLED'].includes(course.status);
+
+  // Đồng bộ với CourseServiceImpl.assertCanEditContent: chỉ cho phép sửa nội dung khi DRAFT
+  const isContentLocked = course.status !== 'DRAFT';
 
   const canPublish =
-    course.status === 'PLANNED' ||
+    (course.status === 'PLANNED' && isOffline) ||
     (course.status === 'PENDING_REVIEW' && !isOffline);
+
   const canApproveOfflineContent =
     course.status === 'PENDING_REVIEW' && isOffline;
 
   const totalSessionsExpected = course.totalSessionsExpected;
   const currentSessionsCount = course.sessions?.length || 0;
+
+  const getContentLockedDescription = () => {
+    switch (course.status) {
+      case 'PENDING_REVIEW':
+        return 'Khóa học đang chờ kiểm duyệt, học liệu tạm khóa chỉnh sửa. Nếu cần cập nhật, vui lòng thu hồi yêu cầu duyệt trước.';
+      case 'PLANNED':
+        return 'Nội dung giáo trình đã được duyệt và khóa cố định. Vui lòng hoàn tất xếp lịch tại tab "Buổi học" trước khi bấm xuất bản.';
+      default:
+        return `Khóa học đang ở trạng thái ${course.status}, học liệu được cố định để đảm bảo tính toàn vẹn dữ liệu.`;
+    }
+  };
 
   const statItems = [
     {
@@ -272,10 +313,10 @@ const CourseDetailPage = () => {
     {
       key: 'resources',
       label: `Nội dung (${course.resources?.length || 0})`,
-      children: isLocked ? (
+      children: isContentLocked ? (
         <Alert
           message="Nội dung đã khóa chỉnh sửa"
-          description={`Khóa học đang ở trạng thái ${course.status}, học liệu được cố định để đảm bảo tính toàn vẹn dữ liệu.`}
+          description={getContentLockedDescription()}
           type="info"
           showIcon
         />
@@ -388,7 +429,7 @@ const CourseDetailPage = () => {
         }
       />
 
-      {/* Thông báo ngữ cảnh trạng thái (không lặp nút CTA) */}
+      {/* Thông báo ngữ cảnh trạng thái */}
       {canPublish && (
         <Alert
           type="info"
@@ -399,11 +440,26 @@ const CourseDetailPage = () => {
             borderRadius: 8,
             border: '1px solid #bae0ff',
           }}
-          message="Khóa học đã sẵn sàng xuất bản"
+          message={
+            course.status === 'PLANNED'
+              ? 'Khóa học OFFLINE đã duyệt nội dung — sẵn sàng xếp lịch & xuất bản'
+              : 'Khóa học ONLINE đã sẵn sàng xuất bản'
+          }
           description={
             course.status === 'PLANNED'
-              ? 'Vui lòng rà soát danh sách buổi học, phòng học và giảng viên ở các tab bên dưới trước khi bấm "Xuất bản khóa học" ở góc trên.'
+              ? `Hiện có ${currentSessionsCount}${totalSessionsExpected != null ? `/${totalSessionsExpected}` : ''} buổi học. Vui lòng đảm bảo đã cấu hình đủ giảng viên, phòng học, ngày giờ, sĩ số và sinh lịch buổi học trước khi bấm "Xuất bản khóa học".`
               : 'Giáo trình khóa ONLINE đã hoàn tất. Sử dụng nút "Xuất bản khóa học" ở góc trên để mở cổng đăng ký.'
+          }
+          action={
+            course.status === 'PLANNED' && activeTab !== 'sessions' ? (
+              <Button
+                size="small"
+                icon={<ScheduleOutlined />}
+                onClick={() => setActiveTab('sessions')}
+              >
+                Đi tới xếp lịch
+              </Button>
+            ) : undefined
           }
         />
       )}
@@ -476,9 +532,8 @@ const CourseDetailPage = () => {
         }}
       >
         <Tabs
-          defaultActiveKey={
-            searchParams.get('tab') === 'enrollments' ? 'enrollments' : 'info'
-          }
+          activeKey={activeTab}
+          onChange={setActiveTab}
           items={tabItems}
           moreIcon={null}
           tabBarStyle={{
