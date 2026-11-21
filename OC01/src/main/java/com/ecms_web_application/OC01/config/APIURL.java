@@ -50,6 +50,7 @@ public class APIURL {
         // PUBLIC POST — Các endpoint POST công khai (khách chưa đăng nhập)
         // ============================================================
         public static final String[] PUBLIC_POST_URLS = {
+                        "/api/leads",
                         "/api/public/tuition/checkout",
                         "/api/public/leads/register",
                         "/api/tuition/payments/vnpay/ipn",
@@ -97,6 +98,12 @@ public class APIURL {
                         // Quiz self-service
                         "/api/courses/*/quizzes",
                         "/api/courses/*/quizzes/**",
+
+                        // Lead self-service (nhận khách và trạng thái ca trực tư vấn viên)
+                        "/api/leads/*/claim",
+                        "/api/leads/**/claim",
+                        "/api/leads/consultants/**",
+                        "/api/leads/statistics/**",
         };
 
         // ============================================================

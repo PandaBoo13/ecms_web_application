@@ -85,6 +85,7 @@ SESSION_MY_SCHEDULE: '/api/sessions/my-schedule',
   CATEGORY_DETAIL: (id: number) => `/api/categories/${id}`,
   CATEGORY_TREE: '/api/categories/tree',
   CATEGORY_TREE_ROOT: (rootId: number) => `/api/categories/tree/${rootId}`,
+  CATEGORY_TREE_FROM_ROOT: (rootId: number) => `/api/categories/tree/${rootId}`,
   CATEGORY_ROOTS: '/api/categories/roots',
   CATEGORY_CHILDREN: (parentId: number) => `/api/categories/${parentId}/children`,
 
@@ -94,6 +95,7 @@ SESSION_MY_SCHEDULE: '/api/sessions/my-schedule',
   ROOMS: '/api/rooms',
   ROOMS_ACTIVE: '/api/rooms/active',
   ROOM_DETAIL: (id: number) => `/api/rooms/${id}`,
+  ROOM_AVAILABILITY: (id: number) => `/api/rooms/${id}/availability`,
 
   // ══════════════════════════════════════════════════════════════
   // PROGRESS
@@ -143,6 +145,7 @@ SESSION_MY_SCHEDULE: '/api/sessions/my-schedule',
   // Role ↔ Permission
   RBAC_ROLE_PERMISSIONS: (roleId: number) => `/api/rbac/roles/${roleId}/permissions`,
   RBAC_ROLE_PERMISSIONS_BATCH: (roleId: number) => `/api/rbac/roles/${roleId}/permissions/batch`,
+  RBAC_ROLE_PERMISSIONS_SYNC: (roleId: number) => `/api/rbac/roles/${roleId}/permissions/sync`,
   RBAC_ROLE_PERMISSION_DETAIL: (roleId: number, permissionId: number) =>
     `/api/rbac/roles/${roleId}/permissions/${permissionId}`,
   RBAC_ROLE_PERMISSION_ACTIVATE: (roleId: number, permissionId: number) =>

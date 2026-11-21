@@ -95,6 +95,38 @@ public class RolePermissionServiceImpl implements RolePermissionService {
 
     @Override
     @Transactional
+    public void sync(Long roleId, List<Long> permissionIds) {
+        Role role = roleRepository.findById(roleId)
+                .orElseThrow(() -> new ErrorHandler(HttpStatus.NOT_FOUND, "Role không tồn tại"));
+
+        rolePermissionRepository.deleteAllByRoleId(roleId);
+        rolePermissionRepository.flush();
+
+        if (permissionIds != null && !permissionIds.isEmpty()) {
+            List<Permission> permissions = permissionRepository.findAllById(permissionIds);
+            if (permissions.size() != permissionIds.size()) {
+                Set<Long> found = permissions.stream().map(Permission::getId).collect(Collectors.toSet());
+                List<Long> missing = permissionIds.stream().filter(id -> !found.contains(id)).toList();
+                throw new ErrorHandler(HttpStatus.NOT_FOUND, "Permission không tồn tại: " + missing);
+            }
+
+            List<RolePermission> toSave = permissions.stream().map(p -> {
+                RolePermission rp = new RolePermission();
+                rp.setRole(role);
+                rp.setPermission(p);
+                rp.setIsEnabled(true);
+                return rp;
+            }).toList();
+
+            rolePermissionRepository.saveAll(toSave);
+        }
+
+        permissionManager.clearCacheByRole(roleId);
+        log.info("[RBAC] Đã đồng bộ {} quyền cho roleId={}", permissionIds != null ? permissionIds.size() : 0, roleId);
+    }
+
+    @Override
+    @Transactional
     public void remove(Long roleId, Long permissionId) {
         RolePermission rp = rolePermissionRepository.findByRole_IdAndPermission_Id(roleId, permissionId)
                 .orElseThrow(() -> new ErrorHandler(HttpStatus.NOT_FOUND, "Role chưa có quyền này"));

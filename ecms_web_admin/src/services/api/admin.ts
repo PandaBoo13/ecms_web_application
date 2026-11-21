@@ -206,6 +206,10 @@ export const adminRolePermissionApi = {
     await api.post(API_ENDPOINT.RBAC_ROLE_PERMISSIONS_BATCH(roleId), { permissionIds });
   },
 
+  sync: async (roleId: number, permissionIds: number[]): Promise<void> => {
+    await api.put(API_ENDPOINT.RBAC_ROLE_PERMISSIONS_SYNC(roleId), { permissionIds });
+  },
+
   remove: async (roleId: number, permissionId: number): Promise<void> => {
     await api.delete(API_ENDPOINT.RBAC_ROLE_PERMISSION_DETAIL(roleId, permissionId));
   },

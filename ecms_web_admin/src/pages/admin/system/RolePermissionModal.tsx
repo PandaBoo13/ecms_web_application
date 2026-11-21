@@ -32,7 +32,11 @@ const RolePermissionModal = ({ roleId, roleCode, open, onClose, onSaved }: Props
         ]);
         if (cancelled) return;
         setAllPerms(all);
-        setSelectedIds(current.map((p) => p.id));
+        const mappedIds = current
+          .filter((p: any) => p.isEnabled !== false)
+          .map((p: any) => (p.permissionId ?? p.id) as number)
+          .filter((id) => typeof id === 'number' && !isNaN(id));
+        setSelectedIds(mappedIds);
       } catch (err) {
         toast.error((err as { message?: string })?.message || 'Không tải được dữ liệu');
       } finally {
@@ -69,9 +73,14 @@ const RolePermissionModal = ({ roleId, roleCode, open, onClose, onSaved }: Props
     if (!roleId) return;
     setSaving(true);
     try {
-      await adminRolePermissionApi.removeAll(roleId);
-      if (selectedIds.length > 0) {
-        await adminRolePermissionApi.assignBatch(roleId, selectedIds);
+      try {
+        await adminRolePermissionApi.sync(roleId, selectedIds);
+      } catch {
+        // Fallback sang removeAll + assignBatch nếu backend chưa reload API sync
+        await adminRolePermissionApi.removeAll(roleId);
+        if (selectedIds.length > 0) {
+          await adminRolePermissionApi.assignBatch(roleId, selectedIds);
+        }
       }
       toast.success(`Đã lưu ${selectedIds.length} quyền cho role ${roleCode || '#' + roleId}`);
       onSaved?.();

@@ -46,5 +46,15 @@ public interface LeadService {
 
     List<com.ecms_web_application.OC01.dto.response.ConsultantResponse> getConsultants();
 
+    LeadResponse claimLead(Long leadId, Long currentConsultantId);
+
+    String getConsultantWorkStatus(Long currentConsultantId);
+
+    void updateConsultantWorkStatus(Long currentConsultantId, String workStatus);
+
+    List<com.ecms_web_application.OC01.dto.response.ConsultantPerformanceResponse> getConsultantPerformance();
+
+    com.ecms_web_application.OC01.dto.response.LeadStatisticsResponse getLeadStatistics(Long consultantId, java.time.LocalDateTime startDate, java.time.LocalDateTime endDate);
+
     void delete(Long id);
 }

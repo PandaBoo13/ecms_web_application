@@ -140,8 +140,33 @@ const ForgotPasswordPage = () => {
         justifyContent: 'center',
         background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
         padding: 24,
+        position: 'relative',
       }}
     >
+      <Button
+        type="text"
+        icon={<ArrowLeftOutlined />}
+        onClick={() => navigate('/')}
+        style={{
+          position: 'absolute',
+          top: 24,
+          left: 24,
+          color: '#ffffff',
+          fontSize: 14,
+          fontWeight: 600,
+          background: 'rgba(255, 255, 255, 0.18)',
+          backdropFilter: 'blur(8px)',
+          borderRadius: 8,
+          padding: '6px 14px',
+          height: 38,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
+        }}
+      >
+        Quay lại trang chủ
+      </Button>
       <Card
         style={{
           width: '100%',

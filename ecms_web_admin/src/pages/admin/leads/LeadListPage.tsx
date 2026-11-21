@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import {
   Button,
   Space,
@@ -45,6 +46,7 @@ import {
   FileTextOutlined,
   MoreOutlined,
   DollarOutlined,
+  BarChartOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import toast from 'react-hot-toast';
@@ -87,9 +89,11 @@ interface LeadStats {
 }
 
 const LeadListPage = () => {
+  const navigate = useNavigate();
   const { t } = useTranslation();
   const { user, isConsultant } = useAuth();
   const isTvv = user?.roleCode === 'LEAD' || user?.roleCode === 'CONSULTANT' || Boolean(isConsultant?.());
+  const [searchParams, setSearchParams] = useSearchParams();
 
   // ══════════════════════════════════════════════════════════════
   // STATE
@@ -105,6 +109,7 @@ const LeadListPage = () => {
   const [consultantFilter, setConsultantFilter] = useState<number | undefined>();
   const [inQueueFilter, setInQueueFilter] = useState<boolean | undefined>();
   const [invoiceFilter, setInvoiceFilter] = useState<boolean | undefined>();
+  const [demandFilter, setDemandFilter] = useState<string | undefined>();
   const [courses, setCourses] = useState<CourseResponse[]>([]);
 
   const [consultants, setConsultants] = useState<Consultant[]>([]);
@@ -285,6 +290,7 @@ const LeadListPage = () => {
     try {
       const detail = await leadApi.getDetailById(leadId);
       setLeadDetail(detail);
+      setSelectedLead(detail);
     } catch (err) {
       const e = err as { message?: string };
       toast.error(e?.message || 'Không thể tải chi tiết Lead');
@@ -292,6 +298,22 @@ const LeadListPage = () => {
       setDetailLoading(false);
     }
   };
+
+  // Deep-link từ thông báo chuông (?leadId=123 hoặc ?id=123)
+  useEffect(() => {
+    const rawId = searchParams.get('leadId') || searchParams.get('id');
+    if (rawId) {
+      const leadIdNum = Number(rawId);
+      if (!isNaN(leadIdNum) && leadIdNum > 0) {
+        setDetailDrawerVisible(true);
+        loadLeadDetail(leadIdNum);
+        const newParams = new URLSearchParams(searchParams);
+        newParams.delete('leadId');
+        newParams.delete('id');
+        setSearchParams(newParams, { replace: true });
+      }
+    }
+  }, [searchParams, setSearchParams]);
 
   const handleOpenDetail = (lead: Lead) => {
     setSelectedLead(lead);
@@ -415,6 +437,23 @@ const LeadListPage = () => {
   // ══════════════════════════════════════════════════════════════
   // COLUMNS
   // ══════════════════════════════════════════════════════════════
+  const filteredData = useMemo(() => {
+    if (!demandFilter) return data;
+    return data.filter((item) => {
+      const isBuyNow = item.sourceName?.includes('Mua ngay') || item.note?.toLowerCase().includes('mua');
+      if (demandFilter === 'BUY_NOW_PENDING') {
+        return isBuyNow && !item.studentId;
+      }
+      if (demandFilter === 'BUY_NOW_PAID') {
+        return isBuyNow && !!item.studentId;
+      }
+      if (demandFilter === 'CONSULTATION') {
+        return !isBuyNow;
+      }
+      return true;
+    });
+  }, [data, demandFilter]);
+
   const columns: ColumnsType<Lead> = useMemo(
     () => [
       {
@@ -473,6 +512,29 @@ const LeadListPage = () => {
                     <MailOutlined className="text-[11px] text-slate-400" />
                     {record.email}
                   </a>
+                )}
+              </div>
+              <div className="mt-1 flex items-center gap-1.5 flex-wrap">
+                {record.sourceName?.includes('Mua ngay') || record.note?.toLowerCase().includes('mua') ? (
+                  record.studentId ? (
+                    <Tooltip title="Khách tự mua khóa học online & đã thanh toán thành công. Đã tự động tạo học viên & ghi danh, không cần gọi tư vấn.">
+                      <Tag color="success" style={{ margin: 0, fontSize: 11, borderRadius: 4, fontWeight: 600 }}>
+                        ⚡ Mua ngay · Đã thanh toán
+                      </Tag>
+                    </Tooltip>
+                  ) : (
+                    <Tooltip title="Khách đặt mua online nhưng chưa thanh toán xong VNPAY / gặp trục trặc. TVV cần liên hệ hỗ trợ thanh toán!">
+                      <Tag color="warning" style={{ margin: 0, fontSize: 11, borderRadius: 4, fontWeight: 600 }}>
+                        ⚠️ Mua ngay · Chờ thanh toán
+                      </Tag>
+                    </Tooltip>
+                  )
+                ) : (
+                  <Tooltip title="Khách hàng đăng ký để lại thông tin cần tư vấn khóa học.">
+                    <Tag color="blue" style={{ margin: 0, fontSize: 11, borderRadius: 4, fontWeight: 500 }}>
+                      📞 Đăng ký tư vấn
+                    </Tag>
+                  </Tooltip>
                 )}
               </div>
             </div>
@@ -536,6 +598,26 @@ const LeadListPage = () => {
               </Tooltip>
             );
           }
+          const isBuyNow = record.sourceName?.includes('Mua ngay') || record.note?.toLowerCase().includes('mua');
+          if (isBuyNow && record.studentId) {
+            return (
+              <Tooltip title="Khách tự mua online & thanh toán thành công, hệ thống đã tự động kích hoạt. Không cần phân công TVV.">
+                <Tag
+                  color="default"
+                  style={{
+                    borderRadius: 12,
+                    padding: '2px 10px',
+                    fontWeight: 500,
+                    color: '#64748b',
+                    background: '#f1f5f9',
+                    borderColor: '#cbd5e1',
+                  }}
+                >
+                  ⚡ Hệ thống tự động
+                </Tag>
+              </Tooltip>
+            );
+          }
           return (
             <Tag
               color="warning"
@@ -557,7 +639,19 @@ const LeadListPage = () => {
         title: t('common.status'),
         dataIndex: 'status',
         width: 130,
-        render: (status: LeadStatus) => <StatusTag status={status} />,
+        render: (status: LeadStatus, record: Lead) => {
+          const isBuyNow = record.sourceName?.includes('Mua ngay') || record.note?.toLowerCase().includes('mua');
+          if (isBuyNow && record.studentId) {
+            return (
+              <Tooltip title="Khách tự mua online & thanh toán thành công. Đã tự động tạo học viên và ghi danh, không cần tư vấn.">
+                <Tag color="success" style={{ borderRadius: 12, fontWeight: 600, padding: '2px 10px' }}>
+                  Đã hoàn tất
+                </Tag>
+              </Tooltip>
+            );
+          }
+          return <StatusTag status={status} />;
+        },
       },
       {
         title: t('lead.converted'),
@@ -642,69 +736,53 @@ const LeadListPage = () => {
               />
             </Tooltip>
 
-            <Tooltip title={invoiceDisabledReason ?? t('lead.tooltip.createInvoice')}>
-              <span style={{ display: 'inline-block' }}>
-                <Button
-                  type="text"
-                  shape="circle"
-                  className="action-btn-circle"
-                  disabled={!!invoiceDisabledReason}
-                  icon={
-                    <DollarOutlined
-                      style={{
-                        color: invoiceDisabledReason ? '#bfbfbf' : '#059669',
-                        fontSize: 15,
-                      }}
-                    />
-                  }
-                  onClick={() => handleOpenInvoice(record)}
-                />
-              </span>
-            </Tooltip>
-
-            {!record.studentId ? (
-              <Tooltip title="Xác nhận thanh toán & Ghi danh">
-                <Button
-                  type="primary"
-                  size="small"
-                  shape="round"
-                  className="btn-success-gradient"
-                  icon={<CheckCircleOutlined />}
-                  style={{
-                    fontSize: 12,
-                    fontWeight: 600,
-                    padding: '0 8px',
-                    height: 28,
-                  }}
-                  onClick={() => {
-                    setSelectedLead(record);
-                    convertForm.setFieldsValue({ courseId: record.courseId });
-                    setConvertModalVisible(true);
-                  }}
-                >
-                  {t('lead.convertBtn')}
-                </Button>
+            {!record.studentId && (
+              <Tooltip title={invoiceDisabledReason ?? t('lead.tooltip.createInvoice')}>
+                <span style={{ display: 'inline-block' }}>
+                  <Button
+                    type="text"
+                    shape="circle"
+                    className="action-btn-circle"
+                    disabled={!!invoiceDisabledReason}
+                    icon={
+                      <DollarOutlined
+                        style={{
+                          color: invoiceDisabledReason ? '#bfbfbf' : '#059669',
+                          fontSize: 15,
+                        }}
+                      />
+                    }
+                    onClick={() => handleOpenInvoice(record)}
+                  />
+                </span>
               </Tooltip>
-            ) : (
-              <Tag
-                color="cyan"
-                style={{
-                  borderRadius: 12,
-                  fontWeight: 600,
-                  padding: '2px 8px',
-                  margin: 0,
-                  cursor: 'pointer',
-                }}
-                onClick={() => handleOpenDetail(record)}
-              >
-                Học viên #{record.studentId}
-              </Tag>
             )}
 
             <Dropdown
               trigger={['click']}
               menu={{
                 items: [
+                  ...(!record.studentId
+                    ? [
+                        {
+                          key: 'convert',
+                          icon: <CheckCircleOutlined style={{ color: '#059669' }} />,
+                          label: 'Ghi danh thủ công',
+                          onClick: () => {
+                            setSelectedLead(record);
+                            convertForm.setFieldsValue({ courseId: record.courseId });
+                            setConvertModalVisible(true);
+                          },
+                        },
+                        {
+                          key: 'invoice',
+                          icon: <DollarOutlined style={{ color: '#059669' }} />,
+                          label: 'Tạo hóa đơn học phí',
+                          disabled: !!invoiceDisabledReason,
+                          onClick: () => handleOpenInvoice(record),
+                        },
+                      ]
+                    : []),
                   {
                     key: 'assign',
                     icon: <UserSwitchOutlined style={{ color: '#722ed1' }} />,
@@ -814,6 +892,20 @@ const LeadListPage = () => {
         extra={
           <Space>
             <Button
+              icon={<BarChartOutlined />}
+              onClick={() => navigate('/admin/leads/statistics')}
+              style={{
+                borderRadius: 8,
+                height: 38,
+                fontWeight: 600,
+                color: '#1677ff',
+                borderColor: '#91caff',
+                background: '#e6f4ff',
+              }}
+            >
+              📊 Thống kê & Hiệu suất
+            </Button>
+            <Button
               icon={<ReloadOutlined spin={loading} />}
               onClick={handleRefresh}
               style={{ borderRadius: 8, height: 38, fontWeight: 500 }}
@@ -922,7 +1014,7 @@ const LeadListPage = () => {
       >
         <DataTable
           columns={columns}
-          dataSource={data}
+          dataSource={filteredData}
           loading={loading}
           total={total}
           page={page}
@@ -936,6 +1028,22 @@ const LeadListPage = () => {
           searchPlaceholder={t('lead.filter.searchPlaceholder')}
           extra={
             <Space wrap size={10}>
+              <Select
+                placeholder="Loại yêu cầu"
+                allowClear
+                style={{ width: 220, height: 38 }}
+                value={demandFilter}
+                onChange={(val) => {
+                  setDemandFilter(val);
+                  setPage(0);
+                }}
+                options={[
+                  { value: 'BUY_NOW_PENDING', label: '⚠️ Mua ngay (Chờ thanh toán)' },
+                  { value: 'BUY_NOW_PAID', label: '⚡ Mua ngay (Đã thanh toán)' },
+                  { value: 'CONSULTATION', label: '📞 Đăng ký tư vấn' },
+                ]}
+              />
+
               <Select
                 showSearch
                 allowClear
@@ -1625,6 +1733,42 @@ const LeadListPage = () => {
                 ),
                 children: (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                    {(() => {
+                      const isBuyNow = leadDetail.sourceName?.includes('Mua ngay') || leadDetail.note?.toLowerCase().includes('mua');
+                      if (isBuyNow) {
+                        if (leadDetail.studentId) {
+                          return (
+                            <Alert
+                              type="success"
+                              showIcon
+                              message="Đơn MUA NGAY đã hoàn tất tự động"
+                              description="Khách hàng đã tự thanh toán thành công qua cổng thanh toán trực tuyến. Hệ thống đã tự động cấp Mã học viên và gửi email kích hoạt tài khoản. Tư vấn viên KHÔNG CẦN gọi tư vấn."
+                              style={{ borderRadius: 8 }}
+                            />
+                          );
+                        } else {
+                          return (
+                            <Alert
+                              type="warning"
+                              showIcon
+                              message="Đơn MUA NGAY gặp trục trặc / Chưa hoàn tất thanh toán"
+                              description={`Khách hàng đã đặt mua khóa học nhưng chưa thanh toán thành công (hoặc hủy giao dịch VNPAY). Tư vấn viên hãy liên hệ ngay SĐT ${leadDetail.phone || 'chưa có'} để hỗ trợ khách hoàn tất thanh toán!`}
+                              style={{ borderRadius: 8 }}
+                            />
+                          );
+                        }
+                      }
+                      return (
+                        <Alert
+                          type="info"
+                          showIcon
+                          message="Yêu cầu Đăng ký tư vấn khóa học"
+                          description="Khách hàng đăng ký để lại thông tin quan tâm khóa học. Tư vấn viên liên hệ trao đổi lộ trình và xếp lớp."
+                          style={{ borderRadius: 8 }}
+                        />
+                      );
+                    })()}
+
                     <Card
                       size="small"
                       title={t('lead.drawer.contactInfo')}

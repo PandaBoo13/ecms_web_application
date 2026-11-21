@@ -602,7 +602,7 @@ const MyCoursesPage = () => {
                       onDoubleClick: () => goToDetail(record.id),
                       style: { cursor: 'pointer' },
                     })}
-                    headerActions={
+                    extra={
                       <Space wrap>
                         <TreeSelect
                           placeholder="Lọc theo danh mục"

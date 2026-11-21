@@ -8,8 +8,8 @@ export const LAST_ONLINE_PAYMENT_INVOICE_KEY = 'ecms_last_online_payment_invoice
 export const LAST_ONLINE_PAYMENT_TOKEN_KEY = 'ecms_last_online_payment_token';
 
 export const tuitionApi = {
-  createOnlineCheckout: async (courseId: number, contact: OnlineCheckoutContact): Promise<InvoiceResponse> =>
-    (await api.post<RequestResponse<InvoiceResponse>>(API_ENDPOINT.TUITION_CHECKOUT, contact, { params: { courseId } })).data.data,
+  createOnlineCheckout: async (courseId: number, contact?: OnlineCheckoutContact): Promise<InvoiceResponse> =>
+    (await api.post<RequestResponse<InvoiceResponse>>(API_ENDPOINT.TUITION_CHECKOUT, contact || {}, { params: { courseId } })).data.data,
   createVnpayPayment: async (invoiceId: number): Promise<string> =>
     (await api.post<RequestResponse<{ paymentUrl: string }>>(API_ENDPOINT.TUITION_VNPAY_START(invoiceId))).data.data.paymentUrl,
   myInvoices: async (params: Record<string, unknown> = {}): Promise<PageResponse<InvoiceResponse>> =>

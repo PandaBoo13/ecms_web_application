@@ -266,7 +266,11 @@ const StudentListPage = () => {
   const handleUpdateStudent = async (values: StudentUpdatePayload) => {
     if (!selectedStudent) return;
     try {
-      await studentApi.update(selectedStudent.id, values);
+      const payload: StudentUpdatePayload = { ...values };
+      if (!payload.password?.trim()) {
+        delete payload.password;
+      }
+      await studentApi.update(selectedStudent.id, payload);
       toast.success('Cập nhật thông tin học viên thành công');
       setUpdateModalVisible(false);
       updateForm.resetFields();
@@ -916,6 +920,18 @@ const StudentListPage = () => {
               prefix={<CalendarOutlined className="text-slate-400" />}
               placeholder="YYYY-MM-DD"
               className="!h-[38px] !rounded-lg"
+            />
+          </Form.Item>
+          <Form.Item
+            name="password"
+            label="Mật khẩu tài khoản mới"
+            tooltip="Để trống nếu không muốn thay đổi mật khẩu. Nếu nhập, mật khẩu phải có ít nhất 6 ký tự."
+            rules={[{ min: 6, message: 'Mật khẩu phải có ít nhất 6 ký tự' }]}
+          >
+            <Input.Password
+              prefix={<LockOutlined style={{ color: '#94a3b8' }} />}
+              placeholder="Nhập mật khẩu mới cho học viên (nếu muốn đổi)"
+              style={{ height: 38, borderRadius: 8 }}
             />
           </Form.Item>
           <Form.Item name="address" label={t('student.modal.address')}>

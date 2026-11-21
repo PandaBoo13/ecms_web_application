@@ -21,7 +21,6 @@ import {
   CalendarOutlined,
   AppstoreOutlined,
   UnorderedListOutlined,
-  EnvironmentOutlined,
 } from '@ant-design/icons';
 import dayjs, { type Dayjs } from 'dayjs';
 import 'dayjs/locale/vi';

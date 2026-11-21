@@ -22,9 +22,8 @@ import {
   SendOutlined,
   EyeOutlined,
   UsergroupAddOutlined,
+  CreditCardOutlined,
 } from '@ant-design/icons';
-
-// 🆕 Cập nhật lại đường dẫn import API theo cấu trúc mới
 import { courseApi } from '@/services/api/course';
 // Nếu báo lỗi không tìm thấy, đổi thành: import { courseApi } from '@/services/api/course/courseApi';
 
@@ -69,24 +68,14 @@ export default function HomePage() {
   const [leadModalOpen, setLeadModalOpen] = useState(false);
   const [selectedCourseForModal, setSelectedCourseForModal] = useState<CourseResponse | null>(null);
 
-  // Tự động hiển thị popup đăng ký tư vấn sau 1.5s khi vào trang
-  // Nhưng cho phép người dùng tắt đi và không tự động hiện lại nếu đã tắt trong phiên làm việc
-  useEffect(() => {
-    const isDismissed = sessionStorage.getItem('ecms_consult_popup_dismissed');
-    if (!isDismissed) {
-      const timer = setTimeout(() => {
-        setLeadModalOpen(true);
-      }, 1500);
-      return () => clearTimeout(timer);
-    }
-  }, []);
-
   // Xử lý khi đóng popup tư vấn
   const handleCloseLeadModal = () => {
     setLeadModalOpen(false);
     setSelectedCourseForModal(null);
-    // Ghi nhận đã đóng popup để không tự động bật lại làm phiền người dùng
-    sessionStorage.setItem('ecms_consult_popup_dismissed', 'true');
+  };
+
+  const handleOnlineCheckout = (course: CourseResponse) => {
+    navigate(`/checkout/${course.id}`);
   };
 
   useEffect(() => {
@@ -504,23 +493,29 @@ export default function HomePage() {
                   <div
                     style={{
                       display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
+                      flexDirection: 'column',
+                      gap: 12,
                       marginTop: 'auto',
                       paddingTop: 12,
                       borderTop: '1px solid #f1f5f9',
                     }}
                   >
-                    <div>
-                      <Text type="secondary" style={{ fontSize: 12, display: 'block' }}>
-                        Học phí
-                      </Text>
-                      <Text strong style={{ color: '#1677ff', fontSize: 18 }}>
-                        <MoneyDisplay value={c.isFree ? 0 : c.price} />
-                      </Text>
-                    </div>
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                      }}
+                    >
+                      <div>
+                        <Text type="secondary" style={{ fontSize: 12, display: 'block' }}>
+                          Học phí
+                        </Text>
+                        <Text strong style={{ color: '#1677ff', fontSize: 18 }}>
+                          <MoneyDisplay value={c.isFree ? 0 : c.price} />
+                        </Text>
+                      </div>
 
-                    <Space>
                       <Button
                         size="middle"
                         icon={<EyeOutlined />}
@@ -528,16 +523,37 @@ export default function HomePage() {
                       >
                         Chi tiết
                       </Button>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                       <Button
-                        type="primary"
                         size="middle"
                         icon={<SendOutlined />}
                         onClick={() => handleOpenConsultForCourse(c)}
-                        style={{ background: '#1677ff', fontWeight: 600 }}
+                        style={{
+                          borderColor: '#1677ff',
+                          color: '#1677ff',
+                          fontWeight: 600,
+                          borderRadius: 8,
+                        }}
                       >
                         Tư vấn
                       </Button>
-                    </Space>
+                      <Button
+                        type="primary"
+                        size="middle"
+                        icon={<CreditCardOutlined />}
+                        onClick={() => handleOnlineCheckout(c)}
+                        style={{
+                          background: '#10b981',
+                          borderColor: '#10b981',
+                          fontWeight: 600,
+                          borderRadius: 8,
+                        }}
+                      >
+                        {c.isFree ? 'Vào học' : 'Mua ngay'}
+                      </Button>
+                    </div>
                   </div>
                 </Card>
               </Col>
@@ -645,11 +661,10 @@ export default function HomePage() {
                   </div>
                   <div>
                     <Text strong style={{ fontSize: 15, color: '#1e293b' }}>
-                      Tư vấn lộ trình học tối ưu & Giữ chỗ lớp
+                      Tư vấn lộ trình học tối ưu & Xếp lớp
                     </Text>
                     <Paragraph type="secondary" style={{ margin: 0, fontSize: 13 }}>
-                      Tư vấn viên giới thiệu lớp học, học phí và kiểm tra sĩ số lớp còn chỗ để hoàn tất giữ
-                      chỗ.
+                      Tư vấn viên giới thiệu lớp học, học phí và kiểm tra sĩ số lớp để hoàn tất đăng ký nhập học.
                     </Paragraph>
                   </div>
                 </div>

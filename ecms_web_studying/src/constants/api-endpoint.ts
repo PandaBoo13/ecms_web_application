@@ -75,6 +75,7 @@ export const API_ENDPOINT = {
   CATEGORY_DETAIL: (id: number) => `/api/categories/${id}`,
   CATEGORY_TREE: '/api/categories/tree',
   CATEGORY_TREE_ROOT: (rootId: number) => `/api/categories/tree/${rootId}`,
+  CATEGORY_TREE_FROM_ROOT: (rootId: number) => `/api/categories/tree/${rootId}`,
   CATEGORY_ROOTS: '/api/categories/roots',
   CATEGORY_CHILDREN: (parentId: number) => `/api/categories/${parentId}/children`,
 
@@ -136,6 +137,7 @@ export const API_ENDPOINT = {
   RBAC_ACCOUNTS_TEACHERS: '/api/rbac/accounts/teachers',
   RBAC_ACCOUNT_LOCK: (id: number) => `/api/rbac/accounts/${id}/lock`,
   RBAC_ACCOUNT_RESET_PASSWORD: (id: number) => `/api/rbac/accounts/${id}/reset-password`,
+  RBAC_ACCOUNT_PERMISSIONS: (id: number) => `/api/rbac/accounts/${id}/permissions`,
 
   // ══════════════════════════════════════════════════════════════
   // REQUESTS
@@ -211,6 +213,7 @@ export const API_ENDPOINT = {
   STUDENT_LOCK_ACCOUNT: (id: number) => `/api/students/${id}/lock-account`,
   STUDENT_GUARDIANS: (id: number) => `/api/students/${id}/guardians`,
   STUDENT_GUARDIAN_DELETE: (id: number, guardianId: number) => `/api/students/${id}/guardians/${guardianId}`,
+  STUDENT_GUARDIAN_DETAIL: (id: number, guardianId: number) => `/api/students/${id}/guardians/${guardianId}`,
   STUDENT_ACADEMIC_HISTORIES: (id: number) => `/api/students/${id}/academic-histories`,
 
   // ══════════════════════════════════════════════════════════════
@@ -257,9 +260,6 @@ export const API_ENDPOINT = {
   ENROLLMENT_FINAL_SCORE: (id: number) => `/api/enrollments/${id}/final-score`,
   ENROLLMENT_COMPLETE: (id: number) => `/api/enrollments/${id}/complete`,
   ENROLLMENT_COMPLETE_BULK: '/api/enrollments/complete/bulk',
-
-  // REQUEST
-  REQUESTS: '/api/requests',
 
   // ══════════════════════════════════════════════════════════════
   // AI AGENT

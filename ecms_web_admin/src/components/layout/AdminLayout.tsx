@@ -2,6 +2,7 @@ import { Layout } from 'antd';
 import { Outlet } from 'react-router-dom';
 import Header from './Header';
 import Sidebar from './Sidebar';
+import FastClaimModal from '@/components/lead/FastClaimModal';
 import { useUIStore } from '@/stores/uiStore';
 
 const { Content } = Layout;
@@ -24,6 +25,7 @@ const AdminLayout = () => {
           <Outlet />
         </Content>
       </Layout>
+      <FastClaimModal />
     </Layout>
   );
 };

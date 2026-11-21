@@ -8,7 +8,6 @@ import {
   Tag,
   Switch,
   Space,
-  Typography,
   Alert,
 } from 'antd';
 import type { UploadProps } from 'antd';
@@ -21,7 +20,7 @@ import {
 } from '@ant-design/icons';
 import toast from 'react-hot-toast';
 
-import { fileApi, extractFileUrl } from '@/services/api/fileApi'; // chỉnh lại đường dẫn import nếu cần
+import { fileApi, extractFileUrl } from '@/services/api/files';
 import { resourceApi } from '@/services/api/course/resourceApi';
 import { showError } from '@/utils/errorHelper';
 import type {
@@ -30,7 +29,7 @@ import type {
 } from '@/services/types/course';
 
 const { Dragger } = Upload;
-const { Text } = Typography;
+// const { Text } = Typography;
 
 type MaterialKind = 'PDF' | 'VIDEO';
 

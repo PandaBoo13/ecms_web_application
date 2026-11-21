@@ -24,6 +24,10 @@ public interface StudentRepository extends IRepository<Student, Long> {
     Optional<Student> findByUserId(Long userId);
     List<Student> findByUserIdIn(java.util.Collection<Long> userIds);
 
+    Optional<Student> findByEmail(String email);
+
+    Optional<Student> findByPhone(String phone);
+
     boolean existsByStudentCode(String studentCode);
 
     boolean existsByStudentCodeAndIdNot(String studentCode, Long id);

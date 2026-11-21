@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Button, Space, Table, Tag, Tooltip, Typography } from 'antd';
-import { FilePdfOutlined } from '@ant-design/icons';
+import { useSearchParams, useNavigate } from 'react-router-dom';
+import { Alert, Button, Space, Table, Tag, Tooltip, Typography } from 'antd';
+import { FilePdfOutlined, CreditCardOutlined, PlayCircleOutlined, CheckCircleOutlined } from '@ant-design/icons';
 import type { ColumnsType, TablePaginationConfig } from 'antd/es/table';
 import dayjs from 'dayjs';
 import toast from 'react-hot-toast';
 import PageContainer from '@/components/common/PageContainer';
 import PageHeader from '@/components/common/PageHeader';
 import { LAST_ONLINE_PAYMENT_INVOICE_KEY, tuitionApi } from '@/services/api/tuition';
-import { useNavigate } from 'react-router-dom';
 import type { InvoiceResponse } from '@/services/types/tuition';
 import { printTuitionInvoice } from '@/utils/printTuitionInvoice';
 
@@ -22,6 +22,7 @@ const paymentMethodLabels = { CASH: 'Tiền mặt', BANK_TRANSFER: 'Chuyển kho
 const { Text } = Typography;
 
 export default function TuitionPage() {
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [invoices, setInvoices] = useState<InvoiceResponse[]>([]);
   const [loading, setLoading] = useState(true);
@@ -40,6 +41,15 @@ export default function TuitionPage() {
   }, [pagination.current, pagination.pageSize]);
 
   useEffect(() => { void loadInvoices(); }, [loadInvoices]);
+
+  useEffect(() => {
+    const responseCode = searchParams.get('vnp_ResponseCode');
+    if (responseCode === '00') {
+      toast.success('🎉 Thanh toán VNPAY thành công! Khóa học của bạn đã được kích hoạt.');
+    } else if (responseCode && responseCode !== '00') {
+      toast.error('Giao dịch thanh toán chưa thành công hoặc đã bị hủy.');
+    }
+  }, [searchParams]);
 
   const payInvoice = async (row: InvoiceResponse) => {
     if (row.status === 'OVERDUE') {
@@ -78,8 +88,28 @@ export default function TuitionPage() {
       title: 'Thao tác',
       key: 'action',
       render: (_: unknown, row: InvoiceResponse) => <Space wrap>
-        {row.status === 'PENDING' && <Button type="primary" size="small" loading={payingInvoiceId === row.invoiceId}
-          onClick={() => void payInvoice(row)}>Thanh toán</Button>}
+        {row.status === 'PENDING' && (
+          <Button
+            type="primary"
+            size="small"
+            icon={<CreditCardOutlined />}
+            loading={payingInvoiceId === row.invoiceId}
+            onClick={() => void payInvoice(row)}
+            style={{ background: '#10b981', borderColor: '#10b981' }}
+          >
+            Thanh toán VNPAY
+          </Button>
+        )}
+        {row.status === 'PAID' && (
+          <Button
+            size="small"
+            icon={<PlayCircleOutlined />}
+            onClick={() => navigate('/student/my-courses')}
+            style={{ color: '#16a34a', borderColor: '#86efac' }}
+          >
+            Vào học ngay
+          </Button>
+        )}
         {row.status === 'OVERDUE' && row.courseType === 'ONLINE' && <Button type="primary" size="small"
           onClick={() => void payInvoice(row)}>Tiếp tục thanh toán</Button>}
         {row.status === 'OVERDUE' && row.courseType === 'OFFLINE' && <Text type="secondary">
@@ -102,7 +132,16 @@ export default function TuitionPage() {
   };
 
   return <PageContainer>
-    <PageHeader title="Hóa đơn" subtitle="Theo dõi hóa đơn của bạn." />
+    <PageHeader title="Học phí" subtitle="Theo dõi hóa đơn học phí và thanh toán trực tuyến." />
+    {searchParams.get('vnp_ResponseCode') === '00' && (
+      <Alert
+        className="mb-4"
+        type="success"
+        showIcon
+        icon={<CheckCircleOutlined />}
+        message="Thanh toán thành công! Khóa học trực tuyến của bạn đã được ghi danh tự động. Bấm 'Vào học ngay' để bắt đầu."
+      />
+    )}
     <div className="mb-4 flex justify-end">
       <Button onClick={() => void loadInvoices(pagination.current, pagination.pageSize)}>Tải lại</Button>
     </div>

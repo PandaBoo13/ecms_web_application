@@ -1,9 +1,9 @@
 export type InvoiceStatus = 'PENDING' | 'PAID' | 'OVERDUE' | 'CANCELLED';
 
 export interface OnlineCheckoutContact {
-  payerName: string;
-  payerEmail: string;
-  payerPhone: string;
+  payerName?: string;
+  payerEmail?: string;
+  payerPhone?: string;
 }
 
 export interface InvoiceResponse {

@@ -59,7 +59,7 @@ spring:
     open-in-view: false                    # ✅ Giữ false
 
     hibernate:
-      ddl-auto: validate                   # ✅ Giữ validate
+      ddl-auto: update
       naming:
         physical-strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
 
