@@ -1,3 +1,4 @@
+// src/pages/admin/CourseListPage.tsx
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -8,7 +9,8 @@ import {
   Tooltip,
   Popconfirm,
   Image,
-  Typography,
+  Tag,
+  Card,
   Row,
   Col,
 } from 'antd';
@@ -16,12 +18,12 @@ import {
   PlusOutlined,
   EyeOutlined,
   ReloadOutlined,
-  EditOutlined,
   DeleteOutlined,
   BookOutlined,
   CheckCircleOutlined,
   ClockCircleOutlined,
   FileTextOutlined,
+  TeamOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import toast from 'react-hot-toast';
@@ -33,12 +35,11 @@ import StatusTag from '@/components/common/StatusTag';
 import DateDisplay from '@/components/common/DateDisplay';
 import MoneyDisplay from '@/components/common/MoneyDisplay';
 import StatsCard from '@/components/common/StatsCard';
+import UserAvatar from '@/components/common/UserAvatar';
 import { useTranslation } from '@/hooks/useTranslation';
 
 import { courseApi, categoryApi } from '@/services/api/course';
 import type { CourseResponse, CategoryResponse } from '@/services/types/course';
-
-const { Text } = Typography;
 
 interface CourseStats {
   total: number;
@@ -47,9 +48,44 @@ interface CourseStats {
   draft: number;
 }
 
-type CourseWithTeacherId = CourseResponse & {
+interface CategoryTreeOption {
+  title: string;
+  value: number;
+  key: number;
+  children?: CategoryTreeOption[];
+}
+
+type CourseWithMeta = CourseResponse & {
   teacherId?: number | null;
+  courseType?: 'ONLINE' | 'OFFLINE' | string;
 };
+
+const FALLBACK_THUMBNAIL =
+  'data:image/svg+xml;utf8,' +
+  encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="72" height="44" viewBox="0 0 72 44" fill="none">
+      <rect width="72" height="44" rx="6" fill="#F1F5F9"/>
+      <rect x="24" y="13" width="24" height="18" rx="3" stroke="#CBD5E1" stroke-width="1.5"/>
+      <circle cx="30.5" cy="19.5" r="2" fill="#CBD5E1"/>
+      <path d="M25.5 29L33 22.5L38.5 27L42 24L46.5 29" stroke="#CBD5E1" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>`,
+  );
+
+const buildCategoryTree = (
+  items: CategoryResponse[],
+  parentId: number | null = null,
+): CategoryTreeOption[] =>
+  items
+    .filter((item) => (item.parentId ?? null) === parentId)
+    .map((item) => {
+      const children = buildCategoryTree(items, item.id);
+      return {
+        title: item.name,
+        value: item.id,
+        key: item.id,
+        ...(children.length > 0 ? { children } : {}),
+      };
+    });
 
 const CourseListPage = () => {
   const { t } = useTranslation();
@@ -100,12 +136,10 @@ const CourseListPage = () => {
   // ══════════════════════════════════════════════════════════════
   const fetchTeachers = useCallback(async () => {
     try {
-      // Lấy danh sách giảng viên đang phụ trách khóa học từ courseApi
-      // (Nếu dự án có accountApi/teacherApi riêng, có thể thay thế tại đây)
       const res = await courseApi.search({ page: 0, size: 500 });
       const teacherMap = new Map<number, string>();
 
-      (res?.content as CourseWithTeacherId[] | undefined)?.forEach((c) => {
+      (res?.content as CourseWithMeta[] | undefined)?.forEach((c) => {
         if (
           c.teacherId !== undefined &&
           c.teacherId !== null &&
@@ -129,24 +163,10 @@ const CourseListPage = () => {
     fetchTeachers();
   }, [fetchTeachers]);
 
-  // BUILD TREE cho TreeSelect
-  const categoryTreeData = useMemo(() => {
-    const buildTree = (
-      items: CategoryResponse[],
-      parentId: number | null = null,
-      depth: number = 0,
-    ): any[] => {
-      return items
-        .filter((item) => (item.parentId ?? null) === parentId)
-        .map((item) => ({
-          title: item.name,
-          value: item.id,
-          key: item.id,
-          children: buildTree(items, item.id, depth + 1),
-        }));
-    };
-    return buildTree(categories);
-  }, [categories]);
+  const categoryTreeData = useMemo(
+    () => buildCategoryTree(categories, null),
+    [categories],
+  );
 
   // ══════════════════════════════════════════════════════════════
   // FETCH STATS
@@ -224,7 +244,7 @@ const CourseListPage = () => {
   }, [fetchStats]);
 
   // ══════════════════════════════════════════════════════════════
-  // HANDLERS — reset page ngay trong onChange
+  // HANDLERS
   // ══════════════════════════════════════════════════════════════
   const handleKeywordChange = (v: string) => {
     setKeyword(v);
@@ -254,17 +274,20 @@ const CourseListPage = () => {
     toast.success('Đã làm mới dữ liệu');
   };
 
-  const handleDelete = async (id: number) => {
-    try {
-      await courseApi.softDelete(id);
-      toast.success('Đã xóa khóa học');
-      fetchData();
-      fetchStats();
-    } catch (err) {
-      const e = err as { message?: string };
-      toast.error(e?.message || 'Xóa thất bại');
-    }
-  };
+  const handleDelete = useCallback(
+    async (id: number) => {
+      try {
+        await courseApi.softDelete(id);
+        toast.success('Đã xóa khóa học');
+        fetchData();
+        fetchStats();
+      } catch (err) {
+        const e = err as { message?: string };
+        toast.error(e?.message || 'Xóa thất bại');
+      }
+    },
+    [fetchData, fetchStats],
+  );
 
   const handleResetFilters = () => {
     setKeyword('');
@@ -280,50 +303,82 @@ const CourseListPage = () => {
   // ══════════════════════════════════════════════════════════════
   const columns: ColumnsType<CourseResponse> = useMemo(
     () => [
-      { title: 'ID', dataIndex: 'id', key: 'id', width: 70, align: 'center' },
+      {
+        title: 'ID',
+        dataIndex: 'id',
+        key: 'id',
+        width: 72,
+        align: 'center',
+        render: (id: number) => (
+          <span className="font-mono text-xs text-slate-400">#{id}</span>
+        ),
+      },
       {
         title: t('course.name'),
         key: 'course',
-        width: 340,
-        render: (_, record) => (
-          <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-            <Image
-              src={record.thumbnailUrl || ''}
-              alt={record.title}
-              width={64}
-              height={40}
-              style={{ objectFit: 'cover', borderRadius: 4 }}
-              fallback="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjQiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCA2NCA0MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iNjQiIGhlaWdodD0iNDAiIGZpbGw9IiNmNWY1ZjUiLz48dGV4dCB4PSIzMiIgeT0iMjQiIGZvbnQtc2l6ZT0iMTAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZpbGw9IiM5OTkiPk5vIGltZzwvdGV4dD48L3N2Zz4="
-              preview={false}
-            />
-            <div style={{ minWidth: 0, flex: 1 }}>
-              <Text strong ellipsis style={{ display: 'block' }}>
-                {record.title}
-              </Text>
-              <Text type="secondary" style={{ fontSize: 12 }}>
-                {record.code}
-              </Text>
+        width: 360,
+        render: (_, record) => {
+          const courseType = (record as CourseWithMeta).courseType;
+          return (
+            <div className="flex items-center gap-3 min-w-0">
+              <Image
+                src={record.thumbnailUrl || ''}
+                alt={record.title}
+                width={72}
+                height={44}
+                className="!object-cover !rounded-lg border border-slate-200/80 shrink-0"
+                fallback={FALLBACK_THUMBNAIL}
+                preview={false}
+              />
+              <div className="min-w-0 flex-1 flex flex-col gap-1">
+                <span
+                  onClick={() => navigate(`/admin/courses/${record.id}`)}
+                  className="font-semibold text-[13.5px] text-slate-800 truncate cursor-pointer hover:text-blue-600 transition-colors"
+                >
+                  {record.title}
+                </span>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {record.code && (
+                    <Tag className="!m-0 !font-mono !text-[11px] !px-1.5 !rounded !bg-slate-50 !border-slate-200 !text-slate-600">
+                      {record.code}
+                    </Tag>
+                  )}
+                  {courseType && (
+                    <Tag
+                      color={courseType === 'OFFLINE' ? 'purple' : 'blue'}
+                      className="!m-0 !text-[10.5px] !px-1.5 !rounded"
+                    >
+                      {courseType === 'OFFLINE' ? 'Offline' : 'Online'}
+                    </Tag>
+                  )}
+                </div>
+              </div>
             </div>
-          </div>
-        ),
+          );
+        },
       },
       {
         title: t('common.status'),
         dataIndex: 'status',
         key: 'status',
-        width: 130,
+        width: 140,
         align: 'center',
         render: (status: string) => <StatusTag status={status} />,
       },
       {
         title: t('student.title'),
         key: 'students',
-        width: 110,
+        width: 115,
         align: 'center',
         render: (_, record) => (
-          <span>
-            <Text strong>{record.currentStudents}</Text>
-            {record.maxStudents ? ` / ${record.maxStudents}` : ''}
+          <span className="inline-flex items-center gap-1 text-[13px]">
+            <TeamOutlined className="text-slate-400 text-xs" />
+            <span className="font-semibold text-slate-800">
+              {record.currentStudents}
+            </span>
+            {record.maxStudents ? (
+              <span className="text-slate-400">/ {record.maxStudents}</span>
+            ) : null}
           </span>
         ),
       },
@@ -331,66 +386,75 @@ const CourseListPage = () => {
         title: t('course.price'),
         dataIndex: 'price',
         key: 'price',
-        width: 130,
+        width: 135,
         align: 'right',
-        render: (price: number, record) => (
-          <MoneyDisplay value={record.isFree ? 0 : price} strong />
-        ),
+        render: (price: number, record) =>
+          record.isFree ? (
+            <Tag color="success" className="!m-0 !rounded-md !font-medium">
+              Miễn phí
+            </Tag>
+          ) : (
+            <MoneyDisplay value={price} strong />
+          ),
       },
       {
         title: t('status.INSTRUCTOR'),
         dataIndex: 'teacherName',
         key: 'teacherName',
-        width: 160,
+        width: 185,
         ellipsis: true,
-        render: (v?: string) => v || <span>—</span>,
+        render: (v?: string) =>
+          v ? (
+            <UserAvatar name={v} size={24} showName />
+          ) : (
+            <span className="text-slate-300">—</span>
+          ),
       },
       {
         title: t('common.createdAt'),
         dataIndex: 'createdAt',
         key: 'createdAt',
         width: 130,
-        render: (v?: string) => <DateDisplay value={v} />,
+        render: (v?: string) => <DateDisplay value={v} format="short" />,
       },
       {
-        title: t('common.actions'),
+        title: '',
         key: 'action',
-        width: 160,
+        width: 88,
         align: 'center',
         fixed: 'right',
         render: (_, record) => (
-          <Space size={4}>
+          <Space size={2} onDoubleClick={(e) => e.stopPropagation()}>
             <Tooltip title={t('common.details')}>
               <Button
                 type="text"
-                icon={<EyeOutlined />}
-                onClick={() => navigate(`/admin/courses/${record.id}`)}
-              />
-            </Tooltip>
-            <Tooltip title={t('common.edit')}>
-              <Button
-                type="text"
-                icon={<EditOutlined />}
+                size="small"
+                icon={<EyeOutlined className="text-blue-600" />}
                 onClick={() => navigate(`/admin/courses/${record.id}`)}
               />
             </Tooltip>
             <Popconfirm
               title={t('common.delete')}
-              description={`Delete "${record.title}"?`}
+              description={`Xóa khóa học "${record.title}"?`}
               okText={t('common.delete')}
               cancelText={t('common.cancel')}
               okButtonProps={{ danger: true }}
               onConfirm={() => handleDelete(record.id)}
             >
               <Tooltip title={t('common.delete')}>
-                <Button type="text" danger icon={<DeleteOutlined />} />
+                <Button
+                  type="text"
+                  size="small"
+                  danger
+                  icon={<DeleteOutlined />}
+                />
               </Tooltip>
             </Popconfirm>
           </Space>
         ),
       },
     ],
-    [t, navigate],
+    [t, navigate, handleDelete],
   );
 
   const hasActiveFilters = Boolean(
@@ -407,22 +471,27 @@ const CourseListPage = () => {
         title={t('course.title')}
         subtitle={t('course.subtitle')}
         extra={
-          <>
-            <Button icon={<ReloadOutlined />} onClick={handleRefresh}>
+          <Space size={8}>
+            <Button
+              icon={<ReloadOutlined spin={loading} />}
+              onClick={handleRefresh}
+              className="!rounded-lg"
+            >
               {t('common.refresh')}
             </Button>
             <Button
               type="primary"
               icon={<PlusOutlined />}
               onClick={() => navigate('/admin/courses/create')}
+              className="!rounded-lg !font-medium"
             >
               {t('course.create')}
             </Button>
-          </>
+          </Space>
         }
       />
 
-      <Row gutter={[16, 16]} style={{ marginBottom: 20 }}>
+      <Row gutter={[16, 16]} className="mb-5">
         <Col xs={24} sm={12} lg={6}>
           <StatsCard
             title="Tổng số khóa học"
@@ -496,7 +565,10 @@ const CourseListPage = () => {
         </Col>
       </Row>
 
-      <div style={{ background: '#fff', padding: 16, borderRadius: 8 }}>
+      <Card
+        className="!rounded-xl border-slate-200/90 shadow-none"
+        styles={{ body: { padding: '16px 20px' } }}
+      >
         <DataTable<CourseResponse>
           columns={columns}
           dataSource={data}
@@ -514,21 +586,23 @@ const CourseListPage = () => {
           searchPlaceholder="Tìm theo tên, mã khóa học hoặc giảng viên..."
           onRow={(record) => ({
             onDoubleClick: () => navigate(`/admin/courses/${record.id}`),
-            style: { cursor: 'pointer' },
+            className: 'cursor-pointer',
           })}
           extra={
-            <Space wrap>
+            <Space wrap size={10}>
               <TreeSelect
                 placeholder="Lọc theo danh mục"
                 allowClear
-                style={{ width: 220 }}
+                className="w-52"
                 value={categoryFilter}
                 onChange={handleCategoryChange}
                 treeData={categoryTreeData}
                 showSearch
                 treeNodeFilterProp="title"
                 treeDefaultExpandAll
-                dropdownStyle={{ maxHeight: 400, overflow: 'auto' }}
+                styles={{
+                  popup: { root: { maxHeight: 400, overflow: 'auto' } },
+                }}
               />
 
               <Select
@@ -536,7 +610,7 @@ const CourseListPage = () => {
                 allowClear
                 showSearch
                 optionFilterProp="label"
-                style={{ width: 200 }}
+                className="w-48"
                 value={teacherFilter}
                 onChange={handleTeacherChange}
                 options={teacherOptions}
@@ -545,7 +619,7 @@ const CourseListPage = () => {
               <Select
                 placeholder={t('course.filterStatus')}
                 allowClear
-                style={{ width: 160 }}
+                className="w-40"
                 value={statusFilter}
                 onChange={handleStatusChange}
                 options={[
@@ -563,7 +637,7 @@ const CourseListPage = () => {
               <Select
                 placeholder={t('course.type')}
                 allowClear
-                style={{ width: 130 }}
+                className="w-36"
                 value={typeFilter}
                 onChange={handleTypeChange}
                 options={[
@@ -573,12 +647,14 @@ const CourseListPage = () => {
               />
 
               {hasActiveFilters && (
-                <Button onClick={handleResetFilters}>Xóa bộ lọc</Button>
+                <Button onClick={handleResetFilters} className="!rounded-lg">
+                  Xóa bộ lọc
+                </Button>
               )}
             </Space>
           }
         />
-      </div>
+      </Card>
     </PageContainer>
   );
 };

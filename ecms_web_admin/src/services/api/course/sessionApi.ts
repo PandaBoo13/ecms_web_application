@@ -91,4 +91,13 @@ getMySchedule: async (params: { from?: string; to?: string }): Promise<any[]> =>
   );
   return data.data;
 },
+
+update: async (
+    courseId: number, id: number, payload: SessionCreateRequest,
+  ): Promise<SessionResponse> => {
+    const { data } = await api.put<RequestResponse<SessionResponse>>(
+      API_ENDPOINT.SESSION_DETAIL(courseId, id), payload);
+    return data.data;
+  },
 };
+

@@ -1,3 +1,4 @@
+// src/pages/admin/CourseDetailPage.tsx
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import {
@@ -5,12 +6,12 @@ import {
   Card,
   Space,
   Typography,
-  Alert,
   Row,
   Col,
   Button,
   Modal,
   Divider,
+  Tooltip,
 } from 'antd';
 import {
   RocketOutlined,
@@ -21,6 +22,9 @@ import {
   BookOutlined,
   CalendarOutlined,
   ScheduleOutlined,
+  EditOutlined,
+  LockOutlined,
+  InfoCircleOutlined,
 } from '@ant-design/icons';
 import toast from 'react-hot-toast';
 
@@ -148,7 +152,6 @@ const CourseDetailPage = () => {
         } catch (err) {
           const msg = extractErrorMessage(err, 'Không thể xuất bản khóa học');
           if (isPlannedOffline) {
-            // Hiển thị Modal để đọc đầy đủ chi tiết thiếu cấu hình hoặc trùng lịch buổi học
             Modal.error({
               title: 'Chưa thể xuất bản khóa học OFFLINE',
               width: 520,
@@ -236,18 +239,59 @@ const CourseDetailPage = () => {
     course.status === 'PENDING_REVIEW' && isOffline;
 
   const totalSessionsExpected = course.totalSessionsExpected;
-  const currentSessionsCount = course.sessions?.length || 0;
+  const currentSessionsCount = (course.sessions || []).filter(
+    (s) => s.status !== 'CANCELLED',
+  ).length;
 
-  const getContentLockedDescription = () => {
+  // Chú thích gọn trên header theo từng trạng thái khóa học
+  const statusHint = (() => {
     switch (course.status) {
+      case 'DRAFT':
+        return {
+          icon: <EditOutlined className="text-blue-600" />,
+          text: 'Bản nháp • Có thể chỉnh sửa nội dung',
+          tooltip:
+            'Khóa học đang ở trạng thái nháp, có thể cập nhật cấu trúc chương, bài học và học liệu.',
+          className: 'text-slate-600 bg-slate-100/90 border-slate-200/80',
+        };
       case 'PENDING_REVIEW':
-        return 'Khóa học đang chờ kiểm duyệt, học liệu tạm khóa chỉnh sửa. Nếu cần cập nhật, vui lòng thu hồi yêu cầu duyệt trước.';
+        return isOffline
+          ? {
+              icon: <ClockCircleOutlined className="text-amber-600" />,
+              text: 'Chờ duyệt giáo trình • Khóa sửa nội dung',
+              tooltip:
+                'Kiểm tra học liệu tại tab "Nội dung", sau đó bấm "Duyệt nội dung" ở góc phải để chuyển sang bước xếp lịch (PLANNED).',
+              className: 'text-amber-800 bg-amber-50/90 border-amber-200/80',
+            }
+          : {
+              icon: <ClockCircleOutlined className="text-amber-600" />,
+              text: 'Chờ duyệt xuất bản • Khóa sửa nội dung',
+              tooltip:
+                'Giáo trình khóa ONLINE đã hoàn tất. Bấm "Xuất bản khóa học" ở góc phải để mở cổng đăng ký.',
+              className: 'text-amber-800 bg-amber-50/90 border-amber-200/80',
+            };
       case 'PLANNED':
-        return 'Nội dung giáo trình đã được duyệt và khóa cố định. Vui lòng hoàn tất xếp lịch tại tab "Buổi học" trước khi bấm xuất bản.';
+        return {
+          icon: <ScheduleOutlined className="text-indigo-600" />,
+          text: `Đã duyệt nội dung • Sẵn sàng xếp lịch (${currentSessionsCount}${totalSessionsExpected != null ? `/${totalSessionsExpected}` : ''} buổi)`,
+          tooltip:
+            'Nội dung giáo trình đã cố định. Hoàn tất giảng viên, phòng học và lịch buổi học tại tab "Buổi học" trước khi bấm "Xuất bản khóa học".',
+          className:
+            'text-indigo-700 bg-indigo-50/90 border-indigo-200/80 hover:bg-indigo-100/80',
+          onClick:
+            activeTab !== 'sessions'
+              ? () => setActiveTab('sessions')
+              : undefined,
+        };
       default:
-        return `Khóa học đang ở trạng thái ${course.status}, học liệu được cố định để đảm bảo tính toàn vẹn dữ liệu.`;
+        return {
+          icon: <LockOutlined className="text-slate-500" />,
+          text: 'Cố định cấu trúc & học liệu',
+          tooltip: `Khóa học đang ở trạng thái ${course.status}, học liệu được cố định để đảm bảo tính toàn vẹn dữ liệu.`,
+          className: 'text-slate-600 bg-slate-100/90 border-slate-200/80',
+        };
     }
-  };
+  })();
 
   const statItems = [
     {
@@ -313,18 +357,12 @@ const CourseDetailPage = () => {
     {
       key: 'resources',
       label: `Nội dung (${course.resources?.length || 0})`,
-      children: isContentLocked ? (
-        <Alert
-          message="Nội dung đã khóa chỉnh sửa"
-          description={getContentLockedDescription()}
-          type="info"
-          showIcon
-        />
-      ) : (
+      children: (
         <ResourceManager
           courseId={courseId}
           resources={course.resources || []}
           onRefresh={handleSilentRefresh}
+          readOnly={isContentLocked}
         />
       ),
     },
@@ -383,13 +421,30 @@ const CourseDetailPage = () => {
       <PageHeader
         title={course.title}
         subtitle={
-          <Space size={8} wrap>
+          <div className="flex flex-wrap items-center gap-2 mt-0.5">
             <Text code style={{ margin: 0, fontSize: 12.5 }}>
               {course.code}
             </Text>
             <StatusTag status={course.status} />
             <StatusTag status={course.courseType} />
-          </Space>
+
+            <span className="text-slate-300 hidden sm:inline select-none">
+              |
+            </span>
+
+            <Tooltip title={statusHint.tooltip} placement="bottomLeft">
+              <span
+                onClick={statusHint.onClick}
+                className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[12px] font-medium transition-colors ${
+                  statusHint.onClick ? 'cursor-pointer' : 'cursor-help'
+                } ${statusHint.className}`}
+              >
+                {statusHint.icon}
+                <span>{statusHint.text}</span>
+                <InfoCircleOutlined className="text-[11px] opacity-60" />
+              </span>
+            </Tooltip>
+          </div>
         }
         backButton
         backTo="/admin/courses"
@@ -428,56 +483,6 @@ const CourseDetailPage = () => {
           </Space>
         }
       />
-
-      {/* Thông báo ngữ cảnh trạng thái */}
-      {canPublish && (
-        <Alert
-          type="info"
-          showIcon
-          icon={<RocketOutlined />}
-          style={{
-            marginBottom: 16,
-            borderRadius: 8,
-            border: '1px solid #bae0ff',
-          }}
-          message={
-            course.status === 'PLANNED'
-              ? 'Khóa học OFFLINE đã duyệt nội dung — sẵn sàng xếp lịch & xuất bản'
-              : 'Khóa học ONLINE đã sẵn sàng xuất bản'
-          }
-          description={
-            course.status === 'PLANNED'
-              ? `Hiện có ${currentSessionsCount}${totalSessionsExpected != null ? `/${totalSessionsExpected}` : ''} buổi học. Vui lòng đảm bảo đã cấu hình đủ giảng viên, phòng học, ngày giờ, sĩ số và sinh lịch buổi học trước khi bấm "Xuất bản khóa học".`
-              : 'Giáo trình khóa ONLINE đã hoàn tất. Sử dụng nút "Xuất bản khóa học" ở góc trên để mở cổng đăng ký.'
-          }
-          action={
-            course.status === 'PLANNED' && activeTab !== 'sessions' ? (
-              <Button
-                size="small"
-                icon={<ScheduleOutlined />}
-                onClick={() => setActiveTab('sessions')}
-              >
-                Đi tới xếp lịch
-              </Button>
-            ) : undefined
-          }
-        />
-      )}
-
-      {canApproveOfflineContent && (
-        <Alert
-          type="warning"
-          showIcon
-          icon={<ClockCircleOutlined />}
-          style={{
-            marginBottom: 16,
-            borderRadius: 8,
-            border: '1px solid #ffe58f',
-          }}
-          message="Khóa học OFFLINE đang chờ duyệt nội dung"
-          description='Kiểm tra học liệu tại tab "Nội dung", sau đó bấm "Duyệt nội dung" ở góc trên để chuyển sang bước xếp lịch buổi học (PLANNED).'
-        />
-      )}
 
       {/* Hàng thẻ thống kê chỉ số */}
       <Row gutter={[14, 14]} style={{ marginBottom: 18 }}>

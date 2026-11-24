@@ -97,8 +97,10 @@ export interface ResourceCreateRequest {
  * → Loại 2 field này khỏi type update.
  */
 export type ResourceUpdateRequest = Partial<
-  Omit<ResourceCreateRequest, 'resourceType' | 'parentId'>
->;
+  Omit<ResourceCreateRequest, 'resourceType'>
+> & {
+  detachParent?: boolean;
+};
 
 /** Item trong payload reorder — `PUT /api/courses/{courseId}/resources/reorder`. */
 export interface ReorderItem {
