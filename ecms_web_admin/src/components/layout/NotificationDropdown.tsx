@@ -1,16 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Badge, Button, Dropdown, Empty, List, Tabs, Tag, Tooltip, Typography } from 'antd';
-import { BellOutlined, CheckOutlined, DeleteOutlined, ThunderboltOutlined } from '@ant-design/icons';
+import { BellOutlined, CheckOutlined, DeleteOutlined } from '@ant-design/icons';
 import toast from 'react-hot-toast';
 
 import { useAuth } from '@/hooks/useAuth';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { notificationApi } from '@/services/api/notification';
-import { leadApi } from '@/services/api/leads';
 import type { NotificationResponse } from '@/services/types/notification';
 
 const { Text } = Typography;
+
+const PAGE_SIZE = 20;
 
 const PRIORITY_COLOR: Record<string, string> = {
   LOW: 'default',
@@ -27,9 +28,66 @@ const NotificationDropdown = () => {
   const [unreadCount, setUnreadCount] = useState(0);
   const [notifications, setNotifications] = useState<NotificationResponse[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<'all' | 'unread'>('all');
   const mountedRef = useRef(true);
+
+  // ═══ Xác định đường dẫn điều hướng khi click thông báo ═══
+  const resolveTargetUrl = useCallback(
+    (item: NotificationResponse): string | null => {
+      const extra = (item.extraData || {}) as Record<string, unknown>;
+      if (typeof extra.targetUrl === 'string' && extra.targetUrl) {
+        return extra.targetUrl;
+      }
+
+      const authUser = user as {
+        role?: string;
+        roleCode?: string;
+        roles?: string[];
+      } | null;
+
+      const roleList = [
+        authUser?.role,
+        authUser?.roleCode,
+        ...(authUser?.roles || []),
+      ]
+        .filter(Boolean)
+        .map((r) => String(r).toUpperCase());
+
+      const isAdmin = roleList.some((r) => r.includes('ADMIN'));
+      const isInstructor = roleList.some((r) => r.includes('INSTRUCTOR') || r.includes('TEACHER'));
+
+      const refType = item.referenceType?.toUpperCase();
+      const refId = item.referenceId ?? (extra.courseId as number | undefined);
+
+      if (refType === 'COURSE' && refId) {
+        if (isAdmin) return `/admin/courses/${refId}`;
+        if (isInstructor) return `/instructor/courses/${refId}`;
+        return `/courses/${refId}`;
+      }
+
+      if (refType === 'SESSION' && extra.courseId) {
+        const query = item.notificationType === 'SESSION_RESCHEDULED' ? '?tab=sessions' : '';
+        if (isAdmin) return `/admin/courses/${extra.courseId}${query}`;
+        if (isInstructor) return `/instructor/courses/${extra.courseId}${query}`;
+      }
+
+      if (refType === 'REQUEST') {
+        if (extra.courseId) {
+          if (isAdmin) return `/admin/courses/${extra.courseId}`;
+          if (isInstructor) return `/instructor/courses/${extra.courseId}`;
+        }
+        if (isAdmin) return '/admin/requests';
+        if (isInstructor) return '/instructor/requests';
+      }
+
+      return null;
+    },
+    [user]
+  );
 
   // ═══ Load unread count ═══
   const fetchUnreadCount = useCallback(async () => {
@@ -41,43 +99,65 @@ const NotificationDropdown = () => {
     }
   }, []);
 
-  // ═══ Load inbox ═══
-  const fetchInbox = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await notificationApi.getMyInbox({
-        page: 0,
-        size: 20,
-        isRead: tab === 'unread' ? false : undefined,
-      });
-      if (mountedRef.current) setNotifications(res.content);
-    } catch (err) {
-      const e = err as { message?: string };
-      toast.error(e?.message || 'Không tải được thông báo');
-    } finally {
-      if (mountedRef.current) setLoading(false);
-    }
-  }, [tab]);
+  // ═══ Load inbox (hỗ trợ phân trang) ═══
+  const fetchInbox = useCallback(
+    async (targetPage = 0, append = false) => {
+      if (append) {
+        setLoadingMore(true);
+      } else {
+        setLoading(true);
+      }
 
-  // ═══ Init + subscribe WS + Polling fallback ═══
+      try {
+        const res = await notificationApi.getMyInbox({
+          page: targetPage,
+          size: PAGE_SIZE,
+          isRead: tab === 'unread' ? false : undefined,
+        });
+
+        if (!mountedRef.current) return;
+
+        const items = res.content || [];
+        setPage(targetPage);
+        setHasMore(items.length >= PAGE_SIZE);
+
+        if (append) {
+          setNotifications((prev) => {
+            const existingIds = new Set(prev.map((n) => n.notificationId));
+            const uniqueNew = items.filter((n) => !existingIds.has(n.notificationId));
+            return [...prev, ...uniqueNew];
+          });
+        } else {
+          setNotifications(items);
+        }
+      } catch (err) {
+        const e = err as { message?: string };
+        toast.error(e?.message || 'Không tải được thông báo');
+      } finally {
+        if (mountedRef.current) {
+          setLoading(false);
+          setLoadingMore(false);
+        }
+      }
+    },
+    [tab]
+  );
+
+  // ═══ Init + subscribe WS ═══
   useEffect(() => {
     mountedRef.current = true;
     fetchUnreadCount();
-
-    const interval = setInterval(fetchUnreadCount, 15000);
-    const onFocus = () => fetchUnreadCount();
-    window.addEventListener('focus', onFocus);
-
     return () => {
       mountedRef.current = false;
-      clearInterval(interval);
-      window.removeEventListener('focus', onFocus);
     };
   }, [fetchUnreadCount]);
 
   useEffect(() => {
-    if (open) fetchInbox();
-  }, [open, tab, fetchInbox]);
+    if (open) {
+      fetchInbox(0, false);
+      fetchUnreadCount();
+    }
+  }, [open, tab, fetchInbox, fetchUnreadCount]);
 
   useEffect(() => {
     if (!user?.accountId) return;
@@ -85,24 +165,31 @@ const NotificationDropdown = () => {
     const unsub = subscribe(
       `/topic/user/${user.accountId}/notifications`,
       (payload: any) => {
-        // Message có thể là notification mới HOẶC sự kiện read/mark
+        // Sự kiện đồng bộ đã đọc từ tab khác
         if (payload?.action === 'MARKED_READ') {
           setNotifications((prev) =>
-            prev.map((n) => (n.notificationId === payload.notificationId ? { ...n, isRead: true } : n))
+            tab === 'unread'
+              ? prev.filter((n) => n.notificationId !== payload.notificationId)
+              : prev.map((n) =>
+                  n.notificationId === payload.notificationId ? { ...n, isRead: true } : n
+                )
           );
-          setUnreadCount((c) => Math.max(0, c - 1));
+          fetchUnreadCount();
           return;
         }
         if (payload?.action === 'MARKED_ALL_READ') {
-          setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+          setNotifications((prev) =>
+            tab === 'unread' ? [] : prev.map((n) => ({ ...n, isRead: true }))
+          );
           setUnreadCount(0);
           return;
         }
 
         // Notification mới
+        const notifId = payload.notificationId ?? 0;
         const newNotif: NotificationResponse = {
-          id: payload.id ?? payload.notificationId ?? 0,
-          notificationId: payload.notificationId ?? 0,
+          id: payload.id ?? notifId,
+          notificationId: notifId,
           senderAccountId: payload.senderAccountId,
           senderName: payload.senderName,
           notificationType: payload.notificationType ?? 'SYSTEM',
@@ -116,52 +203,24 @@ const NotificationDropdown = () => {
           isRead: false,
         };
 
-        setNotifications((prev) => [newNotif, ...prev]);
-        setUnreadCount((c) => c + 1);
-        toast.success(`🔔 ${newNotif.title}`, { duration: 4000 });
+        setNotifications((prev) => {
+          if (notifId && prev.some((n) => n.notificationId === notifId)) {
+            return prev;
+          }
+          setUnreadCount((c) => c + 1);
+          return [newNotif, ...prev];
+        });
+
+        if (newNotif.priority === 'URGENT') {
+          toast.error(`🚨 ${newNotif.title}`, { duration: 5500 });
+        } else {
+          toast.success(`🔔 ${newNotif.title}`, { duration: 4000 });
+        }
       }
     );
 
     return () => unsub();
-  }, [subscribe, user?.accountId]);
-
-  useEffect(() => {
-    // Lắng nghe sự kiện khách hàng đã được TVV nhận -> lập tức biến mất khỏi chuông của các TVV khác
-    const unsub = subscribe('/topic/leads/fast-claim', (payload: any) => {
-      if (!payload || payload.type !== 'LEAD_CLAIMED') return;
-
-      const claimedLeadId = Number(payload.leadId);
-      const isOtherConsultant =
-        user?.accountId !== payload.claimedById &&
-        (user?.roleCode === 'LEAD' || user?.roleCode === 'CONSULTANT');
-
-      if (isOtherConsultant) {
-        setNotifications((prev) => {
-          const target = prev.find(
-            (n) =>
-              (n.referenceType?.toUpperCase() === 'LEAD' && Number(n.referenceId) === claimedLeadId) ||
-              (n.extraData &&
-                typeof n.extraData === 'object' &&
-                Number((n.extraData as any).leadId) === claimedLeadId)
-          );
-          if (target && !target.isRead) {
-            setUnreadCount((c) => Math.max(0, c - 1));
-          }
-          return prev.filter(
-            (n) =>
-              !(
-                (n.referenceType?.toUpperCase() === 'LEAD' && Number(n.referenceId) === claimedLeadId) ||
-                (n.extraData &&
-                  typeof n.extraData === 'object' &&
-                  Number((n.extraData as any).leadId) === claimedLeadId)
-              )
-          );
-        });
-      }
-    });
-
-    return () => unsub();
-  }, [subscribe, user?.accountId, user?.roleCode]);
+  }, [subscribe, user?.accountId, tab, fetchUnreadCount]);
 
   // ═══ Actions ═══
   const handleMarkRead = async (n: NotificationResponse) => {
@@ -169,7 +228,9 @@ const NotificationDropdown = () => {
     try {
       await notificationApi.markAsRead(n.notificationId);
       setNotifications((prev) =>
-        prev.map((x) => (x.notificationId === n.notificationId ? { ...x, isRead: true } : x))
+        tab === 'unread'
+          ? prev.filter((x) => x.notificationId !== n.notificationId)
+          : prev.map((x) => (x.notificationId === n.notificationId ? { ...x, isRead: true } : x))
       );
       setUnreadCount((c) => Math.max(0, c - 1));
     } catch (err) {
@@ -178,51 +239,21 @@ const NotificationDropdown = () => {
     }
   };
 
-  const handleItemClick = async (n: NotificationResponse) => {
-    if (!n.isRead) {
-      await handleMarkRead(n);
-    }
-    setOpen(false);
-
-    // Deep link navigation theo extraData
-    if (n.extraData && typeof n.extraData === 'object' && 'url' in n.extraData && typeof n.extraData.url === 'string') {
-      navigate(n.extraData.url);
-      return;
-    }
-
-    const type = (n.notificationType || '').toUpperCase();
-    const refType = (n.referenceType || '').toUpperCase();
-
-    // Điều hướng theo loại thông báo
-    if (type === 'LEAD' || refType === 'LEAD') {
-      if (n.referenceId) {
-        navigate(`/admin/leads?leadId=${n.referenceId}`);
-      } else {
-        navigate('/admin/leads');
-      }
-      return;
-    }
-
-    if (type === 'REQUEST' || refType === 'REQUEST') {
-      navigate('/admin/requests');
-      return;
-    }
-
-    if (type === 'COURSE' || refType === 'COURSE') {
-      navigate(n.referenceId ? `/admin/courses/${n.referenceId}` : '/admin/courses');
-      return;
-    }
-
-    if (type === 'ORDER' || type === 'INVOICE' || refType === 'INVOICE') {
-      navigate('/admin/tuition');
-      return;
+  const handleNotificationClick = (item: NotificationResponse) => {
+    void handleMarkRead(item);
+    const targetUrl = resolveTargetUrl(item);
+    if (targetUrl) {
+      setOpen(false);
+      navigate(targetUrl);
     }
   };
 
   const handleMarkAll = async () => {
     try {
       await notificationApi.markAllAsRead();
-      setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+      setNotifications((prev) =>
+        tab === 'unread' ? [] : prev.map((n) => ({ ...n, isRead: true }))
+      );
       setUnreadCount(0);
       toast.success('Đã đánh dấu tất cả đã đọc');
     } catch (err) {
@@ -244,29 +275,6 @@ const NotificationDropdown = () => {
     }
   };
 
-  const handleQuickClaim = async (e: React.MouseEvent, n: NotificationResponse) => {
-    e.stopPropagation();
-    const leadId =
-      n.referenceId ||
-      (n.extraData && typeof n.extraData === 'object' && 'leadId' in n.extraData
-        ? Number(n.extraData.leadId)
-        : null);
-    if (!leadId) {
-      toast.error('Không tìm thấy mã khách hàng');
-      return;
-    }
-    try {
-      await leadApi.claim(leadId);
-      toast.success('🎉 Tiếp nhận khách hàng thành công!');
-      await handleMarkRead(n);
-      setOpen(false);
-      navigate(`/admin/leads?leadId=${leadId}`);
-    } catch (err) {
-      const e2 = err as { message?: string };
-      toast.error(e2?.message || 'Khách hàng này đã được nhân viên khác tiếp nhận');
-    }
-  };
-
   const formatRelative = (iso?: string) => {
     if (!iso) return '';
     const diff = Date.now() - new Date(iso).getTime();
@@ -283,7 +291,7 @@ const NotificationDropdown = () => {
   const content = (
     <div
       style={{
-        width: 380,
+        width: 420,
         background: '#fff',
         borderRadius: 12,
         boxShadow: '0 8px 24px -4px rgba(15, 23, 42, 0.15), 0 2px 6px -1px rgba(15, 23, 42, 0.08)',
@@ -327,7 +335,7 @@ const NotificationDropdown = () => {
         ]}
       />
 
-      <div style={{ maxHeight: 420, overflowY: 'auto' }}>
+      <div style={{ maxHeight: 460, overflowY: 'auto' }}>
         {loading ? (
           <div style={{ padding: 32, textAlign: 'center', color: '#94a3b8' }}>Đang tải...</div>
         ) : notifications.length === 0 ? (
@@ -337,89 +345,115 @@ const NotificationDropdown = () => {
             style={{ padding: 32 }}
           />
         ) : (
-          <List
-            dataSource={notifications}
-            renderItem={(item) => (
-              <List.Item
-                onClick={() => handleItemClick(item)}
-                style={{
-                  padding: '12px 16px',
-                  cursor: 'pointer',
-                  background: item.isRead ? '#fff' : '#f0f7ff',
-                  borderBottom: '1px solid #f8fafc',
-                  transition: 'background 0.15s',
-                }}
-                actions={[
-                  ((item.notificationType || '').toUpperCase() === 'LEAD' ||
-                    (item.referenceType || '').toUpperCase() === 'LEAD') && (
-                    <Tooltip key="claim" title="Tiếp nhận khách hàng này ngay">
-                      <Button
-                        type="primary"
-                        size="small"
-                        icon={<ThunderboltOutlined />}
-                        style={{ fontSize: 11, height: 24, padding: '0 8px' }}
-                        onClick={(e) => handleQuickClaim(e, item)}
-                      >
-                        Nhận
-                      </Button>
-                    </Tooltip>
-                  ),
-                  <Tooltip key="del" title="Xóa">
-                    <Button
-                      type="text"
-                      size="small"
-                      danger
-                      icon={<DeleteOutlined />}
-                      onClick={(e) => handleDelete(e, item)}
-                    />
-                  </Tooltip>,
-                ].filter(Boolean)}
-              >
-                <List.Item.Meta
-                  title={
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      {!item.isRead && (
-                        <span
-                          style={{
-                            width: 8,
-                            height: 8,
-                            borderRadius: '50%',
-                            background: '#1677ff',
-                            display: 'inline-block',
-                          }}
+          <>
+            <List
+              dataSource={notifications}
+              renderItem={(item) => {
+                const extra = (item.extraData || {}) as Record<string, unknown>;
+                const courseCode = typeof extra.courseCode === 'string' ? extra.courseCode : null;
+                const requestCode = typeof extra.requestCode === 'string' ? extra.requestCode : null;
+
+                return (
+                  <List.Item
+                    onClick={() => handleNotificationClick(item)}
+                    style={{
+                      padding: '12px 16px',
+                      cursor: 'pointer',
+                      background: item.isRead ? '#fff' : '#f0f7ff',
+                      borderBottom: '1px solid #f8fafc',
+                      transition: 'background 0.15s',
+                    }}
+                    actions={[
+                      <Tooltip key="del" title="Xóa">
+                        <Button
+                          type="text"
+                          size="small"
+                          danger
+                          icon={<DeleteOutlined />}
+                          onClick={(e) => handleDelete(e, item)}
                         />
-                      )}
-                      <Text strong={!item.isRead} style={{ fontSize: 13 }}>
-                        {item.title}
-                      </Text>
-                      <Tag
-                        color={PRIORITY_COLOR[item.priority] || 'default'}
-                        style={{ margin: 0, fontSize: 10, lineHeight: '16px' }}
-                      >
-                        {item.priority}
-                      </Tag>
-                    </div>
-                  }
-                  description={
-                    <div style={{ marginTop: 2 }}>
-                      {item.content && (
-                        <Text
-                          type="secondary"
-                          style={{ fontSize: 12, display: 'block' }}
-                          ellipsis
-                        >
-                          {item.content}
-                        </Text>
-                      )}
-                      <Text type="secondary" style={{ fontSize: 11 }}>
-                        {formatRelative(item.createdAt)}
-                      </Text>
-                    </div>
-                  }
-                />
-              </List.Item>
+                      </Tooltip>,
+                    ]}
+                  >
+                    <List.Item.Meta
+                      title={
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                          {!item.isRead && (
+                            <span
+                              style={{
+                                width: 8,
+                                height: 8,
+                                borderRadius: '50%',
+                                background: '#1677ff',
+                                display: 'inline-block',
+                                flexShrink: 0,
+                              }}
+                            />
+                          )}
+                          <Text strong={!item.isRead} style={{ fontSize: 13 }}>
+                            {item.title}
+                          </Text>
+                          <Tag
+                            color={PRIORITY_COLOR[item.priority] || 'default'}
+                            style={{ margin: 0, fontSize: 10, lineHeight: '16px' }}
+                          >
+                            {item.priority}
+                          </Tag>
+                        </div>
+                      }
+                      description={
+                        <div style={{ marginTop: 4 }}>
+                          {item.content && (
+                            <Text
+                              type="secondary"
+                              style={{
+                                fontSize: 12,
+                                display: 'block',
+                                whiteSpace: 'pre-line',
+                                wordBreak: 'break-word',
+                                lineHeight: 1.45,
+                                marginBottom: 6,
+                              }}
+                            >
+                              {item.content}
+                            </Text>
+                          )}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                            {courseCode && (
+                              <Text code style={{ fontSize: 10.5, margin: 0 }}>
+                                {courseCode}
+                              </Text>
+                            )}
+                            {requestCode && (
+                              <Text code style={{ fontSize: 10.5, margin: 0 }}>
+                                {requestCode}
+                              </Text>
+                            )}
+                            <Text type="secondary" style={{ fontSize: 11 }}>
+                              {formatRelative(item.createdAt)}
+                            </Text>
+                          </div>
+                        </div>
+                      }
+                    />
+                  </List.Item>
+                );
+              }}
+            />
+
+            {hasMore && (
+              <div style={{ padding: '10px 16px', textAlign: 'center', borderTop: '1px solid #f1f5f9' }}>
+                <Button
+                  type="link"
+                  size="small"
+                  loading={loadingMore}
+                  onClick={() => fetchInbox(page + 1, true)}
+                >
+                  Tải thêm thông báo
+                </Button>
+              </div>
             )}
-          />
+          </>
         )}
       </div>
     </div>

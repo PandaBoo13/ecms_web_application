@@ -1,5 +1,5 @@
 // src/components/course/CourseResourceTree.tsx
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Card,
   Tree,
@@ -21,14 +21,16 @@ import {
   ArrowsAltOutlined,
   ShrinkOutlined,
   FolderOpenOutlined,
+  FolderAddOutlined,
   PlusOutlined,
   RightOutlined,
+  InboxOutlined,
 } from '@ant-design/icons';
 import toast from 'react-hot-toast';
 import InlineEdit from '@/components/common/InlineEdit';
 import type { CourseResourceResponse } from '@/services/types/course';
 
-// const { Text } = Typography;
+export const RESOURCE_DRAG_MIME = 'application/x-course-resource-id';
 
 export interface ResourceReorderUpdate {
   id: number;
@@ -38,42 +40,53 @@ export interface ResourceReorderUpdate {
 interface Props {
   resources: CourseResourceResponse[];
   selectedLessonId?: number | null;
+  totalResourceCount?: number;
+  unassignedCount?: number;
+  onSelectCoursePool?: () => void;
   onSelectLesson?: (lesson: CourseResourceResponse) => void;
+  onDropResourceToLesson?: (resourceId: number, lessonId: number) => void;
   editable?: boolean;
   draggable?: boolean;
+  canAddLesson?: boolean;
   onSaveTitle?: (id: number, title: string) => Promise<void>;
   onReorder?: (updates: ResourceReorderUpdate[]) => Promise<void>;
   onDelete?: (id: number) => void;
   onEdit?: (resource: CourseResourceResponse) => void;
+  onAddChapter?: () => void;
+  onAddHeaderLesson?: () => void;
   onAddLesson?: (chapter: CourseResourceResponse) => void;
 }
 
 const CourseResourceTree = ({
   resources,
-  selectedLessonId,
+  selectedLessonId = null,
+  totalResourceCount = 0,
+  unassignedCount = 0,
+  onSelectCoursePool,
   onSelectLesson,
+  onDropResourceToLesson,
   editable = false,
   draggable = false,
+  canAddLesson = false,
   onSaveTitle,
   onReorder,
   onDelete,
   onEdit,
+  onAddChapter,
+  onAddHeaderLesson,
   onAddLesson,
 }: Props) => {
-  // Chỉ giữ Chương, Bài học và Quiz cấp chương ở cây bên trái
-  // Các file tài liệu của từng Lesson được hiển thị ở panel bên phải
   const structureResources = useMemo(
     () =>
       resources.filter(
         (r) =>
           r.resourceType === 'CHAPTER' ||
           r.resourceType === 'LESSON' ||
-          r.resourceType === 'QUIZ',
+          (r.resourceType === 'QUIZ' && !!r.parentId),
       ),
     [resources],
   );
 
-  // Đếm số lượng file tài liệu đính kèm của mỗi Lesson
   const materialCountByLesson = useMemo(() => {
     const counts = new Map<number, number>();
     resources.forEach((r) => {
@@ -88,7 +101,6 @@ const CourseResourceTree = ({
     return counts;
   }, [resources]);
 
-  // Đếm số lượng bài học trong mỗi Chương
   const lessonCountByChapter = useMemo(() => {
     const counts = new Map<number, number>();
     structureResources.forEach((r) => {
@@ -108,6 +120,8 @@ const CourseResourceTree = ({
   );
 
   const [expandedKeys, setExpandedKeys] = useState<React.Key[]>(chapterKeys);
+  const [dragOverLessonId, setDragOverLessonId] = useState<number | null>(null);
+  const expandTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     setExpandedKeys((prev) => {
@@ -115,6 +129,27 @@ const CourseResourceTree = ({
       return Array.from(merged);
     });
   }, [chapterKeys]);
+
+  useEffect(() => {
+    return () => {
+      if (expandTimerRef.current) {
+        window.clearTimeout(expandTimerRef.current);
+      }
+    };
+  }, []);
+
+  const isExternalResourceDrag = (e: React.DragEvent) =>
+    Array.from(e.dataTransfer.types || []).includes(RESOURCE_DRAG_MIME);
+
+  const scheduleExpandChapter = (chapterId: number) => {
+    if (expandedKeys.includes(chapterId)) return;
+    if (expandTimerRef.current) window.clearTimeout(expandTimerRef.current);
+    expandTimerRef.current = window.setTimeout(() => {
+      setExpandedKeys((prev) =>
+        prev.includes(chapterId) ? prev : [...prev, chapterId],
+      );
+    }, 350);
+  };
 
   const treeData = useMemo<DataNode[]>(() => {
     const map = new Map<number, DataNode>();
@@ -127,14 +162,17 @@ const CourseResourceTree = ({
       const isChapter = r.resourceType === 'CHAPTER';
       const isLesson = r.resourceType === 'LESSON';
       const isSelected = isLesson && selectedLessonId === r.id;
+      const isDropTarget = isLesson && dragOverLessonId === r.id;
       const lessonCount = lessonCountByChapter.get(r.id) || 0;
       const materialCount = materialCountByLesson.get(r.id) || 0;
 
       const rowStyleClass = isChapter
-        ? 'bg-slate-100/90 border-slate-200/90 px-3 py-2.5 my-1.5 hover:border-blue-300'
-        : isSelected
-          ? 'bg-blue-50/90 border-blue-500 px-3 py-2 my-1 shadow-[0_0_0_2px_rgba(59,130,246,0.12)] cursor-pointer'
-          : 'bg-white border-slate-200/80 px-3 py-2 my-1 hover:border-blue-300 hover:bg-slate-50/80 cursor-pointer';
+        ? 'bg-slate-100/80 border-slate-200/90 px-2.5 py-2 my-1 hover:border-blue-300'
+        : isDropTarget
+          ? 'bg-blue-50 border-blue-500 ring-2 ring-dashed ring-blue-400 px-2.5 py-2 my-1'
+          : isSelected
+            ? 'bg-blue-50/90 border-blue-500 px-2.5 py-2 my-1 shadow-[0_0_0_2px_rgba(59,130,246,0.1)] cursor-pointer'
+            : 'bg-white border-slate-200/80 px-2.5 py-2 my-1 hover:border-blue-300 hover:bg-slate-50/80 cursor-pointer';
 
       map.set(r.id, {
         key: r.id,
@@ -145,35 +183,66 @@ const CourseResourceTree = ({
                 onSelectLesson?.(r);
               }
             }}
-            className={`resource-tree-row group flex items-center justify-between gap-2.5 rounded-lg border transition-all ${rowStyleClass}`}
+            onDragOver={(e) => {
+              if (!editable || !isExternalResourceDrag(e)) return;
+              if (isChapter) {
+                e.preventDefault();
+                scheduleExpandChapter(r.id);
+                return;
+              }
+              if (isLesson) {
+                e.preventDefault();
+                e.stopPropagation();
+                e.dataTransfer.dropEffect = 'move';
+                if (dragOverLessonId !== r.id) {
+                  setDragOverLessonId(r.id);
+                }
+              }
+            }}
+            onDragLeave={(e) => {
+              if (!isLesson) return;
+              const related = e.relatedTarget as Node | null;
+              if (related && e.currentTarget.contains(related)) return;
+              if (dragOverLessonId === r.id) {
+                setDragOverLessonId(null);
+              }
+            }}
+            onDrop={(e) => {
+              if (!editable || !isLesson || !isExternalResourceDrag(e)) return;
+              e.preventDefault();
+              e.stopPropagation();
+              setDragOverLessonId(null);
+              const rawId = e.dataTransfer.getData(RESOURCE_DRAG_MIME);
+              if (rawId) {
+                onDropResourceToLesson?.(Number(rawId), r.id);
+              }
+            }}
+            className={`resource-tree-row group flex items-center justify-between gap-2 rounded-lg border transition-all ${rowStyleClass}`}
           >
             {/* Cụm trái */}
             <div className="flex items-center gap-2 min-w-0 flex-1">
               {draggable && (
-                <Tooltip title="Kéo thả cùng cấp để sắp xếp">
-                  <span
-                    onClick={(e) => e.stopPropagation()}
-                    className="cursor-grab active:cursor-grabbing text-slate-300 hover:text-slate-500 flex items-center shrink-0"
-                  >
-                    <HolderOutlined style={{ fontSize: 13 }} />
-                  </span>
-                </Tooltip>
+                <span
+                  onClick={(e) => e.stopPropagation()}
+                  className="cursor-grab active:cursor-grabbing text-slate-300 hover:text-slate-500 flex items-center shrink-0"
+                >
+                  <HolderOutlined style={{ fontSize: 13 }} />
+                </span>
               )}
 
-              {/* Icon phân loại */}
               <span
                 style={{
                   backgroundColor: isChapter
                     ? '#dbeafe'
                     : isLesson
-                      ? isSelected
+                      ? isSelected || isDropTarget
                         ? '#2563eb'
                         : '#dcfce7'
                       : '#f3e8ff',
                   color: isChapter
                     ? '#1d4ed8'
                     : isLesson
-                      ? isSelected
+                      ? isSelected || isDropTarget
                         ? '#ffffff'
                         : '#15803d'
                       : '#7e22ce',
@@ -189,15 +258,14 @@ const CourseResourceTree = ({
                 )}
               </span>
 
-              {/* Tiêu đề */}
               <div
                 onClick={(e) => {
                   if (editable && onSaveTitle) e.stopPropagation();
                 }}
                 className={`min-w-0 flex-1 ${
                   isChapter
-                    ? 'font-bold text-[13.5px] text-slate-800'
-                    : isSelected
+                    ? 'font-semibold text-[13.5px] text-slate-800'
+                    : isSelected || isDropTarget
                       ? 'font-semibold text-[13.5px] text-blue-700'
                       : 'font-medium text-[13.5px] text-slate-700'
                 }`}
@@ -212,24 +280,23 @@ const CourseResourceTree = ({
                 )}
               </div>
 
-              {/* Bộ đếm số lượng */}
               {isChapter && (
-                <span className="text-[11px] font-medium text-slate-500 bg-slate-200/80 px-2 py-0.5 rounded-full shrink-0">
+                <span className="text-[11px] font-medium tabular-nums text-slate-500 bg-slate-200/80 px-2 py-0.5 rounded-full shrink-0">
                   {lessonCount} bài
                 </span>
               )}
 
               {isLesson && (
                 <span
-                  className={`text-[11px] font-semibold px-2 py-0.5 rounded-full shrink-0 ${
-                    isSelected
+                  className={`text-[11px] font-semibold tabular-nums px-2 py-0.5 rounded-full shrink-0 ${
+                    isSelected || isDropTarget
                       ? 'bg-blue-600 text-white'
                       : materialCount > 0
                         ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/80'
                         : 'bg-slate-100 text-slate-400'
                   }`}
                 >
-                  {materialCount} file
+                  {materialCount}
                 </span>
               )}
             </div>
@@ -240,17 +307,15 @@ const CourseResourceTree = ({
               onClick={(e) => e.stopPropagation()}
             >
               {editable && isChapter && onAddLesson && (
-                <Tooltip title="Thêm bài học vào chương này">
-                  <Button
-                    size="small"
-                    type="dashed"
-                    icon={<PlusOutlined />}
-                    onClick={() => onAddLesson(r)}
-                    className="!text-[11.5px] !px-2 !text-blue-600 !border-blue-300 hover:!bg-blue-50"
-                  >
-                    Bài học
-                  </Button>
-                </Tooltip>
+                <Button
+                  size="small"
+                  type="dashed"
+                  icon={<PlusOutlined />}
+                  onClick={() => onAddLesson(r)}
+                  className="!text-[11.5px] !px-2 !text-blue-600 !border-blue-300 hover:!bg-blue-50"
+                >
+                  Bài học
+                </Button>
               )}
 
               {editable && (
@@ -324,11 +389,14 @@ const CourseResourceTree = ({
   }, [
     structureResources,
     selectedLessonId,
+    dragOverLessonId,
     lessonCountByChapter,
     materialCountByLesson,
     editable,
     draggable,
+    expandedKeys,
     onSelectLesson,
+    onDropResourceToLesson,
     onAddLesson,
     onEdit,
     onDelete,
@@ -336,7 +404,7 @@ const CourseResourceTree = ({
   ]);
 
   const handleDrop: NonNullable<TreeProps['onDrop']> = async (info) => {
-    if (!onReorder) return;
+    if (!onReorder || !info.dragNode) return;
     const dragKey = Number(info.dragNode.key);
     const dropKey = Number(info.node.key);
     const dragRecord = structureResources.find((r) => r.id === dragKey);
@@ -370,23 +438,9 @@ const CourseResourceTree = ({
     await onReorder(reordered.map((r, idx) => ({ id: r.id, orderIndex: idx })));
   };
 
-  if (structureResources.length === 0) {
-    return (
-      <Card className="!rounded-xl border-slate-200 shadow-none">
-        <Empty
-          image={Empty.PRESENTED_IMAGE_SIMPLE}
-          description={
-            <span className="text-slate-400">
-              Chưa có Chương hoặc Bài học nào
-            </span>
-          }
-        />
-      </Card>
-    );
-  }
-
   const isAllExpanded =
     chapterKeys.length > 0 && expandedKeys.length >= chapterKeys.length;
+  const isCoursePoolSelected = selectedLessonId === null;
 
   return (
     <Card
@@ -395,28 +449,60 @@ const CourseResourceTree = ({
       title={
         <Space size={8}>
           <FolderOpenOutlined className="text-blue-600" />
-          <span className="font-bold text-slate-800 text-[14.5px]">
-            Chương & Bài học
+          <span className="font-semibold text-slate-800 text-[14.5px]">
+            Cấu trúc khóa học
           </span>
           <Tag
             color="blue"
-            className="!m-0 !rounded-full !text-[11px] font-semibold"
+            className="!m-0 !rounded-full !text-[11px] font-semibold tabular-nums"
           >
             {chapterKeys.length} chương
           </Tag>
         </Space>
       }
       extra={
-        chapterKeys.length > 0 && (
-          <Button
-            size="small"
-            type="text"
-            icon={isAllExpanded ? <ShrinkOutlined /> : <ArrowsAltOutlined />}
-            onClick={() => setExpandedKeys(isAllExpanded ? [] : chapterKeys)}
-            className="!text-slate-500 hover:!text-blue-600 !text-[12px]"
-          >
-            {isAllExpanded ? 'Thu gọn' : 'Mở rộng'}
-          </Button>
+        (chapterKeys.length > 0 || editable) && (
+          <Space size={6}>
+            {chapterKeys.length > 0 && (
+              <Tooltip title={isAllExpanded ? 'Thu gọn' : 'Mở rộng'}>
+                <Button
+                  size="small"
+                  type="text"
+                  icon={
+                    isAllExpanded ? <ShrinkOutlined /> : <ArrowsAltOutlined />
+                  }
+                  onClick={() => setExpandedKeys(isAllExpanded ? [] : chapterKeys)}
+                  className="!text-slate-500 hover:!text-blue-600"
+                />
+              </Tooltip>
+            )}
+
+            {editable && onAddChapter && (
+              <Tooltip title="Thêm chương">
+                <Button
+                  size="small"
+                  icon={<FolderAddOutlined />}
+                  onClick={onAddChapter}
+                >
+                  Chương
+                </Button>
+              </Tooltip>
+            )}
+
+            {editable && onAddHeaderLesson && (
+              <Tooltip title="Thêm bài học">
+                <Button
+                  size="small"
+                  type="primary"
+                  icon={<PlusOutlined />}
+                  disabled={!canAddLesson}
+                  onClick={onAddHeaderLesson}
+                >
+                  Bài học
+                </Button>
+              </Tooltip>
+            )}
+          </Space>
         )
       }
     >
@@ -467,18 +553,88 @@ const CourseResourceTree = ({
         }
       `}</style>
 
-      <div className="course-curriculum-tree">
-        <Tree
-          showIcon={false}
-          blockNode
-          selectable={false}
-          expandedKeys={expandedKeys}
-          onExpand={(keys) => setExpandedKeys(keys)}
-          draggable={draggable ? { icon: false } : false}
-          onDrop={handleDrop}
-          treeData={treeData}
-        />
+      {/* Mục cố định: Kho tài nguyên khóa học */}
+      <div className="pb-2.5 mb-2 border-b border-slate-100">
+        <div
+          onClick={() => onSelectCoursePool?.()}
+          className={`flex items-center justify-between gap-2 rounded-lg border px-2.5 py-2 cursor-pointer transition-all ${
+            isCoursePoolSelected
+              ? 'bg-indigo-50/90 border-indigo-500 shadow-[0_0_0_2px_rgba(99,102,241,0.1)]'
+              : 'bg-slate-50/70 border-slate-200/90 hover:border-indigo-300 hover:bg-indigo-50/30'
+          }`}
+        >
+          <div className="flex items-center gap-2 min-w-0">
+            <span
+              className={`w-6 h-6 rounded-md flex items-center justify-center shrink-0 text-[13px] transition-colors ${
+                isCoursePoolSelected
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-indigo-100 text-indigo-600'
+              }`}
+            >
+              <InboxOutlined />
+            </span>
+            <span
+              className={`text-[13.5px] truncate ${
+                isCoursePoolSelected
+                  ? 'font-semibold text-indigo-700'
+                  : 'font-medium text-slate-700'
+              }`}
+            >
+              Kho tài nguyên khóa học
+            </span>
+          </div>
+
+          <div className="flex items-center gap-1.5 shrink-0">
+            {unassignedCount > 0 && (
+              <span className="text-[11px] font-semibold tabular-nums px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200/80">
+                {unassignedCount} chưa gắn
+              </span>
+            )}
+            <span
+              className={`text-[11px] font-semibold tabular-nums px-2 py-0.5 rounded-full ${
+                isCoursePoolSelected
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-slate-200/80 text-slate-600'
+              }`}
+            >
+              {totalResourceCount}
+            </span>
+            <RightOutlined
+              className={`text-[11px] transition-transform ${
+                isCoursePoolSelected
+                  ? 'text-indigo-600 translate-x-0.5'
+                  : 'text-slate-300'
+              }`}
+            />
+          </div>
+        </div>
       </div>
+
+      {structureResources.length === 0 ? (
+        <div className="py-5">
+          <Empty
+            image={Empty.PRESENTED_IMAGE_SIMPLE}
+            description={
+              <span className="text-slate-400 text-[12.5px]">
+                Chưa có Chương hoặc Bài học nào
+              </span>
+            }
+          />
+        </div>
+      ) : (
+        <div className="course-curriculum-tree">
+          <Tree
+            showIcon={false}
+            blockNode
+            selectable={false}
+            expandedKeys={expandedKeys}
+            onExpand={(keys) => setExpandedKeys(keys)}
+            draggable={draggable ? { icon: false } : false}
+            onDrop={handleDrop}
+            treeData={treeData}
+          />
+        </div>
+      )}
     </Card>
   );
 };

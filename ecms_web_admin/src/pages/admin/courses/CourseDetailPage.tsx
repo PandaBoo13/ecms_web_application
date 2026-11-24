@@ -1,3 +1,4 @@
+// src/pages/admin/CourseDetailPage.tsx
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import {
@@ -5,12 +6,12 @@ import {
   Card,
   Space,
   Typography,
-  Alert,
   Row,
   Col,
   Button,
   Modal,
   Divider,
+  Tooltip,
 } from 'antd';
 import {
   RocketOutlined,
@@ -20,6 +21,10 @@ import {
   DollarOutlined,
   BookOutlined,
   CalendarOutlined,
+  ScheduleOutlined,
+  EditOutlined,
+  LockOutlined,
+  InfoCircleOutlined,
 } from '@ant-design/icons';
 import toast from 'react-hot-toast';
 
@@ -45,6 +50,14 @@ import { resolveMaxFinalScore } from '@/utils/courseScore';
 
 const { Text } = Typography;
 
+const extractErrorMessage = (err: unknown, fallback: string): string => {
+  const e = err as {
+    response?: { data?: { message?: string } };
+    message?: string;
+  };
+  return e?.response?.data?.message || e?.message || fallback;
+};
+
 const CourseDetailPage = () => {
   const { id } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
@@ -54,6 +67,9 @@ const CourseDetailPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isPublishing, setIsPublishing] = useState(false);
+  const [activeTab, setActiveTab] = useState<string>(
+    searchParams.get('tab') === 'enrollments' ? 'enrollments' : 'info',
+  );
 
   const fetchCourse = useCallback(
     async (isSilent = false) => {
@@ -72,9 +88,7 @@ const CourseDetailPage = () => {
         const data = await courseApi.getById(courseId);
         setCourse(data);
       } catch (err) {
-        setError(
-          (err as { message?: string })?.message || 'Không tải được khóa học',
-        );
+        setError(extractErrorMessage(err, 'Không tải được khóa học'));
       } finally {
         if (!isSilent) {
           setLoading(false);
@@ -94,11 +108,14 @@ const CourseDetailPage = () => {
 
   // ══════════════════════════════════════════════════════════════
   // XUẤT BẢN KHÓA HỌC (PUBLISHED)
+  // - OFFLINE: PLANNED -> finalizeSchedule -> PUBLISHED
+  // - ONLINE : PENDING_REVIEW -> review(true) -> PUBLISHED
   // ══════════════════════════════════════════════════════════════
   const handlePublishCourse = () => {
     if (!course) return;
 
-    const isPlannedOffline = course.status === 'PLANNED';
+    const isPlannedOffline =
+      course.status === 'PLANNED' && course.courseType === 'OFFLINE';
     const isPendingOnline =
       course.status === 'PENDING_REVIEW' && course.courseType === 'ONLINE';
 
@@ -106,7 +123,7 @@ const CourseDetailPage = () => {
 
     Modal.confirm({
       title: 'Xuất bản khóa học',
-      width: 460,
+      width: 480,
       content: (
         <div style={{ lineHeight: 1.6 }}>
           <p style={{ marginBottom: 8 }}>
@@ -114,7 +131,7 @@ const CourseDetailPage = () => {
           </p>
           <p style={{ color: '#64748b', marginBottom: 0 }}>
             {isPlannedOffline
-              ? 'Lịch học sẽ được khóa cố định và mở cổng đăng ký/đóng học phí cho học viên.'
+              ? 'Hệ thống sẽ kiểm tra xung đột lịch giảng viên/phòng học, chuyển các buổi học sang SCHEDULED và mở cổng đăng ký cho học viên.'
               : 'Khóa học ONLINE sẽ chuyển sang trạng thái PUBLISHED và mở tuyển sinh ngay.'}
           </p>
         </div>
@@ -133,10 +150,20 @@ const CourseDetailPage = () => {
           toast.success('Đã xuất bản khóa học thành công');
           handleSilentRefresh();
         } catch (err) {
-          toast.error(
-            (err as { message?: string })?.message ||
-              'Không thể xuất bản khóa học',
-          );
+          const msg = extractErrorMessage(err, 'Không thể xuất bản khóa học');
+          if (isPlannedOffline) {
+            Modal.error({
+              title: 'Chưa thể xuất bản khóa học OFFLINE',
+              width: 520,
+              content: (
+                <div style={{ whiteSpace: 'pre-line', lineHeight: 1.6 }}>
+                  {msg}
+                </div>
+              ),
+            });
+          } else {
+            toast.error(msg);
+          }
         } finally {
           setIsPublishing(false);
         }
@@ -159,8 +186,9 @@ const CourseDetailPage = () => {
             Xác nhận duyệt nội dung cho khóa học OFFLINE <b>{course.title}</b>?
           </p>
           <p style={{ color: '#64748b', marginBottom: 0 }}>
-            Khóa học sẽ chuyển sang trạng thái <b>PLANNED</b> để xếp lịch buổi
-            học, phòng học và giảng viên trước khi xuất bản.
+            Khóa học sẽ chuyển sang trạng thái <b>PLANNED</b> để cấu hình thời
+            gian, phòng học, giảng viên và sinh lịch buổi học trước khi xuất
+            bản.
           </p>
         </div>
       ),
@@ -171,12 +199,14 @@ const CourseDetailPage = () => {
         setIsPublishing(true);
         try {
           await courseApi.review(course.id, true);
-          toast.success('Đã duyệt nội dung, khóa học chuyển sang chờ xếp lịch');
+          toast.success('Đã duyệt nội dung, khóa học chuyển sang PLANNED');
+          if (course.courseType === 'OFFLINE') {
+            setActiveTab('sessions');
+          }
           handleSilentRefresh();
         } catch (err) {
           toast.error(
-            (err as { message?: string })?.message ||
-              'Không thể duyệt nội dung khóa học',
+            extractErrorMessage(err, 'Không thể duyệt nội dung khóa học'),
           );
         } finally {
           setIsPublishing(false);
@@ -197,16 +227,71 @@ const CourseDetailPage = () => {
   if (!course) return <ErrorState description="Không tìm thấy khóa học" />;
 
   const isOffline = course.courseType === 'OFFLINE';
-  const isLocked = ['ONGOING', 'FINISHED', 'CANCELLED'].includes(course.status);
+
+  // Đồng bộ với CourseServiceImpl.assertCanEditContent: chỉ cho phép sửa nội dung khi DRAFT
+  const isContentLocked = course.status !== 'DRAFT';
 
   const canPublish =
-    course.status === 'PLANNED' ||
+    (course.status === 'PLANNED' && isOffline) ||
     (course.status === 'PENDING_REVIEW' && !isOffline);
+
   const canApproveOfflineContent =
     course.status === 'PENDING_REVIEW' && isOffline;
 
   const totalSessionsExpected = course.totalSessionsExpected;
-  const currentSessionsCount = course.sessions?.length || 0;
+  const currentSessionsCount = (course.sessions || []).filter(
+    (s) => s.status !== 'CANCELLED',
+  ).length;
+
+  // Chú thích gọn trên header theo từng trạng thái khóa học
+  const statusHint = (() => {
+    switch (course.status) {
+      case 'DRAFT':
+        return {
+          icon: <EditOutlined className="text-blue-600" />,
+          text: 'Bản nháp • Có thể chỉnh sửa nội dung',
+          tooltip:
+            'Khóa học đang ở trạng thái nháp, có thể cập nhật cấu trúc chương, bài học và học liệu.',
+          className: 'text-slate-600 bg-slate-100/90 border-slate-200/80',
+        };
+      case 'PENDING_REVIEW':
+        return isOffline
+          ? {
+              icon: <ClockCircleOutlined className="text-amber-600" />,
+              text: 'Chờ duyệt giáo trình • Khóa sửa nội dung',
+              tooltip:
+                'Kiểm tra học liệu tại tab "Nội dung", sau đó bấm "Duyệt nội dung" ở góc phải để chuyển sang bước xếp lịch (PLANNED).',
+              className: 'text-amber-800 bg-amber-50/90 border-amber-200/80',
+            }
+          : {
+              icon: <ClockCircleOutlined className="text-amber-600" />,
+              text: 'Chờ duyệt xuất bản • Khóa sửa nội dung',
+              tooltip:
+                'Giáo trình khóa ONLINE đã hoàn tất. Bấm "Xuất bản khóa học" ở góc phải để mở cổng đăng ký.',
+              className: 'text-amber-800 bg-amber-50/90 border-amber-200/80',
+            };
+      case 'PLANNED':
+        return {
+          icon: <ScheduleOutlined className="text-indigo-600" />,
+          text: `Đã duyệt nội dung • Sẵn sàng xếp lịch (${currentSessionsCount}${totalSessionsExpected != null ? `/${totalSessionsExpected}` : ''} buổi)`,
+          tooltip:
+            'Nội dung giáo trình đã cố định. Hoàn tất giảng viên, phòng học và lịch buổi học tại tab "Buổi học" trước khi bấm "Xuất bản khóa học".',
+          className:
+            'text-indigo-700 bg-indigo-50/90 border-indigo-200/80 hover:bg-indigo-100/80',
+          onClick:
+            activeTab !== 'sessions'
+              ? () => setActiveTab('sessions')
+              : undefined,
+        };
+      default:
+        return {
+          icon: <LockOutlined className="text-slate-500" />,
+          text: 'Cố định cấu trúc & học liệu',
+          tooltip: `Khóa học đang ở trạng thái ${course.status}, học liệu được cố định để đảm bảo tính toàn vẹn dữ liệu.`,
+          className: 'text-slate-600 bg-slate-100/90 border-slate-200/80',
+        };
+    }
+  })();
 
   const statItems = [
     {
@@ -272,18 +357,12 @@ const CourseDetailPage = () => {
     {
       key: 'resources',
       label: `Nội dung (${course.resources?.length || 0})`,
-      children: isLocked ? (
-        <Alert
-          message="Nội dung đã khóa chỉnh sửa"
-          description={`Khóa học đang ở trạng thái ${course.status}, học liệu được cố định để đảm bảo tính toàn vẹn dữ liệu.`}
-          type="info"
-          showIcon
-        />
-      ) : (
+      children: (
         <ResourceManager
           courseId={courseId}
           resources={course.resources || []}
           onRefresh={handleSilentRefresh}
+          readOnly={isContentLocked}
         />
       ),
     },
@@ -342,13 +421,30 @@ const CourseDetailPage = () => {
       <PageHeader
         title={course.title}
         subtitle={
-          <Space size={8} wrap>
+          <div className="flex flex-wrap items-center gap-2 mt-0.5">
             <Text code style={{ margin: 0, fontSize: 12.5 }}>
               {course.code}
             </Text>
             <StatusTag status={course.status} />
             <StatusTag status={course.courseType} />
-          </Space>
+
+            <span className="text-slate-300 hidden sm:inline select-none">
+              |
+            </span>
+
+            <Tooltip title={statusHint.tooltip} placement="bottomLeft">
+              <span
+                onClick={statusHint.onClick}
+                className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[12px] font-medium transition-colors ${
+                  statusHint.onClick ? 'cursor-pointer' : 'cursor-help'
+                } ${statusHint.className}`}
+              >
+                {statusHint.icon}
+                <span>{statusHint.text}</span>
+                <InfoCircleOutlined className="text-[11px] opacity-60" />
+              </span>
+            </Tooltip>
+          </div>
         }
         backButton
         backTo="/admin/courses"
@@ -387,41 +483,6 @@ const CourseDetailPage = () => {
           </Space>
         }
       />
-
-      {/* Thông báo ngữ cảnh trạng thái (không lặp nút CTA) */}
-      {canPublish && (
-        <Alert
-          type="info"
-          showIcon
-          icon={<RocketOutlined />}
-          style={{
-            marginBottom: 16,
-            borderRadius: 8,
-            border: '1px solid #bae0ff',
-          }}
-          message="Khóa học đã sẵn sàng xuất bản"
-          description={
-            course.status === 'PLANNED'
-              ? 'Vui lòng rà soát danh sách buổi học, phòng học và giảng viên ở các tab bên dưới trước khi bấm "Xuất bản khóa học" ở góc trên.'
-              : 'Giáo trình khóa ONLINE đã hoàn tất. Sử dụng nút "Xuất bản khóa học" ở góc trên để mở cổng đăng ký.'
-          }
-        />
-      )}
-
-      {canApproveOfflineContent && (
-        <Alert
-          type="warning"
-          showIcon
-          icon={<ClockCircleOutlined />}
-          style={{
-            marginBottom: 16,
-            borderRadius: 8,
-            border: '1px solid #ffe58f',
-          }}
-          message="Khóa học OFFLINE đang chờ duyệt nội dung"
-          description='Kiểm tra học liệu tại tab "Nội dung", sau đó bấm "Duyệt nội dung" ở góc trên để chuyển sang bước xếp lịch buổi học (PLANNED).'
-        />
-      )}
 
       {/* Hàng thẻ thống kê chỉ số */}
       <Row gutter={[14, 14]} style={{ marginBottom: 18 }}>
@@ -476,9 +537,8 @@ const CourseDetailPage = () => {
         }}
       >
         <Tabs
-          defaultActiveKey={
-            searchParams.get('tab') === 'enrollments' ? 'enrollments' : 'info'
-          }
+          activeKey={activeTab}
+          onChange={setActiveTab}
           items={tabItems}
           moreIcon={null}
           tabBarStyle={{

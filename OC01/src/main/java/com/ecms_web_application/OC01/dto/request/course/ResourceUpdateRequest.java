@@ -11,6 +11,9 @@ import java.util.Map;
 
 @Setter @Getter
 public class ResourceUpdateRequest {
+    @Min(1) private Long parentId;
+    private Boolean detachParent;
+
     @Size(max = 255) private String title;
     private String description;
     @Min(0) private Integer orderIndex;

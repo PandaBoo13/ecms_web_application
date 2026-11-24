@@ -1,10 +1,10 @@
+// src/pages/instructor/InstructorSchedulePage.tsx
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Calendar,
   Card,
   Space,
-  Typography,
   Tooltip,
   Popover,
   Button,
@@ -13,6 +13,8 @@ import {
   DatePicker,
   Tag,
   Segmented,
+  Drawer,
+  Descriptions,
 } from 'antd';
 import type { CalendarProps } from 'antd';
 import {
@@ -21,6 +23,13 @@ import {
   CalendarOutlined,
   AppstoreOutlined,
   UnorderedListOutlined,
+  ReloadOutlined,
+  ClockCircleOutlined,
+  EnvironmentOutlined,
+  BookOutlined,
+  UserOutlined,
+  EditOutlined,
+  LinkOutlined,
 } from '@ant-design/icons';
 import dayjs, { type Dayjs } from 'dayjs';
 import 'dayjs/locale/vi';
@@ -28,51 +37,66 @@ import toast from 'react-hot-toast';
 
 import PageContainer from '@/components/common/PageContainer';
 import PageHeader from '@/components/common/PageHeader';
+import StatusTag from '@/components/common/StatusTag';
 import { sessionApi } from '@/services/api/course';
 import type { SessionResponse } from '@/services/types/course';
 import { SCHEDULE_TEMPLATES } from '@/constants/schedule-templates';
 
 dayjs.locale('vi');
 
-const { Text } = Typography;
-
 type ScheduleSessionItem = SessionResponse & {
   courseTitle?: string;
   courseName?: string;
   courseCode?: string;
+  meetingUrl?: string;
+  note?: string;
 };
 
-// ════════════════════════════════════════════════════════════════════
-// SHIFT ZONES — 3 khu vực cố định theo ca
-// ════════════════════════════════════════════════════════════════════
+type ViewMode = 'shift' | 'list';
 type ShiftKey = 'MORNING' | 'AFTERNOON' | 'EVENING';
 
 interface ShiftZone {
   key: ShiftKey;
   label: string;
-  color: string;
+  dotClass: string;
+  textClass: string;
 }
 
 const SHIFT_ZONES: ShiftZone[] = [
-  { key: 'MORNING', label: 'Sáng', color: '#d48806' },
-  { key: 'AFTERNOON', label: 'Chiều', color: '#08979c' },
-  { key: 'EVENING', label: 'Tối', color: '#531dab' },
+  {
+    key: 'MORNING',
+    label: 'Sáng',
+    dotClass: 'bg-amber-500',
+    textClass: 'text-amber-700',
+  },
+  {
+    key: 'AFTERNOON',
+    label: 'Chiều',
+    dotClass: 'bg-cyan-600',
+    textClass: 'text-cyan-700',
+  },
+  {
+    key: 'EVENING',
+    label: 'Tối',
+    dotClass: 'bg-violet-600',
+    textClass: 'text-violet-700',
+  },
 ];
 
 const MAX_PER_ZONE = 2;
 const MAX_LIST_ITEMS = 4;
 
 // ════════════════════════════════════════════════════════════════════
-// Helpers
+// HELPERS
 // ════════════════════════════════════════════════════════════════════
-const getShiftName = (startTime: string, endTime: string) => {
+const getShiftName = (startTime: string, endTime: string): string => {
   const start = dayjs(startTime).format('HH:mm');
   const end = dayjs(endTime).format('HH:mm');
 
   const found = Object.values(SCHEDULE_TEMPLATES).find(
     (tpl) => tpl.start === start && tpl.end === end,
   );
-  return found ? found.label : `Ca ${start} - ${end}`;
+  return found ? found.label : `Ca ${start} – ${end}`;
 };
 
 const getShiftKey = (startTime: string, endTime: string): ShiftKey => {
@@ -88,10 +112,10 @@ const getShiftKey = (startTime: string, endTime: string): ShiftKey => {
   ).find((t) => t.start === startStr && t.end === endStr);
 
   if (tpl?.label) {
-    const l = tpl.label.toLowerCase();
-    if (l.includes('sáng') || l.includes('sang')) return 'MORNING';
-    if (l.includes('chiều') || l.includes('chieu')) return 'AFTERNOON';
-    if (l.includes('tối') || l.includes('toi')) return 'EVENING';
+    const lower = tpl.label.toLowerCase();
+    if (lower.includes('sáng') || lower.includes('sang')) return 'MORNING';
+    if (lower.includes('chiều') || lower.includes('chieu')) return 'AFTERNOON';
+    if (lower.includes('tối') || lower.includes('toi')) return 'EVENING';
   }
 
   const hour = dayjs(startTime).hour();
@@ -100,26 +124,59 @@ const getShiftKey = (startTime: string, endTime: string): ShiftKey => {
   return 'EVENING';
 };
 
-const getStatusBadge = (status?: string) => {
+const getStatusStyle = (status?: string, isSubstitute?: boolean) => {
+  if (status === 'CANCELLED') {
+    return {
+      label: 'Đã hủy',
+      containerClass:
+        'bg-slate-50/90 border-slate-200/90 border-l-slate-400 opacity-75',
+      timeClass: 'text-slate-400 line-through',
+    };
+  }
+
+  if (isSubstitute) {
+    return {
+      label:
+        status === 'COMPLETED'
+          ? 'Đã dạy xong'
+          : status === 'ONGOING'
+            ? 'Đang diễn ra'
+            : 'Sắp diễn ra',
+      containerClass:
+        'bg-orange-50/60 hover:bg-orange-50 border-orange-200/80 border-l-orange-500',
+      timeClass: 'text-orange-700',
+    };
+  }
+
   switch (status) {
-    case 'SCHEDULED':
-      return { label: 'Sắp diễn ra', color: '#1677ff', bg: '#e6f4ff' };
     case 'ONGOING':
-      return { label: 'Đang diễn ra', color: '#08979c', bg: '#e6fffb' };
+      return {
+        label: 'Đang diễn ra',
+        containerClass:
+          'bg-cyan-50/60 hover:bg-cyan-50 border-cyan-200/80 border-l-cyan-600',
+        timeClass: 'text-cyan-700',
+      };
     case 'COMPLETED':
-      return { label: 'Đã dạy xong', color: '#389e0d', bg: '#f6ffed' };
-    case 'CANCELLED':
-      return { label: 'Đã hủy', color: '#8c8c8c', bg: '#f5f5f5' };
+      return {
+        label: 'Đã dạy xong',
+        containerClass:
+          'bg-emerald-50/60 hover:bg-emerald-50 border-emerald-200/80 border-l-emerald-600',
+        timeClass: 'text-emerald-700',
+      };
+    case 'SCHEDULED':
     default:
-      return { label: status || 'Không rõ', color: '#595959', bg: '#fafafa' };
+      return {
+        label: status === 'SCHEDULED' ? 'Sắp diễn ra' : status || 'Không rõ',
+        containerClass:
+          'bg-blue-50/60 hover:bg-blue-50 border-blue-200/80 border-l-blue-600',
+        timeClass: 'text-blue-700',
+      };
   }
 };
 
 // ════════════════════════════════════════════════════════════════════
-// PAGE
+// MAIN PAGE
 // ════════════════════════════════════════════════════════════════════
-type ViewMode = 'shift' | 'list';
-
 const InstructorSchedulePage = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -128,6 +185,8 @@ const InstructorSchedulePage = () => {
   const [loading, setLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string | undefined>();
   const [viewMode, setViewMode] = useState<ViewMode>('shift');
+  const [detailSession, setDetailSession] =
+    useState<ScheduleSessionItem | null>(null);
 
   const dateStr = useMemo(() => {
     const raw = searchParams.get('date');
@@ -185,43 +244,39 @@ const InstructorSchedulePage = () => {
     return sessions.filter((s) => s.status === statusFilter);
   }, [sessions, statusFilter]);
 
-  const handleGoToCourseDetail = (session: ScheduleSessionItem) => {
-    if (!session.courseId) {
-      toast.error('Không tìm thấy thông tin khóa học');
-      return;
-    }
-    navigate(`/instructor/courses/${session.courseId}/edit`);
-  };
+  const handleGoToCourseDetail = useCallback(
+    (session: ScheduleSessionItem) => {
+      if (!session.courseId) {
+        toast.error('Không tìm thấy thông tin khóa học');
+        return;
+      }
+      navigate(`/instructor/courses/${session.courseId}/edit`);
+    },
+    [navigate],
+  );
 
   // ══════════════════════════════════════════════════════════════
-  // RENDER — Compact Session Chip (2 dòng gọn gàng, không gây tràn ô)
+  // RENDER — Compact Session Chip
   // ══════════════════════════════════════════════════════════════
   const renderSessionChip = (session: ScheduleSessionItem) => {
     const isCancelled = session.status === 'CANCELLED';
     const isSubstitute = Boolean(session.substituteTeacherId);
-    const statusMeta = getStatusBadge(session.status);
+    const styleMeta = getStatusStyle(session.status, isSubstitute);
     const roomText =
       session.effectiveRoomName || session.roomName || 'Chưa xếp phòng';
     const courseLabel =
       session.courseTitle || session.courseName || session.courseCode || '';
-
-    let accentColor = statusMeta.color;
-    if (!isCancelled && isSubstitute) {
-      accentColor = '#fa8c16';
-    }
 
     return (
       <Tooltip
         key={session.id}
         mouseEnterDelay={0.25}
         title={
-          <div style={{ lineHeight: 1.6, fontSize: 12 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 2 }}>
-              {session.title}
-            </div>
+          <div className="space-y-1 text-xs leading-relaxed">
+            <div className="text-[13px] font-bold">{session.title}</div>
             {courseLabel && (
               <div>
-                Khóa học: <b>{courseLabel}</b>
+                Khóa học: <span className="font-semibold">{courseLabel}</span>
                 {session.courseCode ? ` (${session.courseCode})` : ''}
               </div>
             )}
@@ -231,135 +286,88 @@ const InstructorSchedulePage = () => {
               {dayjs(session.endTime).format('HH:mm')})
             </div>
             <div>Phòng: {roomText}</div>
-            <div>Trạng thái: {statusMeta.label}</div>
+            <div>Trạng thái: {styleMeta.label}</div>
             {isSubstitute && (
-              <div style={{ color: '#ffc069', fontWeight: 600 }}>
+              <div className="font-semibold text-amber-300">
                 • Bạn đang dạy thay buổi này
               </div>
             )}
-            {session.courseId && (
-              <div style={{ fontSize: 11, color: '#91caff', marginTop: 4 }}>
-                Bấm vào tên khóa học để mở chi tiết
-              </div>
-            )}
+            <div className="pt-0.5 text-[11px] text-sky-300">
+              Bấm để xem chi tiết • Bấm đúp để mở khóa học
+            </div>
           </div>
         }
       >
         <div
-          style={{
-            padding: '4px 6px',
-            borderRadius: 5,
-            backgroundColor: isCancelled ? '#f8fafc' : `${accentColor}0f`,
-            border: `1px solid ${isCancelled ? '#e2e8f0' : `${accentColor}30`}`,
-            borderLeft: `3px solid ${accentColor}`,
-            opacity: isCancelled ? 0.72 : 1,
-            transition: 'background-color 0.15s ease',
+          role="button"
+          tabIndex={0}
+          onClick={(e) => {
+            e.stopPropagation();
+            setDetailSession(session);
           }}
+          onDoubleClick={(e) => {
+            e.stopPropagation();
+            handleGoToCourseDetail(session);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              e.stopPropagation();
+              setDetailSession(session);
+            }
+          }}
+          className={`px-1.5 py-1 rounded-md border border-l-[3px] cursor-pointer transition-colors ${styleMeta.containerClass}`}
         >
           {/* Dòng 1: Giờ + Dạy thay + Phòng */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: 4,
-              lineHeight: 1.2,
-              marginBottom: 2,
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <div className="flex items-center justify-between gap-1 leading-tight mb-0.5">
+            <div className="flex items-center gap-1 min-w-0">
               <span
-                style={{
-                  fontSize: 10.5,
-                  fontWeight: 700,
-                  color: isCancelled ? '#8c8c8c' : accentColor,
-                  textDecoration: isCancelled ? 'line-through' : 'none',
-                  whiteSpace: 'nowrap',
-                }}
+                className={`text-[10.5px] font-bold whitespace-nowrap ${styleMeta.timeClass}`}
               >
                 {dayjs(session.startTime).format('HH:mm')}–
                 {dayjs(session.endTime).format('HH:mm')}
               </span>
 
               {isSubstitute && !isCancelled && (
-                <span
-                  style={{
-                    fontSize: 9,
-                    fontWeight: 700,
-                    color: '#d46b08',
-                    backgroundColor: '#fff7e6',
-                    border: '1px solid #ffd591',
-                    borderRadius: 3,
-                    padding: '0 3px',
-                    lineHeight: '13px',
-                  }}
-                >
+                <span className="px-1 rounded text-[9px] font-bold leading-[13px] text-orange-700 bg-orange-100/90 border border-orange-200 shrink-0">
                   Thay
                 </span>
               )}
             </div>
 
-            <span
-              style={{
-                fontSize: 10,
-                color: '#64748b',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                maxWidth: 72,
-              }}
-            >
+            <span className="text-[10px] text-slate-500 whitespace-nowrap truncate max-w-[74px]">
               {roomText}
             </span>
           </div>
 
           {/* Dòng 2: Tên khóa (clickable) + Tên buổi */}
           <div
-            style={{
-              fontSize: 11,
-              lineHeight: 1.25,
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              color: isCancelled ? '#8c8c8c' : '#1e293b',
-              textDecoration: isCancelled ? 'line-through' : 'none',
-            }}
+            className={`text-[11px] leading-tight truncate ${
+              isCancelled ? 'text-slate-400 line-through' : 'text-slate-800'
+            }`}
           >
             {courseLabel ? (
               <>
                 <span
-                  role={session.courseId ? 'button' : undefined}
-                  tabIndex={session.courseId ? 0 : undefined}
                   onClick={(e) => {
+                    if (!session.courseId) return;
                     e.stopPropagation();
                     handleGoToCourseDetail(session);
                   }}
-                  onKeyDown={(e) => {
-                    if (
-                      session.courseId &&
-                      (e.key === 'Enter' || e.key === ' ')
-                    ) {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      handleGoToCourseDetail(session);
-                    }
-                  }}
-                  style={{
-                    fontWeight: 600,
-                    color: isCancelled
-                      ? '#8c8c8c'
+                  className={`font-semibold ${
+                    isCancelled
+                      ? 'text-slate-400'
                       : session.courseId
-                        ? '#1677ff'
-                        : '#0f172a',
-                    cursor: session.courseId ? 'pointer' : 'default',
-                  }}
+                        ? 'text-blue-600 hover:underline'
+                        : 'text-slate-900'
+                  }`}
                 >
                   {courseLabel}
                 </span>
-                <span style={{ color: '#64748b' }}> · {session.title}</span>
+                <span className="text-slate-500"> · {session.title}</span>
               </>
             ) : (
-              <span style={{ fontWeight: 600 }}>{session.title}</span>
+              <span className="font-semibold">{session.title}</span>
             )}
           </div>
         </div>
@@ -378,17 +386,12 @@ const InstructorSchedulePage = () => {
     <Popover
       trigger="click"
       placement="bottomLeft"
-      title={<span style={{ fontSize: 12.5 }}>{title}</span>}
+      title={
+        <span className="text-xs font-semibold text-slate-800">{title}</span>
+      }
       content={
         <div
-          style={{
-            width: 260,
-            maxHeight: 280,
-            overflowY: 'auto',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 5,
-          }}
+          className="w-64 max-h-72 overflow-y-auto flex flex-col gap-1.5 pr-0.5"
           onClick={(e) => e.stopPropagation()}
         >
           {allItems.map((s) => renderSessionChip(s))}
@@ -397,17 +400,7 @@ const InstructorSchedulePage = () => {
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        style={{
-          fontSize: 10.5,
-          color: '#1677ff',
-          fontWeight: 600,
-          padding: '2px 6px',
-          borderRadius: 4,
-          backgroundColor: '#f0f7ff',
-          cursor: 'pointer',
-          textAlign: 'center',
-          marginTop: 2,
-        }}
+        className="mt-0.5 px-1.5 py-0.5 rounded bg-blue-50 hover:bg-blue-100/80 text-[10.5px] font-semibold text-blue-600 text-center cursor-pointer transition-colors"
       >
         +{hiddenCount} buổi khác
       </div>
@@ -432,14 +425,7 @@ const InstructorSchedulePage = () => {
     });
 
     return (
-      <div
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 6,
-          marginTop: 4,
-        }}
-      >
+      <div className="flex flex-col gap-1.5 mt-1">
         {SHIFT_ZONES.map((zone) => {
           const items = grouped[zone.key];
           if (items.length === 0) return null;
@@ -450,34 +436,18 @@ const InstructorSchedulePage = () => {
           return (
             <div key={zone.key}>
               <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 4,
-                  marginBottom: 3,
-                  fontSize: 10,
-                  fontWeight: 700,
-                  color: zone.color,
-                  letterSpacing: 0.3,
-                  lineHeight: 1.1,
-                }}
+                className={`flex items-center gap-1 mb-0.5 text-[10px] font-bold tracking-wide leading-none ${zone.textClass}`}
               >
                 <span
-                  style={{
-                    width: 6,
-                    height: 6,
-                    borderRadius: '50%',
-                    backgroundColor: zone.color,
-                    flexShrink: 0,
-                  }}
+                  className={`w-1.5 h-1.5 rounded-full shrink-0 ${zone.dotClass}`}
                 />
                 <span>{zone.label}</span>
-                <span style={{ color: '#94a3b8', fontWeight: 500 }}>
+                <span className="text-slate-400 font-medium">
                   ({items.length})
                 </span>
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <div className="flex flex-col gap-1">
                 {visible.map((s) => renderSessionChip(s))}
               </div>
 
@@ -505,14 +475,7 @@ const InstructorSchedulePage = () => {
     const overflow = daySessions.length - visible.length;
 
     return (
-      <div
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 4,
-          marginTop: 4,
-        }}
-      >
+      <div className="flex flex-col gap-1 mt-1">
         {visible.map((s) => renderSessionChip(s))}
         {overflow > 0 &&
           renderOverflowTrigger(
@@ -543,16 +506,22 @@ const InstructorSchedulePage = () => {
       : renderListMode(date, daySessions);
   };
 
+  const detailCourseLabel = detailSession
+    ? detailSession.courseTitle || detailSession.courseName || '—'
+    : '';
+  const detailRoomText = detailSession
+    ? detailSession.effectiveRoomName || detailSession.roomName
+    : undefined;
+
   // ══════════════════════════════════════════════════════════════
   // RENDER — Page
   // ══════════════════════════════════════════════════════════════
   return (
     <PageContainer>
-      {/* CSS gỡ scrollbar nội bộ trong ô Calendar & tinh chỉnh khoảng cách */}
       <style>{`
         .instructor-schedule-calendar .ant-picker-cell-inner.ant-picker-calendar-date {
           height: auto !important;
-          min-height: 96px;
+          min-height: 98px;
           padding: 4px 6px 6px !important;
           margin: 0 !important;
         }
@@ -576,12 +545,15 @@ const InstructorSchedulePage = () => {
       <PageHeader
         title="Lịch giảng dạy"
         subtitle={
-          <Space size={8}>
-            <span>Theo dõi lịch dạy theo tháng</span>
-            <Tag color="blue" style={{ marginInlineEnd: 0 }}>
+          <div className="flex flex-wrap items-center gap-2 mt-0.5">
+            <span>Theo dõi lịch đứng lớp, ca dạy và phòng học theo tháng</span>
+            <Tag
+              color="blue"
+              className="!m-0 !rounded-full !text-xs !font-medium px-2.5"
+            >
               Tháng {currentDate.format('MM/YYYY')}
             </Tag>
-          </Space>
+          </div>
         }
         extra={
           <Space wrap size={8}>
@@ -603,9 +575,9 @@ const InstructorSchedulePage = () => {
             />
 
             <Select
-              placeholder="Trạng thái"
+              placeholder="Lọc trạng thái"
               allowClear
-              style={{ width: 145 }}
+              className="w-40"
               value={statusFilter}
               onChange={setStatusFilter}
               options={[
@@ -615,6 +587,15 @@ const InstructorSchedulePage = () => {
                 { value: 'CANCELLED', label: 'Đã hủy' },
               ]}
             />
+
+            {statusFilter && (
+              <Button
+                onClick={() => setStatusFilter(undefined)}
+                className="!rounded-lg"
+              >
+                Xóa lọc
+              </Button>
+            )}
 
             <Space.Compact>
               <Button
@@ -638,108 +619,69 @@ const InstructorSchedulePage = () => {
               format="DD/MM/YYYY"
               allowClear={false}
               suffixIcon={<CalendarOutlined />}
-              style={{ width: 136 }}
+              className="w-36 !rounded-lg"
             />
+
+            <Tooltip title="Làm mới lịch giảng dạy">
+              <Button
+                icon={<ReloadOutlined spin={loading} />}
+                onClick={() => {
+                  fetchSchedule(currentDate);
+                  toast.success('Đã làm mới lịch dạy');
+                }}
+                className="!rounded-lg"
+              />
+            </Tooltip>
           </Space>
         }
       />
 
       <Card
-        variant="borderless"
         styles={{ body: { padding: '16px 20px' } }}
-        style={{
-          position: 'relative',
-          borderRadius: 10,
-          boxShadow: '0 1px 3px rgba(15, 23, 42, 0.08)',
-        }}
+        className="relative !rounded-xl border-slate-200/90 shadow-none overflow-hidden"
       >
         {loading && (
-          <div
-            style={{
-              position: 'absolute',
-              inset: 0,
-              background: 'rgba(255,255,255,0.65)',
-              zIndex: 10,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              borderRadius: 10,
-            }}
-          >
-            <Spin size="large" tip="Đang tải lịch..." />
+          <div className="absolute inset-0 z-10 bg-white/70 backdrop-blur-[1px] flex flex-col items-center justify-center gap-2.5">
+            <Spin size="large" />
+            <span className="text-xs font-medium text-slate-500">
+              Đang tải lịch giảng dạy...
+            </span>
           </div>
         )}
 
-        {/* Thanh chú thích gọn */}
-        <div
-          style={{
-            marginBottom: 14,
-            padding: '8px 12px',
-            backgroundColor: '#f8fafc',
-            borderRadius: 8,
-            border: '1px solid #f1f5f9',
-            display: 'flex',
-            gap: 16,
-            flexWrap: 'wrap',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-          }}
-        >
-          <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'center' }}>
+        {/* Thanh chú thích trạng thái & ca học */}
+        <div className="mb-3.5 px-3.5 py-2.5 rounded-xl bg-slate-50/80 border border-slate-200/80 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-4">
             {[
-              { label: 'Sắp diễn ra', color: '#1677ff' },
-              { label: 'Đang diễn ra', color: '#08979c' },
-              { label: 'Đã dạy xong', color: '#389e0d' },
-              { label: 'Dạy thay', color: '#fa8c16' },
-              { label: 'Đã hủy', color: '#8c8c8c' },
+              { label: 'Sắp diễn ra', dotClass: 'bg-blue-600' },
+              { label: 'Đang diễn ra', dotClass: 'bg-cyan-600' },
+              { label: 'Đã dạy xong', dotClass: 'bg-emerald-600' },
+              { label: 'Dạy thay', dotClass: 'bg-orange-500' },
+              { label: 'Đã hủy', dotClass: 'bg-slate-400' },
             ].map((item) => (
               <span
                 key={item.label}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  fontSize: 12,
-                  color: '#475569',
-                }}
+                className="inline-flex items-center gap-1.5 text-xs text-slate-600"
               >
                 <span
-                  style={{
-                    width: 8,
-                    height: 8,
-                    borderRadius: 2,
-                    backgroundColor: item.color,
-                    display: 'inline-block',
-                  }}
+                  className={`w-2 h-2 rounded-sm inline-block ${item.dotClass}`}
                 />
                 {item.label}
               </span>
             ))}
           </div>
 
-          <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-            <Text type="secondary" style={{ fontSize: 11.5 }}>
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="text-[11.5px] font-medium text-slate-400">
               Ca học:
-            </Text>
+            </span>
             {SHIFT_ZONES.map((z) => (
               <span
                 key={z.key}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 5,
-                  fontSize: 12,
-                  fontWeight: 500,
-                  color: '#334155',
-                }}
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-700"
               >
                 <span
-                  style={{
-                    width: 7,
-                    height: 7,
-                    borderRadius: '50%',
-                    backgroundColor: z.color,
-                  }}
+                  className={`w-2 h-2 rounded-full inline-block ${z.dotClass}`}
                 />
                 {z.label}
               </span>
@@ -757,6 +699,215 @@ const InstructorSchedulePage = () => {
           />
         </div>
       </Card>
+
+      {/* Drawer Chi tiết buổi giảng dạy 720px */}
+      <Drawer
+        placement="right"
+        width={720}
+        open={Boolean(detailSession)}
+        onClose={() => setDetailSession(null)}
+        destroyOnClose
+        className="[&_.ant-drawer-header-title]:min-w-0 [&_.ant-drawer-title]:min-w-0 [&_.ant-drawer-extra]:shrink-0"
+        title={
+          detailSession && (
+            <div className="flex items-center gap-3.5 min-w-0 pr-2">
+              <div className="w-11 h-11 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 text-lg">
+                <CalendarOutlined />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div
+                  title={detailSession.title}
+                  className="text-[16.5px] font-bold text-slate-900 leading-snug truncate"
+                >
+                  {detailSession.title}
+                </div>
+                <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                  <StatusTag status={detailSession.status} />
+                  {detailSession.substituteTeacherId ? (
+                    <Tag
+                      color="warning"
+                      className="!m-0 !rounded !text-xs !font-medium"
+                    >
+                      Dạy thay
+                    </Tag>
+                  ) : (
+                    <Tag
+                      color="processing"
+                      className="!m-0 !rounded !text-xs !font-medium"
+                    >
+                      GV chính
+                    </Tag>
+                  )}
+                  {detailSession.courseCode && (
+                    <Tag className="!m-0 !font-mono !text-xs !rounded !bg-slate-50 !border-slate-200 !text-slate-600">
+                      {detailSession.courseCode}
+                    </Tag>
+                  )}
+                </div>
+              </div>
+            </div>
+          )
+        }
+        extra={
+          <Button
+            onClick={() => setDetailSession(null)}
+            className="!rounded-lg"
+          >
+            Đóng
+          </Button>
+        }
+        footer={
+          detailSession && (
+            <div className="flex items-center justify-between gap-3">
+              <Button
+                onClick={() => setDetailSession(null)}
+                className="!rounded-lg"
+              >
+                Đóng
+              </Button>
+              {detailSession.courseId && (
+                <Button
+                  type="primary"
+                  icon={<EditOutlined />}
+                  onClick={() => {
+                    const targetSession = detailSession;
+                    setDetailSession(null);
+                    handleGoToCourseDetail(targetSession);
+                  }}
+                  className="!rounded-lg !font-medium"
+                >
+                  Mở trang khóa học
+                </Button>
+              )}
+            </div>
+          )
+        }
+      >
+        {detailSession && (
+          <div className="flex flex-col gap-4 pt-1">
+            <Card
+              size="small"
+              title="Thông tin buổi giảng dạy"
+              styles={{ body: { padding: '16px 20px 4px' } }}
+              className="!bg-white !border-slate-200/80 !rounded-xl"
+            >
+              <Descriptions
+                column={{ xs: 1, sm: 2 }}
+                size="small"
+                styles={{
+                  label: { paddingBottom: 14, color: '#64748b' },
+                  content: { paddingBottom: 14 },
+                }}
+              >
+                <Descriptions.Item
+                  span={2}
+                  label={
+                    <Space size={6}>
+                      <BookOutlined /> Khóa học
+                    </Space>
+                  }
+                >
+                  <span className="font-semibold text-slate-800">
+                    {detailCourseLabel}
+                  </span>
+                </Descriptions.Item>
+
+                <Descriptions.Item
+                  label={
+                    <Space size={6}>
+                      <CalendarOutlined /> Ngày giảng dạy
+                    </Space>
+                  }
+                >
+                  <span className="font-semibold text-blue-600">
+                    {dayjs(detailSession.startTime).format('DD/MM/YYYY')}
+                  </span>
+                </Descriptions.Item>
+
+                <Descriptions.Item
+                  label={
+                    <Space size={6}>
+                      <ClockCircleOutlined /> Ca & Khung giờ
+                    </Space>
+                  }
+                >
+                  <span className="font-medium text-slate-800">
+                    {getShiftName(
+                      detailSession.startTime,
+                      detailSession.endTime,
+                    )}{' '}
+                    ({dayjs(detailSession.startTime).format('HH:mm')} –{' '}
+                    {dayjs(detailSession.endTime).format('HH:mm')})
+                  </span>
+                </Descriptions.Item>
+
+                <Descriptions.Item
+                  label={
+                    <Space size={6}>
+                      <EnvironmentOutlined /> Phòng học
+                    </Space>
+                  }
+                >
+                  {detailRoomText ? (
+                    <Tag className="!m-0 !rounded !bg-slate-50 !border-slate-200 !text-slate-700 !font-medium">
+                      {detailRoomText}
+                    </Tag>
+                  ) : (
+                    <span className="text-slate-400 italic">
+                      Chưa xếp phòng
+                    </span>
+                  )}
+                </Descriptions.Item>
+
+                <Descriptions.Item
+                  label={
+                    <Space size={6}>
+                      <UserOutlined /> Vai trò giảng dạy
+                    </Space>
+                  }
+                >
+                  {detailSession.substituteTeacherId
+                    ? 'Giảng viên dạy thay'
+                    : 'Giảng viên phụ trách chính'}
+                </Descriptions.Item>
+
+                {detailSession.meetingUrl && (
+                  <Descriptions.Item
+                    span={2}
+                    label={
+                      <Space size={6}>
+                        <LinkOutlined /> Liên kết trực tuyến
+                      </Space>
+                    }
+                  >
+                    <a
+                      href={detailSession.meetingUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-blue-600 hover:underline break-all"
+                    >
+                      {detailSession.meetingUrl}
+                    </a>
+                  </Descriptions.Item>
+                )}
+              </Descriptions>
+            </Card>
+
+            {detailSession.note && (
+              <Card
+                size="small"
+                title="Ghi chú buổi học"
+                styles={{ body: { padding: '14px 20px' } }}
+                className="!bg-white !border-slate-200/80 !rounded-xl"
+              >
+                <div className="text-[13.5px] text-slate-600 leading-relaxed whitespace-pre-line">
+                  {detailSession.note}
+                </div>
+              </Card>
+            )}
+          </div>
+        )}
+      </Drawer>
     </PageContainer>
   );
 };

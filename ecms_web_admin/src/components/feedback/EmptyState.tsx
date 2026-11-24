@@ -1,3 +1,4 @@
+// src/components/common/EmptyState.tsx
 import { Empty } from 'antd';
 import type { ReactNode } from 'react';
 import { useTranslation } from '@/hooks/useTranslation';
@@ -9,39 +10,30 @@ interface Props {
   image?: string;
 }
 
-const EmptyState = ({
-  title,
-  description,
-  action,
-}: Props) => {
+const EmptyState = ({ title, description, action, image }: Props) => {
   const { t } = useTranslation();
   const displayTitle = title || t('common.noData');
 
   return (
-    <div
-      style={{
-        padding: '48px 24px',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}
-    >
+    <div className="py-12 px-6 flex flex-col items-center justify-center text-center">
       <Empty
-      description={
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: 16, fontWeight: 500, color: '#262626', marginBottom: 4 }}>
-            {displayTitle}
+        image={image ?? Empty.PRESENTED_IMAGE_SIMPLE}
+        description={
+          <div className="flex flex-col items-center gap-1 mt-1">
+            <div className="text-[15px] font-semibold text-slate-800">
+              {displayTitle}
+            </div>
+            {description && (
+              <div className="text-[13px] text-slate-500 max-w-md leading-relaxed">
+                {description}
+              </div>
+            )}
           </div>
-          {description && (
-            <div style={{ fontSize: 14, color: '#8c8c8c' }}>{description}</div>
-          )}
-        </div>
-      }
-    >
-      {action}
-    </Empty>
-  </div>
+        }
+      >
+        {action && <div className="mt-2">{action}</div>}
+      </Empty>
+    </div>
   );
 };
 

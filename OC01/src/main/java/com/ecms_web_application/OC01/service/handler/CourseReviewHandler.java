@@ -1,9 +1,11 @@
 package com.ecms_web_application.OC01.service.handler;
 
 import com.ecms_web_application.OC01.config.SecurityUtils;
+import com.ecms_web_application.OC01.dto.request.NotificationRequest;
 import com.ecms_web_application.OC01.dto.request.request.RequestCreateRequest;
 import com.ecms_web_application.OC01.dto.request.request.RequestReviewRequest;
 import com.ecms_web_application.OC01.dto.response.course.CourseConflictDetail;
+import com.ecms_web_application.OC01.entity.Account;
 import com.ecms_web_application.OC01.entity.course.Course;
 import com.ecms_web_application.OC01.entity.enums.CourseStatus;
 import com.ecms_web_application.OC01.entity.enums.CourseType;
@@ -11,16 +13,21 @@ import com.ecms_web_application.OC01.entity.enums.RequestType;
 import com.ecms_web_application.OC01.entity.enums.ResourceType;
 import com.ecms_web_application.OC01.entity.request.Request;
 import com.ecms_web_application.OC01.exception.ErrorHandler;
+import com.ecms_web_application.OC01.repository.AccountRepository;
 import com.ecms_web_application.OC01.repository.CourseRepository;
 import com.ecms_web_application.OC01.repository.CourseResourceRepository;
 import com.ecms_web_application.OC01.service.CourseConflictService;
+import com.ecms_web_application.OC01.service.NotificationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
@@ -51,6 +58,8 @@ public class CourseReviewHandler implements RequestHandler {
     private final CourseRepository courseRepository;
     private final CourseResourceRepository resourceRepository;
     private final CourseConflictService courseConflictService;
+    private final AccountRepository accountRepository;
+    private final NotificationService notificationService;
 
     @Override
     public RequestType supportedType() {
@@ -113,9 +122,6 @@ public class CourseReviewHandler implements RequestHandler {
         }
 
         // ── Teacher (bắt buộc cả ONLINE và OFFLINE) ──
-        // Lý do: Admin cần biết ai dạy để duyệt nội dung; generate-session
-        // sau này cũng cần teacher. Nếu admin tạo COURSE không có teacher,
-        // phải gán qua PATCH /api/courses/{id}/teacher trước khi submit.
         if (c.getTeacher() == null) {
             throw new ErrorHandler(HttpStatus.BAD_REQUEST,
                     "Cần gán giảng viên chính trước khi gửi duyệt");
@@ -143,15 +149,10 @@ public class CourseReviewHandler implements RequestHandler {
                         "Khóa OFFLINE cần ít nhất 1 RESOURCE (Chapter/Lesson/Quiz)");
             }
         }
-
-        // ⚠️ KHÔNG kiểm tra start_date, end_date, schedule_days,
-        // session_start_time, session_end_time, min_students, max_students,
-        // total_sessions_expected, room_id — đó là việc của ACADEMIC_ADMIN
-        // xếp lịch ở giai đoạn PLANNED. Đã validate trong finalizeSchedule().
     }
 
     // ============================================================
-    // onCreate — DRAFT → PENDING_REVIEW
+    // onCreate — DRAFT → PENDING_REVIEW + Lưu & gửi thông báo ADMIN
     // ============================================================
     @Override
     public void onCreate(Request request, RequestCreateRequest req) {
@@ -165,12 +166,61 @@ public class CourseReviewHandler implements RequestHandler {
                             + c.getStatus() + ")");
         }
         c.setStatus(CourseStatus.PENDING_REVIEW);
-        courseRepository.save(c);
-        log.info("[CourseReviewHandler] DRAFT → PENDING_REVIEW, courseId={}", c.getId());
+        Course savedCourse = courseRepository.save(c);
+        log.info("[CourseReviewHandler] DRAFT → PENDING_REVIEW, courseId={}", savedCourse.getId());
+
+        // Chạy trực tiếp trong transaction của RequestServiceImpl.create() để commit xuống DB
+        notifyAdminsOnCourseSubmitted(request, savedCourse);
+    }
+
+    private void notifyAdminsOnCourseSubmitted(Request request, Course course) {
+        try {
+            Long requesterId = request.getRequesterId();
+            List<Long> adminIds = accountRepository.findByRoleCode("ADMIN").stream()
+                    .filter(a -> Boolean.TRUE.equals(a.getIsActive()) && a.getDeletedAt() == null)
+                    .map(Account::getId)
+                    .filter(id -> !Objects.equals(id, requesterId))
+                    .distinct()
+                    .toList();
+
+            if (adminIds.isEmpty()) {
+                log.warn("[CourseReviewHandler] Không tìm thấy tài khoản ADMIN nào để gửi thông báo cho courseId={}",
+                        course.getId());
+                return;
+            }
+
+            Map<String, Object> extra = new LinkedHashMap<>();
+            extra.put("courseId", course.getId());
+            if (course.getCode() != null) extra.put("courseCode", course.getCode());
+            if (course.getCourseType() != null) extra.put("courseType", course.getCourseType().name());
+            if (course.getStatus() != null) extra.put("status", course.getStatus().name());
+            if (request.getId() != null) extra.put("requestId", request.getId());
+            if (request.getRequestCode() != null) extra.put("requestCode", request.getRequestCode());
+            if (request.getRequestType() != null) extra.put("requestType", request.getRequestType().getCode());
+
+            NotificationRequest noti = NotificationRequest.builder()
+                    .senderAccountId(requesterId)
+                    .receiverAccountIds(adminIds)
+                    .notificationType("COURSE_SUBMITTED")
+                    .title("Yêu cầu kiểm duyệt khóa học mới")
+                    .content(String.format("Khóa học %s \"%s\" (%s) vừa được gửi yêu cầu kiểm duyệt (%s).",
+                            course.getCourseType(), course.getTitle(), course.getCode(), request.getRequestCode()))
+                    .referenceType("COURSE")
+                    .referenceId(course.getId())
+                    .extraData(extra)
+                    .priority("HIGH")
+                    .sendEmail(false)
+                    .build();
+
+            notificationService.sendNotification(noti);
+        } catch (Exception e) {
+            log.warn("[CourseReviewHandler] Gửi thông báo cho ADMIN thất bại (courseId={}): {}",
+                    course.getId(), e.getMessage());
+        }
     }
 
     // ============================================================
-    // onApprove — CÓ CHECK CONFLICT cho OFFLINE
+    // onApprove — CÓ CHECK CONFLICT cho OFFLINE + Thông báo Owner
     // ============================================================
     @Override
     public void onApprove(Request request, RequestReviewRequest review) {
@@ -208,11 +258,23 @@ public class CourseReviewHandler implements RequestHandler {
             log.info("[CourseReviewHandler] PENDING_REVIEW → PLANNED (OFFLINE), courseId={}",
                     c.getId());
         }
-        courseRepository.save(c);
+        Course saved = courseRepository.save(c);
+
+        boolean isOffline = saved.getCourseType() == CourseType.OFFLINE;
+        notifyCourseOwners(
+                saved,
+                "COURSE_APPROVED",
+                isOffline ? "Khóa học đã được duyệt nội dung" : "Khóa học đã được duyệt và xuất bản",
+                isOffline
+                        ? String.format("Nội dung khóa học OFFLINE \"%s\" (%s) đã được phê duyệt và chuyển sang trạng thái chờ xếp lịch (PLANNED).",
+                        saved.getTitle(), saved.getCode())
+                        : String.format("Khóa học ONLINE \"%s\" (%s) đã được phê duyệt và xuất bản công khai.",
+                        saved.getTitle(), saved.getCode())
+        );
     }
 
     // ============================================================
-    // onReject — PENDING_REVIEW → DRAFT
+    // onReject — PENDING_REVIEW → DRAFT + Thông báo Owner
     // ============================================================
     @Override
     public void onReject(Request request, RequestReviewRequest review) {
@@ -220,9 +282,22 @@ public class CourseReviewHandler implements RequestHandler {
         if (c == null) return;
         if (c.getStatus() == CourseStatus.PENDING_REVIEW) {
             c.setStatus(CourseStatus.DRAFT);
-            courseRepository.save(c);
+            Course saved = courseRepository.save(c);
             log.info("[CourseReviewHandler] PENDING_REVIEW → DRAFT (rejected), courseId={}",
-                    c.getId());
+                    saved.getId());
+
+            String reason = (review != null && StringUtils.hasText(review.getNote()))
+                    ? review.getNote().trim()
+                    : request.getRejectReason();
+
+            notifyCourseOwners(
+                    saved,
+                    "COURSE_REJECTED",
+                    "Yêu cầu duyệt khóa học bị từ chối",
+                    String.format("Khóa học \"%s\" (%s) bị từ chối duyệt và đã trả về bản nháp.%s",
+                            saved.getTitle(), saved.getCode(),
+                            StringUtils.hasText(reason) ? " Lý do: " + reason : "")
+            );
         } else {
             log.warn("[CourseReviewHandler] onReject bỏ qua — course {} đang ở {}, " +
                             "không phải PENDING_REVIEW",
@@ -230,6 +305,43 @@ public class CourseReviewHandler implements RequestHandler {
         }
     }
 
+    private void notifyCourseOwners(Course course, String type, String title, String content) {
+        try {
+            Long currentActorId = SecurityUtils.getCurrentAccountId();
+            List<Long> ownerIds = java.util.stream.Stream.of(
+                            course.getTeacher() != null ? course.getTeacher().getId() : null,
+                            course.getCreatedBy() != null ? course.getCreatedBy().getId() : null
+                    )
+                    .filter(Objects::nonNull)
+                    .filter(id -> !Objects.equals(id, currentActorId))
+                    .distinct()
+                    .toList();
+
+            if (ownerIds.isEmpty()) return;
+
+            Map<String, Object> extra = new LinkedHashMap<>();
+            extra.put("courseId", course.getId());
+            if (course.getCode() != null) extra.put("courseCode", course.getCode());
+            if (course.getCourseType() != null) extra.put("courseType", course.getCourseType().name());
+            if (course.getStatus() != null) extra.put("status", course.getStatus().name());
+
+            notificationService.sendNotification(NotificationRequest.builder()
+                    .senderAccountId(currentActorId)
+                    .receiverAccountIds(ownerIds)
+                    .notificationType(type)
+                    .title(title)
+                    .content(content)
+                    .referenceType("COURSE")
+                    .referenceId(course.getId())
+                    .extraData(extra)
+                    .priority("HIGH")
+                    .sendEmail(true)
+                    .build());
+        } catch (Exception e) {
+            log.warn("[CourseReviewHandler] Gửi thông báo kết quả duyệt thất bại (courseId={}): {}",
+                    course.getId(), e.getMessage());
+        }
+    }
     // ============================================================
     // onCancel — PENDING_REVIEW → DRAFT
     // ============================================================
