@@ -1,4 +1,4 @@
-// src/pages/common/ProfilePage.tsx
+// src/pages/ProfilePage.tsx
 import { useEffect, useRef, useState } from 'react';
 import {
   Card,
@@ -35,6 +35,7 @@ import toast from 'react-hot-toast';
 import PageContainer from '@/components/common/PageContainer';
 import PageHeader from '@/components/common/PageHeader';
 import { authApi } from '@/services/api/auth';
+import { fileApi, extractFileUrl } from '../services/api/files';
 import { useAuth } from '@/hooks/useAuth';
 import { ROLE_LABEL } from '@/constants/roles';
 import type {
@@ -58,49 +59,9 @@ const extractErrorMessage = (err: unknown, fallback: string): string => {
   return e?.response?.data?.message || e?.message || fallback;
 };
 
-const getStoredAccessToken = (): string | null => {
-  return (
-    localStorage.getItem('accessToken') ||
-    localStorage.getItem('token') ||
-    localStorage.getItem('access_token')
-  );
-};
-
 const uploadAvatarFile = async (file: File): Promise<string> => {
-  const formData = new FormData();
-  formData.append('file', file);
-
-  const rawBaseUrl =
-    (import.meta.env.VITE_API_BASE_URL as string | undefined) ||
-    (import.meta.env.VITE_API_URL as string | undefined) ||
-    '/api/v1';
-  const baseUrl = rawBaseUrl.replace(/\/$/, '');
-  const token = getStoredAccessToken();
-
-  const response = await fetch(`${baseUrl}/files/upload`, {
-    method: 'POST',
-    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-    body: formData,
-  });
-
-  const payload = (await response.json().catch(() => null)) as {
-    message?: string;
-    url?: string;
-    fileUrl?: string;
-    data?: string | { url?: string; fileUrl?: string };
-  } | null;
-
-  if (!response.ok) {
-    throw new Error(payload?.message || 'Tải ảnh đại diện lên thất bại');
-  }
-
-  const uploadedUrl =
-    typeof payload?.data === 'string'
-      ? payload.data
-      : payload?.data?.url ||
-        payload?.data?.fileUrl ||
-        payload?.url ||
-        payload?.fileUrl;
+  const res = await fileApi.upload(file);
+  const uploadedUrl = extractFileUrl(res);
 
   if (!uploadedUrl) {
     throw new Error('Không nhận được đường dẫn ảnh từ máy chủ');

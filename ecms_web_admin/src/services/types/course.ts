@@ -137,6 +137,7 @@ export interface CourseResourceResponse {
   children?: CourseResourceResponse[];
   createdAt: string;
   updatedAt: string;
+  detachParent?: boolean;
 }
 
 export interface ResourceTreeResponse {

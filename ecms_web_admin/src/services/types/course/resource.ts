@@ -85,6 +85,7 @@ export interface ResourceCreateRequest {
   hashtagFilter?: string;
   totalQuestions?: number;         // >= 1
   shuffleQuestions?: boolean;
+  detachParent?: boolean;
 }
 
 /**

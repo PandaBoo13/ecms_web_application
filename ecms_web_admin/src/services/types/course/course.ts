@@ -127,6 +127,7 @@ export interface CourseUpdateRequest {
   totalSessionsExpected?: number;
   certificateTypeId?: number;
   certificateConfig?: Record<string, unknown>;
+  
 }
 
 /**
