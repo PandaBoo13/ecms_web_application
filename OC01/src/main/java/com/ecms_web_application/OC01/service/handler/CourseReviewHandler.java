@@ -220,7 +220,7 @@ public class CourseReviewHandler implements RequestHandler {
     }
 
     // ============================================================
-    // onApprove — CÓ CHECK CONFLICT cho OFFLINE
+    // onApprove — CÓ CHECK CONFLICT cho OFFLINE + Thông báo Owner
     // ============================================================
     @Override
     public void onApprove(Request request, RequestReviewRequest review) {
@@ -258,11 +258,23 @@ public class CourseReviewHandler implements RequestHandler {
             log.info("[CourseReviewHandler] PENDING_REVIEW → PLANNED (OFFLINE), courseId={}",
                     c.getId());
         }
-        courseRepository.save(c);
+        Course saved = courseRepository.save(c);
+
+        boolean isOffline = saved.getCourseType() == CourseType.OFFLINE;
+        notifyCourseOwners(
+                saved,
+                "COURSE_APPROVED",
+                isOffline ? "Khóa học đã được duyệt nội dung" : "Khóa học đã được duyệt và xuất bản",
+                isOffline
+                        ? String.format("Nội dung khóa học OFFLINE \"%s\" (%s) đã được phê duyệt và chuyển sang trạng thái chờ xếp lịch (PLANNED).",
+                        saved.getTitle(), saved.getCode())
+                        : String.format("Khóa học ONLINE \"%s\" (%s) đã được phê duyệt và xuất bản công khai.",
+                        saved.getTitle(), saved.getCode())
+        );
     }
 
     // ============================================================
-    // onReject — PENDING_REVIEW → DRAFT
+    // onReject — PENDING_REVIEW → DRAFT + Thông báo Owner
     // ============================================================
     @Override
     public void onReject(Request request, RequestReviewRequest review) {
@@ -270,9 +282,22 @@ public class CourseReviewHandler implements RequestHandler {
         if (c == null) return;
         if (c.getStatus() == CourseStatus.PENDING_REVIEW) {
             c.setStatus(CourseStatus.DRAFT);
-            courseRepository.save(c);
+            Course saved = courseRepository.save(c);
             log.info("[CourseReviewHandler] PENDING_REVIEW → DRAFT (rejected), courseId={}",
-                    c.getId());
+                    saved.getId());
+
+            String reason = (review != null && StringUtils.hasText(review.getNote()))
+                    ? review.getNote().trim()
+                    : request.getRejectReason();
+
+            notifyCourseOwners(
+                    saved,
+                    "COURSE_REJECTED",
+                    "Yêu cầu duyệt khóa học bị từ chối",
+                    String.format("Khóa học \"%s\" (%s) bị từ chối duyệt và đã trả về bản nháp.%s",
+                            saved.getTitle(), saved.getCode(),
+                            StringUtils.hasText(reason) ? " Lý do: " + reason : "")
+            );
         } else {
             log.warn("[CourseReviewHandler] onReject bỏ qua — course {} đang ở {}, " +
                             "không phải PENDING_REVIEW",
@@ -280,6 +305,43 @@ public class CourseReviewHandler implements RequestHandler {
         }
     }
 
+    private void notifyCourseOwners(Course course, String type, String title, String content) {
+        try {
+            Long currentActorId = SecurityUtils.getCurrentAccountId();
+            List<Long> ownerIds = java.util.stream.Stream.of(
+                            course.getTeacher() != null ? course.getTeacher().getId() : null,
+                            course.getCreatedBy() != null ? course.getCreatedBy().getId() : null
+                    )
+                    .filter(Objects::nonNull)
+                    .filter(id -> !Objects.equals(id, currentActorId))
+                    .distinct()
+                    .toList();
+
+            if (ownerIds.isEmpty()) return;
+
+            Map<String, Object> extra = new LinkedHashMap<>();
+            extra.put("courseId", course.getId());
+            if (course.getCode() != null) extra.put("courseCode", course.getCode());
+            if (course.getCourseType() != null) extra.put("courseType", course.getCourseType().name());
+            if (course.getStatus() != null) extra.put("status", course.getStatus().name());
+
+            notificationService.sendNotification(NotificationRequest.builder()
+                    .senderAccountId(currentActorId)
+                    .receiverAccountIds(ownerIds)
+                    .notificationType(type)
+                    .title(title)
+                    .content(content)
+                    .referenceType("COURSE")
+                    .referenceId(course.getId())
+                    .extraData(extra)
+                    .priority("HIGH")
+                    .sendEmail(true)
+                    .build());
+        } catch (Exception e) {
+            log.warn("[CourseReviewHandler] Gửi thông báo kết quả duyệt thất bại (courseId={}): {}",
+                    course.getId(), e.getMessage());
+        }
+    }
     // ============================================================
     // onCancel — PENDING_REVIEW → DRAFT
     // ============================================================

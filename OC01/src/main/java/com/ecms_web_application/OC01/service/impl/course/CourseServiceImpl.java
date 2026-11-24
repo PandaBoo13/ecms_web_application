@@ -3,6 +3,7 @@ package com.ecms_web_application.OC01.service.impl.course;
 import com.ecms_web_application.OC01.config.SecurityUtils;
 import com.ecms_web_application.OC01.dto.request.NotificationRequest;
 import com.ecms_web_application.OC01.dto.request.course.*;
+import com.ecms_web_application.OC01.dto.request.request.RequestReviewRequest;
 import com.ecms_web_application.OC01.dto.response.course.*;
 import com.ecms_web_application.OC01.entity.*;
 import com.ecms_web_application.OC01.entity.course.Course;
@@ -147,9 +148,11 @@ public class CourseServiceImpl implements CourseService {
         Course c = courseRepository.findByIdWithRelations(id)
                 .orElseThrow(() -> new ErrorHandler(HttpStatus.NOT_FOUND, "Khóa học không tồn tại"));
         List<CourseResource> resources = resourceRepository.findByCourse_IdOrderByOrderIndexAsc(id);
-        return mapper.toCourseDetailResponse(c, resources);
+        CourseDetailResponse response = mapper.toCourseDetailResponse(c, resources);
+        // Dùng đúng method đang trả về List<SessionResponse> trong SessionService (vd: listByCourse / getSessionsByCourse)
+        response.setSessions(sessionService.listByCourse(id));
+        return response;
     }
-
     // ============================================================
     // SEARCH
     // ============================================================
@@ -367,7 +370,7 @@ public class CourseServiceImpl implements CourseService {
     }
 
     // ============================================================
-    // REVIEW
+    // REVIEW (Đồng bộ cả bảng `courses` và bảng `requests`)
     // ============================================================
     @Override
     @Transactional
@@ -378,56 +381,88 @@ public class CourseServiceImpl implements CourseService {
         }
 
         boolean isApproved = Boolean.TRUE.equals(request.getApproved());
-        if (isApproved) {
-            // Khóa OFFLINE duyệt nội dung xong chuyển sang PLANNED để xếp lịch/phòng/GV trước khi finalizeSchedule -> PUBLISHED
-            // Khóa ONLINE duyệt xong lên thẳng PUBLISHED
-            c.setStatus(c.getCourseType() == CourseType.OFFLINE
-                    ? CourseStatus.PLANNED
-                    : CourseStatus.PUBLISHED);
-        } else {
-            if (!StringUtils.hasText(request.getRejectReason())) {
-                throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Lý do từ chối là bắt buộc");
-            }
-            c.setStatus(CourseStatus.DRAFT);
+        if (!isApproved && !StringUtils.hasText(request.getRejectReason())) {
+            throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Lý do từ chối là bắt buộc");
         }
 
-        Course saved = courseRepository.save(c);
+        Long currentId = SecurityUtils.requireCurrentAccountId();
+
+        // Tìm yêu cầu COURSE_REVIEW đang PENDING của khóa học này để đồng bộ
+        Optional<Request> pendingRequestOpt = requestRepository.findLatestByTargetAndTypeAndStatus(
+                "COURSE", id, RequestType.COURSE_REVIEW, RequestStatus.PENDING);
+
+        if (pendingRequestOpt.isPresent()) {
+            Request pendingRequest = pendingRequestOpt.get();
+            pendingRequest.setStatus(isApproved ? RequestStatus.APPROVED : RequestStatus.REJECTED);
+            pendingRequest.setResolvedAt(LocalDateTime.now());
+            pendingRequest.setResolvedBy(currentId);
+            if (!isApproved) {
+                pendingRequest.setRejectReason(request.getRejectReason().trim());
+            }
+            requestRepository.save(pendingRequest);
+
+            RequestReviewRequest reviewDto = new RequestReviewRequest();
+            reviewDto.setApproved(isApproved);
+            if (!isApproved) {
+                reviewDto.setNote(request.getRejectReason().trim());
+            }
+
+            // Ủy quyền cho CourseReviewHandler cập nhật Course, check conflict & gửi thông báo
+            if (isApproved) {
+                requestHandlerRegistry.get(pendingRequest.getRequestType())
+                        .onApprove(pendingRequest, reviewDto);
+            } else {
+                requestHandlerRegistry.get(pendingRequest.getRequestType())
+                        .onReject(pendingRequest, reviewDto);
+            }
+        } else {
+            // Fallback: chỉ chạy khi Course ở PENDING_REVIEW nhưng không có bản ghi trong bảng requests
+            if (isApproved) {
+                c.setStatus(c.getCourseType() == CourseType.OFFLINE
+                        ? CourseStatus.PLANNED
+                        : CourseStatus.PUBLISHED);
+            } else {
+                c.setStatus(CourseStatus.DRAFT);
+            }
+            Course fallbackSaved = courseRepository.save(c);
+
+            List<Long> ownerIds = collectCourseOwnerIds(fallbackSaved);
+            if (isApproved) {
+                boolean isOffline = fallbackSaved.getCourseType() == CourseType.OFFLINE;
+                notifyAccounts(
+                        ownerIds,
+                        "COURSE_APPROVED",
+                        isOffline ? "Khóa học đã được duyệt nội dung" : "Khóa học đã được duyệt và xuất bản",
+                        isOffline
+                                ? String.format("Nội dung khóa học OFFLINE \"%s\" (%s) đã được phê duyệt và chuyển sang trạng thái chờ xếp lịch (PLANNED).",
+                                fallbackSaved.getTitle(), fallbackSaved.getCode())
+                                : String.format("Khóa học ONLINE \"%s\" (%s) đã được phê duyệt và xuất bản công khai.",
+                                fallbackSaved.getTitle(), fallbackSaved.getCode()),
+                        fallbackSaved,
+                        "HIGH",
+                        true
+                );
+            } else {
+                notifyAccounts(
+                        ownerIds,
+                        "COURSE_REJECTED",
+                        "Yêu cầu duyệt khóa học bị từ chối",
+                        String.format("Khóa học \"%s\" (%s) bị từ chối duyệt và đã trả về bản nháp. Lý do: %s",
+                                fallbackSaved.getTitle(), fallbackSaved.getCode(), request.getRejectReason().trim()),
+                        fallbackSaved,
+                        "HIGH",
+                        true
+                );
+            }
+        }
+
+        Course saved = getCourseOrThrow(id);
         auditLogService.log(
                 isApproved ? "APPROVE" : "REJECT",
                 "COURSE",
                 id,
-                isApproved ? "Duyệt khóa học -> " + saved.getStatus() : request.getRejectReason()
+                isApproved ? "Duyệt khóa học -> " + saved.getStatus() : request.getRejectReason().trim()
         );
-
-        // Gửi thông báo cho giảng viên sở hữu & người tạo khóa học
-        List<Long> ownerIds = collectCourseOwnerIds(saved);
-        if (isApproved) {
-            boolean isOffline = saved.getCourseType() == CourseType.OFFLINE;
-            notifyAccounts(
-                    ownerIds,
-                    "COURSE_APPROVED",
-                    isOffline ? "Khóa học đã được duyệt nội dung" : "Khóa học đã được duyệt và xuất bản",
-                    isOffline
-                            ? String.format("Nội dung khóa học OFFLINE \"%s\" (%s) đã được phê duyệt và chuyển sang trạng thái chờ xếp lịch (PLANNED).",
-                            saved.getTitle(), saved.getCode())
-                            : String.format("Khóa học ONLINE \"%s\" (%s) đã được phê duyệt và xuất bản công khai.",
-                            saved.getTitle(), saved.getCode()),
-                    saved,
-                    "HIGH",
-                    true
-            );
-        } else {
-            notifyAccounts(
-                    ownerIds,
-                    "COURSE_REJECTED",
-                    "Yêu cầu duyệt khóa học bị từ chối",
-                    String.format("Khóa học \"%s\" (%s) bị từ chối duyệt và đã trả về bản nháp. Lý do: %s",
-                            saved.getTitle(), saved.getCode(), request.getRejectReason()),
-                    saved,
-                    "HIGH",
-                    true
-            );
-        }
 
         return mapper.toCourseResponse(saved);
     }

@@ -77,8 +77,8 @@ public class CourseResourceServiceImpl implements CourseResourceService {
                 throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Parent thuộc course khác");
             }
             validateHierarchy(parent.getResourceType(), request.getResourceType());
-        } else if (request.getResourceType() != ResourceType.CHAPTER) {
-            throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Resource gốc phải là CHAPTER");
+        } else if (request.getResourceType() == ResourceType.LESSON) {
+            throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Bài học (LESSON) phải thuộc một chương (CHAPTER)");
         }
 
         CourseResource r = new CourseResource();
@@ -129,6 +129,42 @@ public class CourseResourceServiceImpl implements CourseResourceService {
         CourseResource r = getOrThrow(id);
         assertCourseEditable(r.getCourse());
 
+        // 1. Gỡ tài nguyên khỏi bài học -> đưa về kho chung của khóa học (parent = null)
+        if (Boolean.TRUE.equals(request.getDetachParent())) {
+            if (r.getResourceType() == ResourceType.CHAPTER || r.getResourceType() == ResourceType.LESSON) {
+                throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Không thể gỡ CHAPTER hoặc LESSON về kho tài nguyên");
+            }
+            if (r.getParent() != null) {
+                r.setParent(null);
+                if (request.getOrderIndex() == null) {
+                    int nextRootIdx = Optional.ofNullable(
+                            resourceRepository.maxRootOrderIndex(r.getCourse().getId())
+                    ).orElse(-1) + 1;
+                    r.setOrderIndex(nextRootIdx);
+                }
+            }
+        }
+        // 2. Gắn hoặc chuyển tài nguyên sang bài học / chương khác
+        else if (request.getParentId() != null) {
+            CourseResource newParent = getOrThrow(request.getParentId());
+            if (!newParent.getCourse().getId().equals(r.getCourse().getId())) {
+                throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Parent thuộc course khác");
+            }
+            if (newParent.getId().equals(r.getId())) {
+                throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Không thể gán resource vào chính nó");
+            }
+            validateHierarchy(newParent.getResourceType(), r.getResourceType());
+
+            boolean isParentChanged = r.getParent() == null || !r.getParent().getId().equals(newParent.getId());
+            r.setParent(newParent);
+            if (isParentChanged && request.getOrderIndex() == null) {
+                int nextChildIdx = Optional.ofNullable(
+                        resourceRepository.maxChildOrderIndex(newParent.getId())
+                ).orElse(-1) + 1;
+                r.setOrderIndex(nextChildIdx);
+            }
+        }
+
         if (request.getTitle() != null && !request.getTitle().isBlank()) r.setTitle(request.getTitle().trim());
         if (request.getDescription() != null) r.setDescription(request.getDescription());
         if (request.getOrderIndex() != null)  r.setOrderIndex(request.getOrderIndex());
@@ -161,7 +197,6 @@ public class CourseResourceServiceImpl implements CourseResourceService {
         auditLogService.log("UPDATE", "RESOURCE", id, null);
         return mapper.toCourseResourceResponse(saved);
     }
-
     @Override
     @Transactional
     public void delete(Long id) {
