@@ -64,7 +64,7 @@ const GradeApprovalPanel = ({ request }: Props) => {
   );
 
   const passScore = payload?.passScore ?? 5.0;
-  const maxAbsencePercent = payload?.maxAbsencePercent ?? 20;
+  const maxAbsencePercent = payload?.maxAbsencePercent ?? 25;
 
   const title =
     request.status === 'APPROVED'

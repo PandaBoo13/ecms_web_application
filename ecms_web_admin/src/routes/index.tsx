@@ -47,7 +47,6 @@ import MyStudentsPage from '@/pages/instructor/students/MyStudentsPage';
 import StudentDetailPage from '@/pages/instructor/students/StudentDetailPage';
 import AssignmentListPage from '@/pages/instructor/assignments/AssignmentListPage';
 import ProfilePage from '@/pages/ProfilePage';
-import InstructorAttendancePage from '@/pages/instructor/attendance/InstructorAttendancePage';
 import InstructorSchedulePage from '@/pages/instructor/schedule/InstructorSchedulePage';
 const AdminIndexRedirect = () => {
   const { isConsultant } = useAuth();
@@ -122,7 +121,6 @@ export default function AppRouter() {
           <Route path="/instructor/courses/:id/edit" element={<CourseEditPage />} />
      <Route path="/instructor/schedule" element={<InstructorSchedulePage />} />
           <Route path="/instructor/students" element={<MyStudentsPage />} />
-          <Route path="/instructor/attendance" element={<InstructorAttendancePage />} />
           <Route path="/instructor/students/:id" element={<StudentDetailPage />} />
 
           <Route path="/instructor/assignments" element={<AssignmentListPage />} />

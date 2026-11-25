@@ -4,6 +4,8 @@ import com.ecms_web_application.OC01.config.SecurityUtils;
 import com.ecms_web_application.OC01.dto.request.StudentConvertFromLeadRequest;
 import com.ecms_web_application.OC01.dto.request.enrollment.RecordFinalScoreRequest;
 import com.ecms_web_application.OC01.dto.request.enrollment.CompleteEnrollmentRequest;
+import com.ecms_web_application.OC01.dto.request.enrollment.ReopenCompletionRequest;
+import com.ecms_web_application.OC01.dto.request.enrollment.ReopenGradeSheetRequest;
 import com.ecms_web_application.OC01.dto.request.enrollment.SaveSessionAttendanceRequest;
 import com.ecms_web_application.OC01.dto.request.enrollment.ReserveEnrollmentRequest;
 import com.ecms_web_application.OC01.dto.request.enrollment.TerminateEnrollmentRequest;
@@ -75,10 +77,7 @@ public class EnrollmentServiceImpl implements EnrollmentService {
     private static final List<EnrollmentStatus> SEAT_HOLDING_STATUSES = List.of(EnrollmentStatus.PENDING,
             EnrollmentStatus.ACTIVE);
     private static final String ATTENDANCE_AUDIT_ENTITY = "SESSION_ATTENDANCE";
-
-    /** Giảng viên chỉ được sửa điểm danh trong bao nhiêu ngày sau khi buổi học kết thúc. */
-    @Value("${app.attendance.edit-window-days:7}")
-    private long attendanceEditWindowDays = 7;
+    private static final String GRADE_SHEET_AUDIT_ENTITY = "COURSE_GRADE_SHEET";
 
     /** Tỉ lệ vắng tối đa (%) để được xét hoàn thành khóa OFFLINE. */
     @Value("${app.attendance.max-absence-percent:20}")
@@ -347,7 +346,7 @@ public class EnrollmentServiceImpl implements EnrollmentService {
             String courseTitle = c != null ? c.getTitle() : null;
             String courseCode = c != null ? c.getCode() : null;
             String invoiceCode = inv != null ? inv.getInvoiceCode() : null;
-            long absences = attendanceRepository.countByEnrollmentIdAndStatus(e.getId(), AttendanceStatus.ABSENT);
+            long absences = countThresholdAbsences(e);
             CompletionEligibility eligibility = includeCompletionEligibility
                     ? evaluateCompletionEligibility(e, c)
                     : new CompletionEligibility(false, null);
@@ -492,6 +491,8 @@ public class EnrollmentServiceImpl implements EnrollmentService {
         }
         Course course = courseRepository.findById(enrollment.getCourseId())
                 .orElseThrow(() -> new ErrorHandler(HttpStatus.NOT_FOUND, "Khóa học không tồn tại"));
+        requireScoreEntryAllowed(course);
+        requireNoPendingGradeRequest(course.getId());
         requireGradeSheetEditable(course.getId(), "chỉnh sửa điểm cuối khóa");
         int maxScore = CourseScoreScale.maxFinalScore(course);
         BigDecimal finalScore = request.getFinalScore();
@@ -510,6 +511,22 @@ public class EnrollmentServiceImpl implements EnrollmentService {
     @Transactional
     public EnrollmentResponse complete(Long enrollmentId, CompleteEnrollmentRequest request) {
         return completeEnrollment(enrollmentId, null, request.result());
+    }
+
+    @Override
+    @Transactional
+    public EnrollmentResponse reopenCompletion(Long enrollmentId, ReopenCompletionRequest request) {
+        Enrollment enrollment = getEnrollmentForUpdate(enrollmentId);
+        requireInstructorCourseManager(enrollment.getCourseId(),
+                "Chỉ giảng viên phụ trách mới được hoàn tác xét hoàn thành khóa học này");
+        if (enrollment.getStatus() != EnrollmentStatus.COMPLETED) {
+            throw new ErrorHandler(HttpStatus.CONFLICT, "Chỉ hoàn tác được ghi danh đã hoàn thành");
+        }
+        enrollment.setCompletedAt(null);
+        enrollment.setCompletedBy(null);
+        enrollment.setCompletionResult(null);
+        return changeStatus(enrollment, EnrollmentStatus.ACTIVE,
+                "Hoàn tác xét hoàn thành: " + request.reason().trim());
     }
 
     @Override
@@ -606,6 +623,8 @@ public class EnrollmentServiceImpl implements EnrollmentService {
         if (course.getCourseType() != CourseType.OFFLINE) {
             throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Chỉ nhập điểm cho khóa OFFLINE");
         }
+        requireScoreEntryAllowed(course);
+        requireNoPendingGradeRequest(course.getId());
         requireGradeSheetEditable(course.getId(), "nhập lại bảng điểm");
         if (file == null || file.isEmpty() || file.getSize() > 10 * 1024 * 1024
                 || file.getOriginalFilename() == null
@@ -762,8 +781,17 @@ public class EnrollmentServiceImpl implements EnrollmentService {
                 throw new ErrorHandler(HttpStatus.CONFLICT,
                         "Còn " + threshold.notMarked() + " buổi chưa điểm danh; hãy hoàn tất điểm danh trước khi xét hoàn thành");
             }
-            if (result == CompletionResult.PASSED && !threshold.eligible()) {
-                throw new ErrorHandler(HttpStatus.CONFLICT, threshold.reason());
+            if (result == CompletionResult.PASSED) {
+                if (!threshold.eligible()) {
+                    throw new ErrorHandler(HttpStatus.CONFLICT, threshold.reason());
+                }
+                BigDecimal passScore = approvedPassScore(course);
+                if (enrollment.getFinalScore().compareTo(passScore) < 0) {
+                    throw new ErrorHandler(HttpStatus.CONFLICT,
+                            "Điểm cuối khóa " + enrollment.getFinalScore().stripTrailingZeros().toPlainString()
+                                    + " thấp hơn điểm chuẩn đạt " + passScore.stripTrailingZeros().toPlainString()
+                                    + "; học viên chỉ có thể được xét Không đạt");
+                }
             }
         } else {
             validateOnlineCompletion(enrollment, course);
@@ -792,7 +820,7 @@ public class EnrollmentServiceImpl implements EnrollmentService {
     @Transactional
     public SessionAttendanceResponse saveSessionAttendance(
             Long courseId, Long sessionId, SaveSessionAttendanceRequest request) {
-        Session session = getSession(courseId, sessionId);
+        Session session = getSessionForUpdate(courseId, sessionId);
         requireCanManageSession(session);
         requireOfflineCourse(session);
         AttendanceEditability editability = attendanceEditability(session);
@@ -812,6 +840,15 @@ public class EnrollmentServiceImpl implements EnrollmentService {
                 .collect(Collectors.toSet());
         List<AttendanceRecord> existingRecords = attendanceRepository.findBySessionIdOrderByEnrollmentIdAsc(sessionId);
         existingRecords.forEach(record -> allowedIds.add(record.getEnrollmentId()));
+
+        // Đơn nghỉ đã duyệt giữ trạng thái điểm danh — muốn sửa phải thu hồi đơn trước.
+        Set<Long> approvedLeaveEnrollmentIds = requestRepository
+                .findAllByRequestTypeAndTargetEntityTypeAndTargetEntityIdAndStatus(
+                        RequestType.LEAVE_FEEDBACK, "SESSION", sessionId, RequestStatus.APPROVED)
+                .stream()
+                .map(leave -> extractPayloadEnrollmentId(leave.getPayload()))
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
 
         Long actorId = SecurityUtils.requireCurrentAccountId();
         Map<Long, AttendanceRecord> recordsByEnrollment = existingRecords.stream()
@@ -843,6 +880,12 @@ public class EnrollmentServiceImpl implements EnrollmentService {
             String oldNote = isNew ? null : record.getNote();
             boolean changed = !Objects.equals(oldStatus, status.name())
                     || !Objects.equals(oldNote, newNote);
+            if (changed && !Objects.equals(oldStatus, status.name())
+                    && approvedLeaveEnrollmentIds.contains(enrollmentId)) {
+                throw new ErrorHandler(HttpStatus.CONFLICT,
+                        "Ghi danh #" + enrollmentId + " có đơn nghỉ phép đã duyệt ở buổi này — "
+                                + "hãy thu hồi đơn nghỉ trước khi sửa điểm danh.");
+            }
             boolean shouldPersist = !isNew || status != AttendanceStatus.NOT_MARKED
                     || newNote != null;
             if (!shouldPersist || (!isNew && !changed)) {
@@ -883,7 +926,6 @@ public class EnrollmentServiceImpl implements EnrollmentService {
             return List.of();
         }
         List<Session> sessions = sessionRepository.findAttendanceSessionsByCourse(course.getId()).stream()
-                .filter(session -> session.getStatus() != SessionStatus.DRAFT)
                 .filter(session -> session.getEndTime() != null)
                 .filter(session -> isEnrollmentApplicableForSession(enrollment, session))
                 .toList();
@@ -940,9 +982,10 @@ public class EnrollmentServiceImpl implements EnrollmentService {
         Map<Long, Student> students = studentRepository.findAllById(studentIds).stream()
                 .collect(Collectors.toMap(Student::getId, student -> student));
 
+        boolean gradeSheetPublished = isGradeSheetPublished(course);
         List<AttendanceMatrixResponse.SessionColumn> sessionColumns = sessions.stream()
                 .map(session -> {
-                    AttendanceEditability editability = attendanceEditability(session);
+                    AttendanceEditability editability = attendanceEditability(session, gradeSheetPublished);
                     return new AttendanceMatrixResponse.SessionColumn(
                             session.getId(), session.getSessionNumber(), session.getTitle(),
                             session.getSessionDate(), session.getStartTime(), session.getEndTime(),
@@ -1187,24 +1230,54 @@ public class EnrollmentServiceImpl implements EnrollmentService {
     }
 
     private AttendanceEditability attendanceEditability(Session session) {
-        LocalDateTime deadline = session.getEndTime() == null ? null
-                : session.getEndTime().plusDays(attendanceEditWindowDays);
+        return attendanceEditability(session, isGradeSheetPublished(session.getCourse()));
+    }
+
+    private AttendanceEditability attendanceEditability(Session session, boolean gradeSheetPublished) {
+        LocalDateTime now = LocalDateTime.now();
         if (SecurityUtils.hasRole("ADMIN")) {
-            return new AttendanceEditability(false, "Quản trị viên chỉ được xem điểm danh", deadline);
+            return new AttendanceEditability(false, "Quản trị viên chỉ được xem điểm danh", null);
         }
         Long accountId = SecurityUtils.requireCurrentAccountId();
         if (!isAssignedToSession(session, accountId)) {
-            return new AttendanceEditability(false, "Bạn không được phân công buổi học này", deadline);
+            return new AttendanceEditability(false, "Bạn không được phân công buổi học này", null);
         }
         if (session.getStatus() == SessionStatus.CANCELLED) {
-            return new AttendanceEditability(false, "Buổi học đã bị hủy nên không thể điểm danh", deadline);
+            return new AttendanceEditability(false, "Buổi học đã bị hủy nên không thể điểm danh", null);
         }
-        if (deadline != null && LocalDateTime.now().isAfter(deadline)) {
-            return new AttendanceEditability(false, String.format(
-                    "Đã quá hạn chỉnh sửa điểm danh (%d ngày sau khi buổi học kết thúc). Vui lòng liên hệ học vụ.",
-                    attendanceEditWindowDays), deadline);
+        if (session.getStartTime() != null && session.getStartTime().isAfter(now)) {
+            return new AttendanceEditability(false, "Buổi học chưa diễn ra nên chưa thể điểm danh", null);
         }
-        return new AttendanceEditability(true, null, deadline);
+        if (session.getCourse() != null) {
+            CourseStatus courseStatus = session.getCourse().getStatus();
+            if (courseStatus == CourseStatus.DRAFT
+                    || courseStatus == CourseStatus.PENDING_REVIEW
+                    || courseStatus == CourseStatus.PLANNED) {
+                return new AttendanceEditability(false,
+                        "Khóa học chưa được công bố lịch nên chưa thể điểm danh", null);
+            }
+            if (courseStatus == CourseStatus.CANCELLED) {
+                return new AttendanceEditability(false,
+                        "Khóa học đã bị hủy nên không thể điểm danh", null);
+            }
+            if (courseStatus == CourseStatus.ARCHIVED) {
+                return new AttendanceEditability(false,
+                        "Khóa học đã được lưu trữ nên không thể điểm danh", null);
+            }
+        }
+        if (gradeSheetPublished) {
+            return new AttendanceEditability(false,
+                    "Bảng điểm đã được duyệt và công bố nên không thể chỉnh điểm danh", null);
+        }
+        return new AttendanceEditability(true, null, null);
+    }
+
+    private boolean isGradeSheetPublished(Course course) {
+        if (course == null) return false;
+        return requestRepository
+                .findLatestByTargetAndType("COURSE", course.getId(), RequestType.COURSE_GRADE_APPROVAL)
+                .map(r -> r.getStatus() == RequestStatus.APPROVED)
+                .orElse(false);
     }
 
     private boolean isAssignedToSession(Session session, Long accountId) {
@@ -1477,6 +1550,15 @@ public class EnrollmentServiceImpl implements EnrollmentService {
         return new AttendanceThreshold(true, null, absent, excused, notMarked, applicable);
     }
 
+    /** Số buổi vắng cùng phạm vi với {@link #evaluateAttendanceThreshold}: khớp cột "Vắng" FE hiển thị. */
+    private long countThresholdAbsences(Enrollment enrollment) {
+        if (enrollment.getCourseId() == null) {
+            return 0;
+        }
+        return attendanceRepository.countThresholdAbsences(
+                enrollment.getId(), enrollment.getCourseId(), LocalDateTime.now());
+    }
+
     private record AttendanceThreshold(boolean eligible, String reason,
             int absent, int excused, int notMarked, int applicable) {
     }
@@ -1610,7 +1692,7 @@ public class EnrollmentServiceImpl implements EnrollmentService {
         String courseTitle = c != null ? c.getTitle() : null;
         String courseCode = c != null ? c.getCode() : null;
         String invoiceCode = inv != null ? inv.getInvoiceCode() : null;
-        long absences = attendanceRepository.countByEnrollmentIdAndStatus(e.getId(), AttendanceStatus.ABSENT);
+        long absences = countThresholdAbsences(e);
 
         return EnrollmentResponse.from(e, enrollmentType(c), accountId, absences,
                 studentName, studentCode, studentEmail, studentPhone, courseTitle, courseCode, invoiceCode,
@@ -1679,6 +1761,28 @@ public class EnrollmentServiceImpl implements EnrollmentService {
             throw new ErrorHandler(HttpStatus.NOT_FOUND, "Buổi học không thuộc khóa học này");
         }
         return session;
+    }
+
+    /** Khóa dòng buổi học trước khi đọc/ghi điểm danh để GV + trợ giảng không ghi đè lẫn nhau. */
+    private Session getSessionForUpdate(Long courseId, Long sessionId) {
+        Session session = sessionRepository.findByIdForUpdate(sessionId)
+                .orElseThrow(() -> new ErrorHandler(HttpStatus.NOT_FOUND, "Buổi học không tồn tại"));
+        if (!session.getCourse().getId().equals(courseId)) {
+            throw new ErrorHandler(HttpStatus.NOT_FOUND, "Buổi học không thuộc khóa học này");
+        }
+        return session;
+    }
+
+    private Long extractPayloadEnrollmentId(Map<String, Object> payload) {
+        if (payload == null) return null;
+        Object value = payload.get("enrollmentId");
+        if (value == null) return null;
+        if (value instanceof Number number) return number.longValue();
+        try {
+            return Long.parseLong(value.toString().trim());
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 
     private void requireOffline(Enrollment enrollment) {
@@ -1762,6 +1866,12 @@ public class EnrollmentServiceImpl implements EnrollmentService {
         if (course.getCourseType() != CourseType.OFFLINE) {
             throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Ma trận điểm danh chỉ áp dụng cho khóa OFFLINE");
         }
+        if (course.getStatus() == CourseStatus.DRAFT
+                || course.getStatus() == CourseStatus.PENDING_REVIEW
+                || course.getStatus() == CourseStatus.PLANNED) {
+            throw new ErrorHandler(HttpStatus.CONFLICT,
+                    "Khóa học chưa được công bố lịch nên chưa có dữ liệu điểm danh");
+        }
         if (SecurityUtils.hasRole("ADMIN")) {
             return course;
         }
@@ -1782,6 +1892,38 @@ public class EnrollmentServiceImpl implements EnrollmentService {
         }
     }
 
+    /**
+     * Điểm chuẩn đạt đã chốt trong bảng điểm được duyệt.
+     * Snapshot cũ thiếu passScore thì dùng nửa thang điểm của khóa.
+     */
+    private BigDecimal approvedPassScore(Course course) {
+        BigDecimal snapshot = requestRepository
+                .findLatestByTargetAndType("COURSE", course.getId(), RequestType.COURSE_GRADE_APPROVAL)
+                .filter(r -> r.getStatus() == RequestStatus.APPROVED)
+                .map(this::passScoreOf)
+                .orElse(null);
+        return snapshot != null ? snapshot : BigDecimal.valueOf(CourseScoreScale.maxFinalScore(course) / 2.0);
+    }
+
+    private BigDecimal passScoreOf(Request request) {
+        BigDecimal fromSnapshot = readPassScore(request.getResponseData());
+        return fromSnapshot != null ? fromSnapshot : readPassScore(request.getPayload());
+    }
+
+    private BigDecimal readPassScore(Map<String, Object> source) {
+        if (source == null) return null;
+        Object raw = source.get("passScore");
+        if (raw instanceof Number number) return BigDecimal.valueOf(number.doubleValue());
+        if (raw instanceof String text && !text.isBlank()) {
+            try {
+                return new BigDecimal(text.trim());
+            } catch (NumberFormatException ignored) {
+                return null;
+            }
+        }
+        return null;
+    }
+
     /** Bảng điểm đã duyệt là bản chốt: không cho sửa điểm/nhập lại cho tới khi có yêu cầu mở lại. */
     private void requireGradeSheetEditable(Long courseId, String action) {
         boolean approved = requestRepository
@@ -1792,6 +1934,34 @@ public class EnrollmentServiceImpl implements EnrollmentService {
             throw new ErrorHandler(HttpStatus.CONFLICT,
                     "Bảng điểm đã được Quản trị viên phê duyệt và công bố; không thể " + action + ".");
         }
+    }
+
+    /** Bảng điểm đang chờ duyệt thì khóa điểm: giảng viên phải thu hồi đơn rồi mới sửa. */
+    private void requireNoPendingGradeRequest(Long courseId) {
+        boolean pending = requestRepository.existsByRequestTypeAndTargetEntityTypeAndTargetEntityIdAndStatus(
+                RequestType.COURSE_GRADE_APPROVAL, "COURSE", courseId, RequestStatus.PENDING);
+        if (pending) {
+            throw new ErrorHandler(HttpStatus.CONFLICT,
+                    "Bảng điểm đang chờ Quản trị viên duyệt — hãy thu hồi bảng điểm để chỉnh sửa");
+        }
+    }
+
+    /** Chỉ nhập điểm khi khóa đang diễn ra hoặc đã kết thúc; khóa chưa tới ONGOING chưa có buổi để chấm. */
+    private void requireScoreEntryAllowed(Course course) {
+        CourseStatus status = course.getStatus();
+        if (status == CourseStatus.ONGOING || status == CourseStatus.FINISHED) {
+            return;
+        }
+        if (status == CourseStatus.CANCELLED) {
+            throw new ErrorHandler(HttpStatus.CONFLICT,
+                    "Khóa học đã bị hủy nên không thể nhập điểm cuối khóa");
+        }
+        if (status == CourseStatus.ARCHIVED) {
+            throw new ErrorHandler(HttpStatus.CONFLICT,
+                    "Khóa học đã được lưu trữ nên không thể nhập điểm cuối khóa");
+        }
+        throw new ErrorHandler(HttpStatus.CONFLICT,
+                "Chỉ nhập điểm cuối khóa khi khóa học đang diễn ra hoặc đã kết thúc");
     }
 
     @Override
@@ -1821,7 +1991,10 @@ public class EnrollmentServiceImpl implements EnrollmentService {
                 req.getRequestCode(),
                 req.getCreatedAt(),
                 req.getRejectReason(),
-                req.getResolvedAt()
+                req.getResolvedAt(),
+                passScoreOf(req),
+                req.getStatus() == RequestStatus.PENDING
+                        && SecurityUtils.requireCurrentAccountId().equals(req.getRequesterId())
         );
     }
 
@@ -1832,12 +2005,27 @@ public class EnrollmentServiceImpl implements EnrollmentService {
         if (course.getCourseType() != CourseType.OFFLINE) {
             throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Chỉ khóa học OFFLINE mới cần gửi duyệt bảng điểm");
         }
+        if (course.getStatus() != CourseStatus.FINISHED) {
+            throw new ErrorHandler(HttpStatus.CONFLICT, "Chỉ gửi duyệt bảng điểm sau khi khóa học kết thúc");
+        }
         List<Enrollment> enrollments = enrollmentRepository.findByCourseIdOrderByEnrolledAtAscIdAsc(courseId);
-        long activeWithScore = enrollments.stream()
-                .filter(e -> e.getStatus() == EnrollmentStatus.ACTIVE && e.getFinalScore() != null)
-                .count();
-        if (activeWithScore == 0) {
-            throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Cần nhập điểm cuối khóa cho ít nhất 1 học viên trước khi gửi duyệt");
+        List<Enrollment> activeEnrollments = enrollments.stream()
+                .filter(e -> e.getStatus() == EnrollmentStatus.ACTIVE)
+                .toList();
+        if (activeEnrollments.isEmpty()) {
+            throw new ErrorHandler(HttpStatus.CONFLICT, "Khóa học chưa có học viên đang học để duyệt bảng điểm");
+        }
+        long activeWithScore = activeEnrollments.stream().filter(e -> e.getFinalScore() != null).count();
+        long missingScore = activeEnrollments.size() - activeWithScore;
+        if (missingScore > 0) {
+            throw new ErrorHandler(HttpStatus.CONFLICT,
+                    "Còn " + missingScore + " học viên chưa có điểm cuối khóa; hãy nhập đủ điểm trước khi gửi duyệt");
+        }
+        long unmarkedStudents = attendanceRepository
+                .countActiveEnrollmentsWithUnmarkedSessions(courseId, EnrollmentStatus.ACTIVE, LocalDateTime.now());
+        if (unmarkedStudents > 0) {
+            throw new ErrorHandler(HttpStatus.CONFLICT,
+                    "Còn " + unmarkedStudents + " học viên chưa điểm danh đủ buổi; hãy hoàn tất điểm danh trước khi gửi duyệt");
         }
 
         if (requestRepository.existsByRequestTypeAndTargetEntityTypeAndTargetEntityIdAndStatus(
@@ -1846,10 +2034,7 @@ public class EnrollmentServiceImpl implements EnrollmentService {
         }
         requireGradeSheetEditable(courseId, "gửi duyệt lại bảng điểm");
 
-        long totalActive = enrollments.stream().filter(e -> e.getStatus() == EnrollmentStatus.ACTIVE).count();
-        List<Enrollment> activeEnrollments = enrollments.stream()
-                .filter(e -> e.getStatus() == EnrollmentStatus.ACTIVE)
-                .toList();
+        long totalActive = activeEnrollments.size();
         List<Session> conductedSessions = sessionRepository.findConductedSessions(courseId, LocalDateTime.now());
         Set<Long> studentIds = activeEnrollments.stream()
                 .map(Enrollment::getStudentId).filter(Objects::nonNull).collect(Collectors.toSet());
@@ -1857,11 +2042,8 @@ public class EnrollmentServiceImpl implements EnrollmentService {
                 .collect(Collectors.toMap(Student::getId, s -> s));
 
         int maxFinalScore = CourseScoreScale.maxFinalScore(course);
-        BigDecimal maxRecorded = activeEnrollments.stream()
-                .map(Enrollment::getFinalScore).filter(Objects::nonNull)
-                .max(BigDecimal::compareTo).orElse(null);
-        boolean scale10 = maxRecorded != null && maxRecorded.compareTo(BigDecimal.TEN) <= 0;
-        BigDecimal passScore = scale10 ? BigDecimal.valueOf(5) : BigDecimal.valueOf(maxFinalScore / 2.0);
+        // Điểm chuẩn = 50% thang điểm khóa (100→50, 990→495), khớp cách FE phân loại.
+        BigDecimal passScore = BigDecimal.valueOf(maxFinalScore / 2.0);
 
         List<Map<String, Object>> gradeRows = new ArrayList<>();
         int passedCount = 0;
@@ -1932,6 +2114,60 @@ public class EnrollmentServiceImpl implements EnrollmentService {
         req.setPayload(payload);
 
         requestService.create(req);
+        return getGradeReviewStatus(courseId);
+    }
+
+    @Override
+    @Transactional
+    public GradeReviewStatusResponse reopenGradeSheet(Long courseId, ReopenGradeSheetRequest request) {
+        requireAdmin();
+        Course course = courseRepository.findById(courseId)
+                .orElseThrow(() -> new ErrorHandler(HttpStatus.NOT_FOUND, "Khóa học không tồn tại"));
+        if (course.getCourseType() != CourseType.OFFLINE) {
+            throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Chỉ khóa học OFFLINE mới có bảng điểm cần mở khóa");
+        }
+        Request approval = requestRepository
+                .findLatestByTargetAndType("COURSE", courseId, RequestType.COURSE_GRADE_APPROVAL)
+                .orElseThrow(() -> new ErrorHandler(HttpStatus.CONFLICT, "Bảng điểm chưa từng được gửi duyệt"));
+        if (approval.getStatus() != RequestStatus.APPROVED) {
+            throw new ErrorHandler(HttpStatus.CONFLICT,
+                    "Chỉ mở lại được bảng điểm đã duyệt (hiện tại: " + approval.getStatus() + ")");
+        }
+
+        Long actorId = SecurityUtils.requireCurrentAccountId();
+        String reason = request.reason().trim();
+        Long requestId = approval.getId();
+        String requestCode = approval.getRequestCode();
+
+        // Chuyển đơn duyệt sang CANCELLED để bỏ hiệu lực khóa bảng điểm/điểm danh.
+        // Snapshot bảng điểm đã duyệt vẫn giữ nguyên trong responseData để đối chiếu lịch sử.
+        Map<String, Object> data = approval.getResponseData() != null
+                ? new HashMap<>(approval.getResponseData())
+                : new HashMap<>();
+        data.put("reopenedAt", LocalDateTime.now().toString());
+        data.put("reopenedBy", actorId);
+        data.put("reopenReason", reason);
+        approval.setResponseData(data);
+        approval.setStatus(RequestStatus.CANCELLED);
+        requestRepository.save(approval);
+
+        AuditLog log = new AuditLog();
+        log.setActorId(actorId);
+        log.setAction("REOPEN_GRADE_SHEET");
+        log.setEntityType(GRADE_SHEET_AUDIT_ENTITY);
+        log.setEntityId(courseId);
+        Map<String, Object> oldValue = new LinkedHashMap<>();
+        oldValue.put("gradeSheetStatus", "APPROVED");
+        oldValue.put("requestId", requestId);
+        oldValue.put("requestCode", requestCode);
+        log.setOldValue(oldValue);
+        Map<String, Object> newValue = new LinkedHashMap<>();
+        newValue.put("gradeSheetStatus", "DRAFT");
+        newValue.put("requestId", requestId);
+        newValue.put("reason", reason);
+        log.setNewValue(newValue);
+        auditLogRepository.save(log);
+
         return getGradeReviewStatus(courseId);
     }
 }

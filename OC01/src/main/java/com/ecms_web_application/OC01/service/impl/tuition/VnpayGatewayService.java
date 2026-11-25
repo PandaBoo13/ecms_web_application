@@ -48,10 +48,10 @@ public class VnpayGatewayService {
     private final StudentRepository studentRepository;
     private final ApplicationEventPublisher eventPublisher;
 
-    @Value("${VNPAY_TMN_CODE:CGXZLS0Z}") private String tmnCode;
-    @Value("${VNPAY_HASH_SECRET:XNBCJFAKAZQSGZSSTGUBMVNXZAWZRRIQ}") private String hashSecret;
+    @Value("${VNPAY_TMN_CODE:}") private String tmnCode;
+    @Value("${VNPAY_HASH_SECRET:}") private String hashSecret;
     @Value("${VNPAY_PAY_URL:https://sandbox.vnpayment.vn/paymentv2/vpcpay.html}") private String payUrl;
-    @Value("${VNPAY_RETURN_URL:http://localhost:8080/api/public/tuition/vnpay-return-page}") private String returnUrl;
+    @Value("${VNPAY_RETURN_URL:}") private String returnUrl;
 
     /** Tài khoản đã đăng nhập tạo URL VNPAY cho hoá đơn thuộc sở hữu của mình. */
     @Transactional(readOnly = true)

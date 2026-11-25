@@ -3,6 +3,8 @@ package com.ecms_web_application.OC01.controller;
 import com.ecms_web_application.OC01.dto.request.enrollment.CompleteEnrollmentsRequest;
 import com.ecms_web_application.OC01.dto.request.enrollment.CompleteEnrollmentRequest;
 import com.ecms_web_application.OC01.dto.request.enrollment.RecordFinalScoreRequest;
+import com.ecms_web_application.OC01.dto.request.enrollment.ReopenCompletionRequest;
+import com.ecms_web_application.OC01.dto.request.enrollment.ReopenGradeSheetRequest;
 import com.ecms_web_application.OC01.dto.request.enrollment.ReserveEnrollmentRequest;
 import com.ecms_web_application.OC01.dto.request.enrollment.TerminateEnrollmentRequest;
 import com.ecms_web_application.OC01.dto.response.RequestResponse;
@@ -61,6 +63,13 @@ public class EnrollmentController {
     public ResponseEntity<RequestResponse> submitGradeReview(@PathVariable Long courseId) {
         return ResponseEntity.ok(new RequestResponse(enrollmentService.submitGradeReview(courseId),
                 "Đã gửi yêu cầu phê duyệt bảng điểm"));
+    }
+
+    @PostMapping("/course/{courseId}/grade-review/reopen")
+    public ResponseEntity<RequestResponse> reopenGradeSheet(@PathVariable Long courseId,
+            @Valid @RequestBody ReopenGradeSheetRequest request) {
+        return ResponseEntity.ok(new RequestResponse(enrollmentService.reopenGradeSheet(courseId, request),
+                "Đã mở lại bảng điểm để chỉnh sửa"));
     }
 
     @GetMapping("/summary")
@@ -138,5 +147,12 @@ public class EnrollmentController {
             @Valid @RequestBody CompleteEnrollmentRequest request) {
         return ResponseEntity.ok(new RequestResponse(enrollmentService.complete(enrollmentId, request),
                 "Đánh dấu hoàn thành khóa học thành công"));
+    }
+
+    @PostMapping("/{enrollmentId}/reopen-completion")
+    public ResponseEntity<RequestResponse> reopenCompletion(@PathVariable Long enrollmentId,
+            @Valid @RequestBody ReopenCompletionRequest request) {
+        return ResponseEntity.ok(new RequestResponse(enrollmentService.reopenCompletion(enrollmentId, request),
+                "Đã hoàn tác xét hoàn thành khóa học"));
     }
 }

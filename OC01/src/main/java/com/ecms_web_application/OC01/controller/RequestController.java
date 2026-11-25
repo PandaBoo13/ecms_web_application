@@ -25,6 +25,7 @@ import org.springframework.web.bind.annotation.*;
  *   GET  /api/requests/{id}/course-conflicts    → preview conflict (COURSE_REVIEW)
  *   POST /api/requests/{id}/review              → duyệt / từ chối
  *   POST /api/requests/{id}/cancel              → requester tự hủy
+ *   POST /api/requests/{id}/revoke              → thu hồi đơn xin nghỉ đã duyệt
  */
 @Slf4j
 @RestController
@@ -105,5 +106,14 @@ public class RequestController {
     public ResponseEntity<RequestResponse> cancel(@PathVariable Long id) {
         var data = requestService.cancel(id);
         return ResponseEntity.ok(new RequestResponse(data, "Đã hủy yêu cầu"));
+    }
+
+    // ============================================================
+    // REVOKE — thu hồi đơn xin nghỉ đã duyệt (hoàn tác điểm danh)
+    // ============================================================
+    @PostMapping("/{id}/revoke")
+    public ResponseEntity<RequestResponse> revoke(@PathVariable Long id) {
+        var data = requestService.revoke(id);
+        return ResponseEntity.ok(new RequestResponse(data, "Đã thu hồi yêu cầu"));
     }
 }

@@ -39,6 +39,7 @@ import MoneyDisplay from '@/components/common/MoneyDisplay';
 import CourseOverviewTab from '@/components/course/CourseOverviewTab';
 import ResourceManager from '@/components/course/ResourceManager';
 import CourseSessionList from '@/components/course/CourseSessionList';
+import CourseAttendanceMatrix from '@/components/course/CourseAttendanceMatrix';
 import CourseQuestionList from '@/components/course/CourseQuestionList';
 import QuizListCard from '@/components/course/QuizListCard';
 import CourseEnrollmentList from '@/components/course/CourseEnrollmentList';
@@ -453,6 +454,11 @@ const CourseEditPage = () => {
           readOnly={isLocked}
         />
       ),
+    });
+    tabItems.splice(3, 0, {
+      key: 'attendance',
+      label: <span>Điểm danh</span>,
+      children: <CourseAttendanceMatrix courseId={courseId} mode="instructor" />,
     });
   }
 

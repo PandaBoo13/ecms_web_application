@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Alert, Badge, Button, Drawer, Empty, Input, Modal, Progress, Radio,
+  Alert, Badge, Button, Drawer, Empty, Input, Modal, Popconfirm, Progress, Radio,
   Segmented, Select, Space, Table, Tag, Tooltip, Typography,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
@@ -59,6 +59,8 @@ interface ActiveCell {
   session: AttendanceMatrixSession;
   student: AttendanceMatrixStudent;
   status: AttendanceStatus;
+  /** Trạng thái đang lưu trên server — dùng để xác nhận khi đổi Vắng có phép → Có mặt. */
+  originalStatus: AttendanceStatus;
   note: string;
   leaveRequestId?: number | null;
   leaveRequestStatus?: string | null;
@@ -166,6 +168,7 @@ export default function CourseAttendanceMatrix({ courseId, mode = 'admin' }: Cou
       session,
       student,
       status: cell?.status ?? 'NOT_MARKED',
+      originalStatus: cell?.status ?? 'NOT_MARKED',
       note: cell?.note ?? '',
       leaveRequestId: cell?.leaveRequestId ?? null,
       leaveRequestStatus: cell?.leaveRequestStatus ?? null,
@@ -173,14 +176,13 @@ export default function CourseAttendanceMatrix({ courseId, mode = 'admin' }: Cou
     });
   };
 
-  const saveCell = async () => {
-    if (!activeCell) return;
+  const persistCell = async (cell: ActiveCell) => {
     setSavingCell(true);
     try {
-      await enrollmentApi.saveSessionAttendance(courseId, activeCell.session.sessionId, [{
-        enrollmentId: activeCell.student.enrollmentId,
-        status: activeCell.status,
-        note: activeCell.note.trim() || null,
+      await enrollmentApi.saveSessionAttendance(courseId, cell.session.sessionId, [{
+        enrollmentId: cell.student.enrollmentId,
+        status: cell.status,
+        note: cell.note.trim() || null,
       }]);
       setActiveCell(null);
       toast.success('Đã lưu điểm danh học viên');
@@ -190,6 +192,23 @@ export default function CourseAttendanceMatrix({ courseId, mode = 'admin' }: Cou
     } finally {
       setSavingCell(false);
     }
+  };
+
+  const saveCell = () => {
+    if (!activeCell) return;
+    if (activeCell.originalStatus === 'EXCUSED' && activeCell.status === 'PRESENT') {
+      Modal.confirm({
+        title: 'Xác nhận chuyển sang Có mặt',
+        content: `${activeCell.student.studentName || `Ghi danh #${activeCell.student.enrollmentId}`} đang ở trạng thái "${ATTENDANCE_STATUS_LABEL.EXCUSED}"`
+          + `${activeCell.leaveRequestStatus === 'APPROVED' ? ' (từ đơn nghỉ đã duyệt — đơn không tự thu hồi)' : ''}`
+          + ` — đổi sang "${ATTENDANCE_STATUS_LABEL.PRESENT}"?`,
+        okText: 'Xác nhận',
+        cancelText: 'Hủy',
+        onOk: () => persistCell(activeCell),
+      });
+      return;
+    }
+    void persistCell(activeCell);
   };
 
   /**
@@ -209,6 +228,21 @@ export default function CourseAttendanceMatrix({ courseId, mode = 'admin' }: Cou
       await load();
     } catch (err) {
       showError(err, approved ? 'Không thể duyệt đơn nghỉ' : 'Không thể từ chối đơn nghỉ');
+    } finally {
+      setLeaveActionLoading(null);
+    }
+  };
+
+  /** Thu hồi đơn đã duyệt — backend hoàn tác điểm danh về trạng thái trước khi duyệt. */
+  const revokeLeave = async (requestId: number) => {
+    setLeaveActionLoading(requestId);
+    try {
+      await requestApi.revoke(requestId);
+      setActiveCell(null);
+      toast.success('Đã thu hồi đơn nghỉ');
+      await load();
+    } catch (err) {
+      showError(err, 'Không thể thu hồi đơn nghỉ');
     } finally {
       setLeaveActionLoading(null);
     }
@@ -706,6 +740,22 @@ export default function CourseAttendanceMatrix({ courseId, mode = 'admin' }: Cou
                   )}
                   {activeCell.leaveRequestStatus === 'PENDING' && readOnly && (
                     <Text type="secondary">Chỉ giảng viên phụ trách buổi học mới được xử lý đơn này.</Text>
+                  )}
+                  {activeCell.leaveRequestStatus === 'APPROVED' && !readOnly && (
+                    <Popconfirm
+                      title="Thu hồi đơn nghỉ đã duyệt?"
+                      description="Điểm danh của học viên ở buổi này sẽ khôi phục về trạng thái trước khi duyệt đơn."
+                      okText="Thu hồi"
+                      cancelText="Hủy"
+                      okButtonProps={{ danger: true }}
+                      onConfirm={() => void revokeLeave(activeCell.leaveRequestId!)}
+                    >
+                      <Button
+                        size="small"
+                        danger
+                        loading={leaveActionLoading === activeCell.leaveRequestId}
+                      >Thu hồi đơn nghỉ</Button>
+                    </Popconfirm>
                   )}
                 </Space>
               }

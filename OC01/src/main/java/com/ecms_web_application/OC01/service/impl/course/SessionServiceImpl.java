@@ -676,16 +676,6 @@ public class SessionServiceImpl implements SessionService {
     }
 
     @Override
-    public List<InstructorAttendanceSessionResponse> getMyAttendanceSessions(Long accountId, LocalDate from, LocalDate to) {
-        return List.of();
-    }
-
-    @Override
-    public List<InstructorAttendanceCourseResponse> getMyAttendanceCourses(Long accountId) {
-        return List.of();
-    }
-
-    @Override
     @Transactional(readOnly = true)
     public List<SessionScheduleResponse> getMyStudentSchedule(Long accountId, LocalDate from, LocalDate to) {
         return sessionRepository.findStudentScheduleWithCourse(accountId, from, to)
@@ -841,4 +831,5 @@ public class SessionServiceImpl implements SessionService {
         }
         return "#" + account.getId();
     }
+
 }

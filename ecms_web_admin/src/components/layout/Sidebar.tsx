@@ -71,7 +71,6 @@ const MENU_KEY_TRANSLATION_MAP: Record<string, string> = {
   '/instructor/schedule': 'Lịch giảng dạy', // 🆕 Thêm key dịch cho lịch
   '/instructor/courses': 'menu.myCourses',
   '/instructor/students': 'menu.students',
-  '/instructor/attendance': 'Điểm danh',
   '/instructor/assignments': 'menu.assignments',
   '/instructor/profile': 'common.profile',
 };

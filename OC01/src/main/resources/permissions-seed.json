@@ -558,6 +558,12 @@
         "description": "Xét hoàn thành hàng loạt học viên trong khóa"
     },
     {
+        "method": "POST",
+        "path": "/api/enrollments/{enrollmentId}/reopen-completion",
+        "module": "enrollment",
+        "description": "Hoàn tác xét hoàn thành khóa học"
+    },
+    {
         "method": "GET",
         "path": "/api/enrollments/course/{courseId}/roster/export",
         "module": "enrollment",
@@ -582,6 +588,12 @@
         "description": "Gửi duyệt bảng điểm cuối khóa"
     },
     {
+        "method": "POST",
+        "path": "/api/enrollments/course/{courseId}/grade-review/reopen",
+        "module": "enrollment",
+        "description": "Mở lại bảng điểm đã duyệt (ADMIN)"
+    },
+    {
         "method": "GET",
         "path": "/api/courses/{courseId}/sessions/{sessionId}/attendance",
         "module": "enrollment",
@@ -592,18 +604,6 @@
         "path": "/api/courses/{courseId}/sessions/{sessionId}/attendance",
         "module": "enrollment",
         "description": "Lưu trạng thái điểm danh buổi học"
-    },
-    {
-        "method": "GET",
-        "path": "/api/instructor/attendance/sessions",
-        "module": "enrollment",
-        "description": "Danh sách buổi học được phân công điểm danh"
-    },
-    {
-        "method": "GET",
-        "path": "/api/instructor/attendance/courses",
-        "module": "enrollment",
-        "description": "Danh sách khóa OFFLINE được phân công điểm danh"
     },
     {
         "method": "GET",

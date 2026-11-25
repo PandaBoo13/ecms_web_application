@@ -35,6 +35,17 @@ export const ATTENDANCE_STATUS_COLOR: Record<AttendanceStatus, string> = {
 const statusOptions = Object.entries(ATTENDANCE_STATUS_LABEL)
   .map(([value, label]) => ({ value: value as AttendanceStatus, label }));
 
+const baselineOf = (records: AttendanceRecordResponse[]): Record<number, AttendanceStatus> =>
+  records.reduce<Record<number, AttendanceStatus>>((acc, record) => {
+    acc[record.enrollmentId] = record.status;
+    return acc;
+  }, {});
+
+const statusLabelOf = (value: unknown): string => {
+  const key = String(value ?? '') as AttendanceStatus;
+  return ATTENDANCE_STATUS_LABEL[key] ?? (value != null ? String(value) : '—');
+};
+
 interface SessionAttendanceEditorProps {
   open: boolean;
   courseId: number;
@@ -49,6 +60,7 @@ export default function SessionAttendanceEditor({
   open, courseId, session, readOnly = false, onClose, onSaved,
 }: SessionAttendanceEditorProps) {
   const [attendance, setAttendance] = useState<SessionAttendanceResponse | null>(null);
+  const [baseline, setBaseline] = useState<Record<number, AttendanceStatus>>({});
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
@@ -67,7 +79,10 @@ export default function SessionAttendanceEditor({
     setDirty(false);
     setSearch('');
     enrollmentApi.sessionAttendance(courseId, session.sessionId).then((result) => {
-      if (active) setAttendance(result);
+      if (active) {
+        setAttendance(result);
+        setBaseline(baselineOf(result.records));
+      }
     }).catch((err) => {
       if (active) showError(err, 'Không tải được danh sách điểm danh');
     }).finally(() => {
@@ -97,16 +112,8 @@ export default function SessionAttendanceEditor({
     setDirty(true);
   };
 
-  const markAllPresent = () => {
-    setAttendance((current) => current ? ({
-      ...current,
-      records: current.records.map((record) => ({ ...record, status: 'PRESENT' })),
-    }) : current);
-    setDirty(true);
-  };
-
-  const save = async () => {
-    if (!attendance || !dirty) return;
+  const persistSave = async () => {
+    if (!attendance) return;
     setSaving(true);
     try {
       const saved = await enrollmentApi.saveSessionAttendance(
@@ -117,6 +124,7 @@ export default function SessionAttendanceEditor({
         })),
       );
       setAttendance(saved);
+      setBaseline(baselineOf(saved.records));
       setDirty(false);
       toast.success('Đã lưu trạng thái điểm danh');
       onSaved?.();
@@ -125,6 +133,23 @@ export default function SessionAttendanceEditor({
     } finally {
       setSaving(false);
     }
+  };
+
+  const save = () => {
+    if (!attendance || !dirty) return;
+    const excusedToPresent = attendance.records.filter((record) =>
+      baseline[record.enrollmentId] === 'EXCUSED' && record.status === 'PRESENT');
+    if (excusedToPresent.length > 0) {
+      Modal.confirm({
+        title: 'Xác nhận chuyển sang Có mặt',
+        content: `${excusedToPresent.length} học viên đang ở trạng thái "${ATTENDANCE_STATUS_LABEL.EXCUSED}" sẽ chuyển sang "${ATTENDANCE_STATUS_LABEL.PRESENT}". Tiếp tục lưu?`,
+        okText: 'Xác nhận',
+        cancelText: 'Hủy',
+        onOk: () => persistSave(),
+      });
+      return;
+    }
+    void persistSave();
   };
 
   const loadHistory = async () => {
@@ -145,6 +170,7 @@ export default function SessionAttendanceEditor({
     setLoading(true);
     enrollmentApi.sessionAttendance(courseId, session.sessionId).then((result) => {
       setAttendance(result);
+      setBaseline(baselineOf(result.records));
       setDirty(false);
     }).catch((err) => {
       showError(err, 'Không tải được danh sách điểm danh');
@@ -291,9 +317,9 @@ export default function SessionAttendanceEditor({
               <Text type="secondary"> · {dayjs(entry.changedAt).format('DD/MM/YYYY HH:mm')}</Text>
               <div className="text-sm mt-1">
                 Ghi danh #{String(entry.newValue?.enrollmentId ?? entry.oldValue?.enrollmentId ?? '')}:{' '}
-                <Tag>{String(entry.oldValue?.status ?? '—')}</Tag>
+                <Tag>{statusLabelOf(entry.oldValue?.status)}</Tag>
                 → <Tag color={ATTENDANCE_STATUS_COLOR[(String(entry.newValue?.status ?? 'NOT_MARKED')) as AttendanceStatus]}>
-                  {String(entry.newValue?.status ?? '—')}
+                  {statusLabelOf(entry.newValue?.status)}
                 </Tag>
               </div>
             </div>
@@ -355,9 +381,6 @@ export default function SessionAttendanceEditor({
               placeholder="Tìm tên hoặc mã học viên"
               onChange={(event) => setSearch(event.target.value)}
             />
-            {!readOnly && <Button disabled={!editable || !records.length} onClick={markAllPresent}>
-              Tất cả có mặt
-            </Button>}
           </Space>
         </div>
 

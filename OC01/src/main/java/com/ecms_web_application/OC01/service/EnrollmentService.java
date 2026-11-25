@@ -2,6 +2,8 @@ package com.ecms_web_application.OC01.service;
 
 import com.ecms_web_application.OC01.dto.request.enrollment.RecordFinalScoreRequest;
 import com.ecms_web_application.OC01.dto.request.enrollment.CompleteEnrollmentRequest;
+import com.ecms_web_application.OC01.dto.request.enrollment.ReopenCompletionRequest;
+import com.ecms_web_application.OC01.dto.request.enrollment.ReopenGradeSheetRequest;
 import com.ecms_web_application.OC01.dto.response.enrollment.GradeReviewStatusResponse;
 import com.ecms_web_application.OC01.dto.request.enrollment.SaveSessionAttendanceRequest;
 import com.ecms_web_application.OC01.dto.request.enrollment.ReserveEnrollmentRequest;
@@ -46,6 +48,8 @@ public interface EnrollmentService {
     void terminateForFullRefund(Long invoiceId, Long actorId, String reason);
     EnrollmentResponse recordFinalScore(Long enrollmentId, RecordFinalScoreRequest request);
     EnrollmentResponse complete(Long enrollmentId, CompleteEnrollmentRequest request);
+    /** Hoàn tác xét hoàn thành sai: đưa ghi danh COMPLETED về ACTIVE để xét lại. */
+    EnrollmentResponse reopenCompletion(Long enrollmentId, ReopenCompletionRequest request);
     SessionAttendanceResponse getSessionAttendance(Long courseId, Long sessionId);
     SessionAttendanceResponse saveSessionAttendance(
             Long courseId, Long sessionId, SaveSessionAttendanceRequest request);
@@ -59,4 +63,6 @@ public interface EnrollmentService {
     List<EnrollmentStatusLogResponse> getStatusHistory(Long enrollmentId);
     GradeReviewStatusResponse getGradeReviewStatus(Long courseId);
     GradeReviewStatusResponse submitGradeReview(Long courseId);
+    /** ADMIN mở khóa bảng điểm đã duyệt để giảng viên sửa điểm/điểm danh và gửi duyệt lại. */
+    GradeReviewStatusResponse reopenGradeSheet(Long courseId, ReopenGradeSheetRequest request);
 }
