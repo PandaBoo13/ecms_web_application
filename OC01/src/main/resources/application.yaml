@@ -256,10 +256,8 @@ app:
   # ĐIỂM DANH KHÓA OFFLINE
   # ══════════════════════════════════════════════════════════════
   attendance:
-    # Giảng viên chỉ được sửa điểm danh trong N ngày sau khi buổi học kết thúc.
-    edit-window-days: ${ATTENDANCE_EDIT_WINDOW_DAYS:7}
     # Tỉ lệ vắng tối đa (%) để được xét hoàn thành khóa OFFLINE.
-    max-absence-percent: ${ATTENDANCE_MAX_ABSENCE_PERCENT:20}
+    max-absence-percent: ${ATTENDANCE_MAX_ABSENCE_PERCENT:25}
 
   mail:
     # Địa chỉ hiển thị ở người gửi. Sandbox (Mailtrap/Ethereal) chấp nhận mọi địa chỉ,

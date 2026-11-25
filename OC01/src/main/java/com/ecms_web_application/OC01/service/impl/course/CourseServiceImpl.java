@@ -69,6 +69,13 @@ public class CourseServiceImpl implements CourseService {
 
     private static final Pattern NON_ALNUM = Pattern.compile("[^a-z0-9]+");
 
+    /** Số học viên của khóa; giữ cả học viên bảo lưu và đã hoàn thành. */
+    private static final List<EnrollmentStatus> STUDENT_COUNT_STATUSES = List.of(
+            EnrollmentStatus.PENDING,
+            EnrollmentStatus.ACTIVE,
+            EnrollmentStatus.RESERVED,
+            EnrollmentStatus.COMPLETED);
+
     // ============================================================
     // CREATE
     // ============================================================
@@ -151,6 +158,8 @@ public class CourseServiceImpl implements CourseService {
         CourseDetailResponse response = mapper.toCourseDetailResponse(c, resources);
         // Dùng đúng method đang trả về List<SessionResponse> trong SessionService (vd: listByCourse / getSessionsByCourse)
         response.setSessions(sessionService.listByCourse(id));
+        response.setCurrentStudents((int) enrollmentRepository.countByCourseIdAndStatusIn(
+                id, STUDENT_COUNT_STATUSES));
         return response;
     }
     // ============================================================
@@ -164,8 +173,20 @@ public class CourseServiceImpl implements CourseService {
         CourseType tp = StringUtils.hasText(type) ? CourseType.valueOf(type.toUpperCase()) : null;
         String kw = StringUtils.hasText(search) ? search.trim() : "";
 
-        return courseRepository.searchCourses(st, tp, teacherId, categoryId, kw, pageable)
-                .map(mapper::toCourseResponse);
+        Page<Course> courses = courseRepository.searchCourses(st, tp, teacherId, categoryId, kw, pageable);
+        if (courses.isEmpty()) return courses.map(mapper::toCourseResponse);
+
+        List<Long> courseIds = courses.getContent().stream().map(Course::getId).toList();
+        Map<Long, Integer> studentCounts = enrollmentRepository
+                .countByCourseIdInAndStatusInGrouped(courseIds, STUDENT_COUNT_STATUSES)
+                .stream()
+                .collect(Collectors.toMap(row -> (Long) row[0], row -> ((Number) row[1]).intValue()));
+
+        return courses.map(course -> {
+            CourseResponse response = mapper.toCourseResponse(course);
+            response.setCurrentStudents(studentCounts.getOrDefault(course.getId(), 0));
+            return response;
+        });
     }
 
     // ============================================================

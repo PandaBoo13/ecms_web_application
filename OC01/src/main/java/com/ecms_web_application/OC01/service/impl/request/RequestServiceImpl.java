@@ -10,6 +10,7 @@ import com.ecms_web_application.OC01.dto.response.request.RequestDetailResponse;
 import com.ecms_web_application.OC01.dto.response.request.RequestResponse;
 import com.ecms_web_application.OC01.entity.Account;
 import com.ecms_web_application.OC01.entity.course.Course;
+import com.ecms_web_application.OC01.entity.course.Session;
 import com.ecms_web_application.OC01.entity.enums.RequestStatus;
 import com.ecms_web_application.OC01.entity.enums.RequestType;
 import com.ecms_web_application.OC01.entity.request.Request;
@@ -20,6 +21,7 @@ import com.ecms_web_application.OC01.generic.validator.RequestValidator;
 import com.ecms_web_application.OC01.repository.AccountRepository;
 import com.ecms_web_application.OC01.repository.CourseRepository;
 import com.ecms_web_application.OC01.repository.RequestRepository;
+import com.ecms_web_application.OC01.repository.SessionRepository;
 import com.ecms_web_application.OC01.service.CourseConflictService;
 import com.ecms_web_application.OC01.service.handler.RequestHandler;
 import com.ecms_web_application.OC01.service.handler.RequestHandlerRegistry;
@@ -54,6 +56,7 @@ public class RequestServiceImpl implements RequestService {
     private final RequestRepository requestRepository;
     private final AccountRepository accountRepository;
     private final CourseRepository courseRepository;
+    private final SessionRepository sessionRepository;
     private final RequestValidator requestValidator;
     private final RequestMapper requestMapper;
     private final RequestHandlerRegistry handlerRegistry;
@@ -88,16 +91,35 @@ public class RequestServiceImpl implements RequestService {
         RequestHandler handler = handlerRegistry.get(type);
         handler.validateCreate(req, type);
 
-        // 4. Không cho submit trùng khi đã có PENDING cho cùng target
+        // 4. Không cho submit trùng khi đã có PENDING cho cùng target.
+        //    LEAVE_FEEDBACK chặn theo (enrollmentId, sessionId) vì một buổi học
+        //    có nhiều học viên, không thể chặn chéo giữa các học viên.
         String targetType = type.getTargetEntityType();
         if (!"NONE".equals(targetType)) {
-            boolean exists = requestRepository
-                    .existsByRequestTypeAndTargetEntityTypeAndTargetEntityIdAndStatus(
-                            type, targetType, req.getTargetEntityId(), RequestStatus.PENDING);
-            if (exists) {
-                throw new ErrorHandler(HttpStatus.CONFLICT,
-                        "Đã có yêu cầu '" + type.getDisplayName()
-                                + "' đang chờ duyệt cho đối tượng này");
+            if (type == RequestType.LEAVE_FEEDBACK) {
+                Long enrollmentId = extractEnrollmentId(req.getPayload());
+                if (enrollmentId == null) {
+                    throw new ErrorHandler(HttpStatus.BAD_REQUEST,
+                            "Đơn xin nghỉ phép phải kèm enrollmentId");
+                }
+                boolean exists = requestRepository
+                        .findAllByRequestTypeAndTargetEntityTypeAndTargetEntityIdAndStatus(
+                                type, targetType, req.getTargetEntityId(), RequestStatus.PENDING)
+                        .stream()
+                        .anyMatch(pending -> enrollmentId.equals(extractEnrollmentId(pending.getPayload())));
+                if (exists) {
+                    throw new ErrorHandler(HttpStatus.CONFLICT,
+                            "Đã có đơn xin nghỉ đang chờ duyệt cho buổi học này");
+                }
+            } else {
+                boolean exists = requestRepository
+                        .existsByRequestTypeAndTargetEntityTypeAndTargetEntityIdAndStatus(
+                                type, targetType, req.getTargetEntityId(), RequestStatus.PENDING);
+                if (exists) {
+                    throw new ErrorHandler(HttpStatus.CONFLICT,
+                            "Đã có yêu cầu '" + type.getDisplayName()
+                                    + "' đang chờ duyệt cho đối tượng này");
+                }
             }
         }
 
@@ -323,6 +345,60 @@ public class RequestServiceImpl implements RequestService {
     }
 
     // ============================================================
+    // REVOKE — thu hồi đơn đã duyệt (hoàn tác side-effect)
+    // ============================================================
+    @Override
+    @Transactional
+    public RequestDetailResponse revoke(Long id) {
+
+        Request r = requestRepository.findByIdForUpdate(id)
+                .orElseThrow(() -> new ErrorHandler(HttpStatus.NOT_FOUND,
+                        "Yêu cầu không tồn tại"));
+
+        if (r.getRequestType() != RequestType.LEAVE_FEEDBACK) {
+            throw new ErrorHandler(HttpStatus.BAD_REQUEST,
+                    "Chỉ đơn xin nghỉ mới hỗ trợ thu hồi");
+        }
+        if (r.getStatus() != RequestStatus.APPROVED) {
+            throw new ErrorHandler(HttpStatus.CONFLICT,
+                    "Chỉ thu hồi đơn đã được duyệt (hiện tại: " + r.getStatus() + ")");
+        }
+
+        Long actorId = SecurityUtils.requireCurrentAccountId();
+        assertCanRevoke(actorId, r);
+
+        Map<String, Object> responseData = r.getResponseData();
+        boolean hasAttendanceSnapshot = responseData != null
+                && responseData.get("attendancePreviousStatus") != null;
+        boolean attendanceSkipped = responseData != null
+                && Boolean.TRUE.equals(responseData.get("attendanceSkipped"));
+        if (!hasAttendanceSnapshot && !attendanceSkipped) {
+            throw new ErrorHandler(HttpStatus.CONFLICT,
+                    "Đơn này không có dữ liệu điểm danh trước khi duyệt — "
+                            + "không thể thu hồi tự động. Vui lòng sửa điểm danh thủ công.");
+        }
+
+        // Handler hoàn tác điểm danh trong khi request còn APPROVED
+        handlerRegistry.get(r.getRequestType()).onCancel(r);
+
+        r.setStatus(RequestStatus.CANCELLED);
+        r.setResolvedAt(LocalDateTime.now());
+
+        Map<String, Object> merged = new HashMap<>();
+        if (r.getResponseData() != null) merged.putAll(r.getResponseData());
+        merged.put("revokedAt", LocalDateTime.now().toString());
+        merged.put("revokedBy", actorId);
+        r.setResponseData(merged);
+
+        Request saved = requestRepository.save(r);
+
+        log.info("[Request] REVOKED code={}, type={}, by={}",
+                saved.getRequestCode(), saved.getRequestType().getCode(), actorId);
+
+        return toDetailWithAccounts(saved);
+    }
+
+    // ============================================================
     // HELPERS
     // ============================================================
     private String generateRequestCode() {
@@ -339,6 +415,18 @@ public class RequestServiceImpl implements RequestService {
         }
         return String.format("REQ-%s-%s", date,
                 UUID.randomUUID().toString().substring(0, 4).toUpperCase());
+    }
+
+    private Long extractEnrollmentId(Map<String, Object> payload) {
+        if (payload == null) return null;
+        Object val = payload.get("enrollmentId");
+        if (val == null) return null;
+        if (val instanceof Number num) return num.longValue();
+        try {
+            return Long.parseLong(val.toString().trim());
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 
     private void assertCanView(Request r, Long accountId) {
@@ -370,11 +458,18 @@ public class RequestServiceImpl implements RequestService {
                 .orElseThrow(() -> new ErrorHandler(HttpStatus.UNAUTHORIZED,
                         "Account không tồn tại"));
 
-        // §2.3: đơn xin nghỉ buổi học chỉ do GIẢNG VIÊN xử lý.
-        // Khác với các loại yêu cầu khác, ADMIN KHÔNG được bypass luồng này.
-        if (type == RequestType.LEAVE_FEEDBACK && !acc.isInstructor()) {
-            throw new ErrorHandler(HttpStatus.FORBIDDEN,
-                    "Chỉ giảng viên phụ trách buổi học mới được duyệt đơn nghỉ");
+        // §2.3: đơn xin nghỉ buổi học chỉ do GIẢNG VIÊN PHỤ TRÁCH buổi đó xử lý.
+        // ADMIN không duyệt thay (chỉ xem điểm danh).
+        if (type == RequestType.LEAVE_FEEDBACK) {
+            if (!acc.isInstructor()) {
+                throw new ErrorHandler(HttpStatus.FORBIDDEN,
+                        "Chỉ giảng viên phụ trách buổi học mới được duyệt đơn nghỉ");
+            }
+            if (!isAssignedToSession(r.getTargetEntityId(), accountId)) {
+                throw new ErrorHandler(HttpStatus.FORBIDDEN,
+                        "Bạn không được phân công buổi học này nên không thể duyệt đơn nghỉ");
+            }
+            return;
         }
 
         if (acc.isAdmin()) return;
@@ -383,6 +478,33 @@ public class RequestServiceImpl implements RequestService {
             throw new ErrorHandler(HttpStatus.FORBIDDEN,
                     "Chỉ " + requiredRole + " mới được duyệt yêu cầu này");
         }
+    }
+
+    /** Chỉ giảng viên được phân công buổi học được thu hồi đơn đã duyệt; ADMIN không có quyền. */
+    private void assertCanRevoke(Long accountId, Request r) {
+        Account acc = accountRepository.findByIdWithRoleAndProfile(accountId)
+                .orElseThrow(() -> new ErrorHandler(HttpStatus.UNAUTHORIZED,
+                        "Account không tồn tại"));
+        if (acc.isInstructor() && isAssignedToSession(r.getTargetEntityId(), accountId)) return;
+
+        throw new ErrorHandler(HttpStatus.FORBIDDEN,
+                "Chỉ giảng viên được phân công buổi học mới có quyền thu hồi đơn nghỉ");
+    }
+
+    private boolean isAssignedToSession(Long sessionId, Long accountId) {
+        if (sessionId == null) return false;
+        return sessionRepository.findById(sessionId)
+                .map(session -> matchesSessionAssignment(session, accountId))
+                .orElse(false);
+    }
+
+    private boolean matchesSessionAssignment(Session session, Long accountId) {
+        return (session.getCourse() != null && session.getCourse().getTeacher() != null
+                    && accountId.equals(session.getCourse().getTeacher().getId()))
+                || (session.getTeacher() != null && accountId.equals(session.getTeacher().getId()))
+                || (session.getSubstituteTeacher() != null
+                    && accountId.equals(session.getSubstituteTeacher().getId()))
+                || (session.getAssistant() != null && accountId.equals(session.getAssistant().getId()));
     }
 
     private RequestDetailResponse toDetailWithAccounts(Request r) {

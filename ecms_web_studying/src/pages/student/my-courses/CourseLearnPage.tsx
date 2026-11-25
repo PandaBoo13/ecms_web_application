@@ -15,6 +15,7 @@ import { courseApi } from '@/services/api/course';
 // Nếu báo lỗi không tìm thấy, đổi thành: import { courseApi } from '@/services/api/course/courseApi';
 
 import type { CourseDetailResponse } from '@/services/types/course';
+import type { EnrollmentResponse } from '@/services/types/enrollment';
 
 const CourseLearnPage = () => {
   const { id } = useParams<{ id: string }>();
@@ -22,6 +23,7 @@ const CourseLearnPage = () => {
   const courseId = Number(id);
 
   const [course, setCourse] = useState<CourseDetailResponse | null>(null);
+  const [enrollment, setEnrollment] = useState<EnrollmentResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [terminated, setTerminated] = useState(false);
@@ -43,6 +45,7 @@ const CourseLearnPage = () => {
       .then(([courseData, enrollments]) => {
         setCourse(courseData);
         const rows = enrollments?.content ?? [];
+        setEnrollment(rows.find((row) => row.courseId === courseId) ?? null);
         // Chỉ chặn khi mọi ghi danh của khóa đều đã kết thúc (hoàn tiền toàn phần).
         setTerminated(rows.length > 0 && rows.every((row) => row.status === 'TERMINATED'));
       })
@@ -90,7 +93,7 @@ const CourseLearnPage = () => {
       />
       
       <div style={{ display: 'grid', gap: 24 }}>
-        <CourseOverviewCard course={course} />
+        <CourseOverviewCard course={course} enrollment={enrollment} />
         <CourseResourceTree resources={course.resources || []} />
       </div>
     </PageContainer>

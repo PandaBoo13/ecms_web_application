@@ -103,4 +103,14 @@ export const requestApi = {
     );
     return data.data;
   },
+
+  // ============================================================
+  // REVOKE — thu hồi đơn xin nghỉ đã duyệt (hoàn tác điểm danh)
+  // ============================================================
+  revoke: async (id: number): Promise<RequestDetailResponse> => {
+    const { data } = await api.post<ApiRequestResponse<RequestDetailResponse>>(
+      API_ENDPOINT.REQUEST_REVOKE(id),
+    );
+    return data.data;
+  },
 };

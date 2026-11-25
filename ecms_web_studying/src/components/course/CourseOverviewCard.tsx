@@ -5,11 +5,13 @@ import DateDisplay from '@/components/common/DateDisplay';
 import MoneyDisplay from '@/components/common/MoneyDisplay';
 
 import type { CourseDetailResponse } from '@/services/types/course';
+import type { EnrollmentResponse } from '@/services/types/enrollment';
 
 const { Text, Paragraph } = Typography;
 
 interface Props {
   course: CourseDetailResponse;
+  enrollment?: EnrollmentResponse | null;
 }
 
 const DAY_LABELS = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
@@ -17,7 +19,12 @@ const DAY_LABELS = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
 const learningModeLabel = (mode?: string) =>
   mode === 'SEQUENTIAL' ? 'Tuần tự' : mode === 'AUTONOMOUS' ? 'Tự do' : '—';
 
-const CourseOverviewCard = ({ course }: Props) => {
+const formatFinalScore = (score?: number | null) => {
+  if (score === null || score === undefined) return '—';
+  return Number.isInteger(score) ? String(score) : score.toFixed(2).replace(/\.?0+$/, '');
+};
+
+const CourseOverviewCard = ({ course, enrollment }: Props) => {
   return (
     <Card>
       <Descriptions
@@ -100,6 +107,27 @@ const CourseOverviewCard = ({ course }: Props) => {
         <Descriptions.Item label="Ngày tạo">
           <DateDisplay value={course.createdAt} format="long" />
         </Descriptions.Item>
+
+        {course.courseType !== 'ONLINE' && (
+          <>
+            <Descriptions.Item label="Điểm cuối khóa">
+              {enrollment?.finalScore === null && enrollment?.scorePublished === false ? (
+                <Text type="secondary">Chưa công bố</Text>
+              ) : (
+                <Text strong>{formatFinalScore(enrollment?.finalScore)}</Text>
+              )}
+            </Descriptions.Item>
+            <Descriptions.Item label="Kết quả hoàn thành khóa học">
+              {enrollment?.completionResult === 'PASSED' ? (
+                <Tag color="green">Đạt</Tag>
+              ) : enrollment?.completionResult === 'FAILED' ? (
+                <Tag color="red">Không đạt</Tag>
+              ) : (
+                <Text type="secondary">—</Text>
+              )}
+            </Descriptions.Item>
+          </>
+        )}
 
         {course.scheduleDays && course.scheduleDays.length > 0 && (
           <Descriptions.Item label="Lịch học" span={3}>

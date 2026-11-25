@@ -8,6 +8,7 @@ export interface EnrollmentResponse {
   enrolledAt: string;
   absences: number;
   finalScore: number | null;
+  scorePublished: boolean;
   completedAt: string | null;
   courseCode?: string | null;
   studentName?: string | null;
@@ -28,6 +29,7 @@ export interface AttendanceRecordResponse {
   sessionTitle: string | null;
   sessionDate: string | null;
   sessionStartTime: string | null;
+  sessionEndTime: string | null;
   status: AttendanceStatus;
   note: string | null;
   studentName: string | null;

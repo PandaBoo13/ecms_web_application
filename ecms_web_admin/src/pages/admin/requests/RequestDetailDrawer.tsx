@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button, Descriptions, Drawer, Space, Tag, Typography } from 'antd';
+import { Alert, Button, Descriptions, Drawer, Space, Tag, Typography } from 'antd';
 import { ExportOutlined } from '@ant-design/icons';
 import { useTranslation } from '@/hooks/useTranslation';
 import { getRequestTypeLabel } from '@/services/types/request/request';
@@ -10,6 +10,7 @@ import RequestStatusTag from '@/components/request/RequestStatusTag';
 import CourseConflictAlert from '@/components/request/CourseConflictAlert';
 import RequestReviewActions from '@/components/request/RequestReviewActions';
 import GradeApprovalPanel from '@/components/request/GradeApprovalPanel';
+import ReopenGradeSheetAction from '@/components/request/ReopenGradeSheetAction';
 
 interface Props {
   open: boolean;
@@ -173,6 +174,28 @@ const RequestDetailDrawer = ({ open, request, onClose, onRefresh }: Props) => {
       {/* Bảng điểm chi tiết — chỉ hiện với COURSE_GRADE_APPROVAL */}
       {request.requestType === 'COURSE_GRADE_APPROVAL' && (
         <GradeApprovalPanel request={request} />
+      )}
+
+      {/* Thông tin mở lại bảng điểm (nếu đã từng được ADMIN mở khóa) */}
+      {request.requestType === 'COURSE_GRADE_APPROVAL' && Boolean(request.responseData?.reopenReason) && (
+        <Alert
+          type="info"
+          showIcon
+          style={{ marginTop: 16 }}
+          message="Bảng điểm đã được mở lại để chỉnh sửa"
+          description={`Lý do: ${String(request.responseData?.reopenReason ?? '')}`}
+        />
+      )}
+
+      {/* ADMIN mở lại bảng điểm đã duyệt */}
+      {request.requestType === 'COURSE_GRADE_APPROVAL' && request.status === 'APPROVED' && courseId && (
+        <ReopenGradeSheetAction
+          courseId={courseId}
+          onSuccess={() => {
+            onRefresh();
+            onClose();
+          }}
+        />
       )}
 
       {/* Actions duyệt / từ chối — chỉ hiện khi PENDING */}

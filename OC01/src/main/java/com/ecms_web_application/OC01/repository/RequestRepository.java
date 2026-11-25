@@ -26,6 +26,12 @@ public interface RequestRepository extends IRepository<Request, Long> {
             Long targetEntityId,
             RequestStatus status);
 
+    java.util.List<Request> findAllByRequestTypeAndTargetEntityTypeAndTargetEntityIdAndStatus(
+            RequestType requestType,
+            String targetEntityType,
+            Long targetEntityId,
+            RequestStatus status);
+
     long countByCreatedAtBetween(LocalDateTime from, LocalDateTime to);
 
     @Query("""

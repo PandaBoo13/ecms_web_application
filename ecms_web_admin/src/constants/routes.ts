@@ -134,12 +134,6 @@ export const INSTRUCTOR_MENU: MenuItem[] = [
     path: '/instructor/students',
   },
   {
-    key: '/instructor/attendance',
-    label: 'Điểm danh',
-    icon: 'ProfileOutlined',
-    path: '/instructor/attendance',
-  },
-  {
     key: '/instructor/assignments',
     label: 'Bài tập',
     icon: 'ProfileOutlined',
@@ -174,7 +168,6 @@ export const ROUTE_TITLE: Record<string, string> = {
   '/instructor/schedule': 'Lịch giảng dạy', // 🆕 Thêm title cho lịch
   '/instructor/courses': 'Khóa học của tôi',
   '/instructor/students': 'Học viên',
-  '/instructor/attendance': 'Điểm danh',
   '/instructor/assignments': 'Bài tập',
   '/instructor/profile': 'Hồ sơ cá nhân',
 };

@@ -1,5 +1,3 @@
-import type { CourseStatus } from '@/services/types/course/enums';
-
 export type EnrollmentType = 'OFFLINE' | 'ONLINE';
 export type EnrollmentStatus = 'PENDING' | 'ACTIVE' | 'RESERVED' | 'TERMINATED' | 'COMPLETED';
 export type CompletionResult = 'PASSED' | 'FAILED';
@@ -71,6 +69,8 @@ export interface GradeReviewStatusResponse {
   requestedAt: string | null;
   rejectReason: string | null;
   resolvedAt: string | null;
+  passScore: number | null;
+  canRecall: boolean;
 }
 
 export interface EnrollmentStatusLogResponse {
@@ -177,30 +177,6 @@ export interface AttendanceMatrixResponse {
   rules: {
     maxAbsencePercent: number;
   };
-}
-
-export interface InstructorAttendanceSession {
-  sessionId: number;
-  courseId: number;
-  courseCode: string;
-  courseTitle: string;
-  sessionNumber: number;
-  sessionTitle: string;
-  sessionDate: string;
-  startTime: string;
-  endTime: string;
-  status: string;
-}
-
-export interface InstructorAttendanceCourse {
-  courseId: number;
-  courseCode: string;
-  courseTitle: string;
-  assignedSessionCount: number;
-  courseStatus?: CourseStatus | null;
-  startDate?: string | null;
-  endDate?: string | null;
-  isFinished?: boolean;
 }
 
 export interface HoldRequest { reason: string; startDate: string; endDate: string }

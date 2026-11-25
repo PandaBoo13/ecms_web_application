@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   Alert, Button, DatePicker, Descriptions, Divider, Form, Input, InputNumber, Modal, Popconfirm,
-  Select, Space, Table, Tabs, Tag, Tooltip, Typography, Upload,
+  Select, Space, Table, Tag, Tooltip, Typography, Upload,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { CheckCircleOutlined, ClockCircleOutlined, CloseCircleOutlined, DownloadOutlined, EditOutlined, EyeOutlined, FileExcelOutlined, FormOutlined, HistoryOutlined, LockOutlined, SendOutlined } from '@ant-design/icons';
+import { CheckCircleOutlined, DownloadOutlined, EditOutlined, EyeOutlined, FileExcelOutlined, FormOutlined, HistoryOutlined, LockOutlined, UndoOutlined } from '@ant-design/icons';
 import { useSearchParams } from 'react-router-dom';
 import dayjs from 'dayjs';
 import toast from 'react-hot-toast';
@@ -17,6 +17,15 @@ import { requestApi } from '@/services/api/request/requestApi';
 import { useAuth } from '@/hooks/useAuth';
 import type { CourseStatus, CourseType } from '@/services/types/course/enums';
 import type { EnrollmentResponse, EnrollmentStatusLogResponse, GradeReviewStatusResponse } from '@/services/types/enrollment';
+import {
+  DEFAULT_MAX_ABSENCE_PERCENT,
+  classifyCompletionStudents,
+  resolveMaxAbsencePercent,
+} from '@/components/course/completion/autoCompletionClassification';
+import type { ClassifiedStudent } from '@/components/course/completion/autoCompletionClassification';
+import AutoCompletionModal from '@/components/course/enrollment/AutoCompletionModal';
+import GradeReviewActions from '@/components/course/enrollment/GradeReviewActions';
+import ReopenCompletionModal from '@/components/course/enrollment/ReopenCompletionModal';
 
 const { Text } = Typography;
 const enrollmentStatuses: EnrollmentStatusFilter[] = ['PENDING', 'ACTIVE', 'RESERVED', 'TERMINATED', 'COMPLETED', 'COMPLETED_PASSED', 'COMPLETED_FAILED'];
@@ -37,6 +46,14 @@ export default function CourseEnrollmentList({ courseId, courseType, courseStatu
   const canEditEnrollment = isAdmin();
   const canManageScores = isInstructor() && !isOnline;
   const canComplete = isInstructor() && !isOnline;
+  // Khớp guard BE requireScoreEntryAllowed: chỉ nhập điểm khi khóa đang diễn ra hoặc đã kết thúc.
+  const scoreEntryAllowed = courseStatus === 'ONGOING' || courseStatus === 'FINISHED';
+  const scoreEntryBlockedReason =
+    courseStatus === 'CANCELLED'
+      ? 'Khóa học đã bị hủy nên không thể nhập điểm cuối khóa.'
+      : courseStatus === 'ARCHIVED'
+        ? 'Khóa học đã được lưu trữ nên không thể nhập điểm cuối khóa.'
+        : 'Chỉ nhập điểm cuối khóa khi khóa học đang diễn ra hoặc đã kết thúc.';
   const canExportRoster = (isAdmin() || isInstructor()) && !isOnline;
   const showActions = canEditEnrollment || (isInstructor() && !isOnline);
   const [searchParams, setSearchParams] = useSearchParams();
@@ -67,30 +84,21 @@ export default function CourseEnrollmentList({ courseId, courseType, courseStatu
   const [scoreSaving, setScoreSaving] = useState(false);
   const [importingScores, setImportingScores] = useState(false);
   const [scoreOpen, setScoreOpen] = useState(false);
+  const [reopenOpen, setReopenOpen] = useState(false);
+  const [reopening, setReopening] = useState(false);
   const [importResult, setImportResult] = useState<Awaited<ReturnType<typeof enrollmentApi.importFinalScores>> | null>(null);
   // Auto-completion state
   const [completionModalOpen, setCompletionModalOpen] = useState(false);
   const [analyzingCompletion, setAnalyzingCompletion] = useState(false);
   const [minPassScore, setMinPassScore] = useState<number>(50);
-  const [classifiedStudents, setClassifiedStudents] = useState<Array<{
-    enrollmentId: number;
-    studentCode: string;
-    studentName: string;
-    studentEmail: string;
-    finalScore: number | null;
-    conductedSessions: number;
-    absences: number;
-    absencePercent: number;
-    unmarkedSessions: number;
-    suggestedResult: 'PASSED' | 'FAILED';
-    eligible: boolean;
-    reason: string;
-  }>>([]);
+  const [maxAbsencePercent, setMaxAbsencePercent] = useState(DEFAULT_MAX_ABSENCE_PERCENT);
+  const [classifiedStudents, setClassifiedStudents] = useState<ClassifiedStudent[]>([]);
   const [selectedPassIds, setSelectedPassIds] = useState<number[]>([]);
   const [selectedFailIds, setSelectedFailIds] = useState<number[]>([]);
   // Grade review approval state
   const [gradeReviewStatus, setGradeReviewStatus] = useState<GradeReviewStatusResponse | null>(null);
   const [submittingGradeReview, setSubmittingGradeReview] = useState(false);
+  const [recallingGradeReview, setRecallingGradeReview] = useState(false);
   const [selectedCompleteIds, setSelectedCompleteIds] = useState<number[]>([]);
   const [completing, setCompleting] = useState(false);
   const [form] = Form.useForm();
@@ -124,15 +132,18 @@ export default function CourseEnrollmentList({ courseId, courseType, courseStatu
     }
   };
 
-  const handleAdminReviewGrades = async (approved: boolean) => {
+  const handleRecallGradeReview = async () => {
     if (!gradeReviewStatus?.requestId) return;
+    setRecallingGradeReview(true);
     try {
-      await requestApi.review(gradeReviewStatus.requestId, { approved });
-      toast.success(approved ? 'Đã duyệt bảng điểm' : 'Đã từ chối bảng điểm');
+      await requestApi.cancel(gradeReviewStatus.requestId);
+      toast.success('Đã thu hồi bảng điểm; có thể chỉnh sửa và gửi duyệt lại');
       await loadGradeReviewStatus();
       await loadEnrollments();
     } catch (err) {
-      showError(err, 'Thao tác phê duyệt bảng điểm thất bại');
+      showError(err, 'Không thể thu hồi bảng điểm');
+    } finally {
+      setRecallingGradeReview(false);
     }
   };
 
@@ -276,6 +287,29 @@ export default function CourseEnrollmentList({ courseId, courseType, courseStatu
     }
   };
 
+  const openReopenCompletion = (enrollment: EnrollmentResponse) => {
+    setSelectedEnrollment(enrollment);
+    setReopenOpen(true);
+  };
+
+  const saveReopenCompletion = async (reason: string): Promise<boolean> => {
+    if (!selectedEnrollment) return false;
+    setReopening(true);
+    try {
+      await enrollmentApi.reopenCompletion(selectedEnrollment.enrollmentId, { reason });
+      toast.success('Đã hoàn tác xét hoàn thành; học viên trở về Đang học');
+      setReopenOpen(false);
+      setSelectedEnrollment(null);
+      await loadEnrollments();
+      return true;
+    } catch (err) {
+      showError(err, 'Không thể hoàn tác xét hoàn thành');
+      return false;
+    } finally {
+      setReopening(false);
+    }
+  };
+
   const exportRoster = async () => {
     setExportingRoster(true);
     try {
@@ -330,67 +364,26 @@ export default function CourseEnrollmentList({ courseId, courseType, courseStatu
         } catch {
           matrix = null;
         }
+        if (!matrix) {
+          setCompletionModalOpen(false);
+          toast.error('Không tải được dữ liệu điểm danh — chưa thể phân loại xét hoàn thành');
+          return;
+        }
       }
 
-      const conducted = matrix?.conductedSessions ?? 0;
-      const maxAbsencePct = matrix?.rules?.maxAbsencePercent ?? 20;
+      const maxAbsencePct = resolveMaxAbsencePercent(matrix);
+      setMaxAbsencePercent(maxAbsencePct);
 
-      const validScores = activeStudents
-        .map((s) => s.finalScore)
-        .filter((s): s is number => s !== null && s !== undefined);
-      const isScale10 = validScores.length > 0 && Math.max(...validScores) <= 10;
-      const defaultPassScore = isScale10 ? 5.0 : Math.round(maxScore / 2);
-      setMinPassScore(defaultPassScore);
+      // Điểm chuẩn đã chốt trong bảng điểm Quản trị viên duyệt (50% thang điểm khóa).
+      const publishedPassScore = gradeReviewStatus?.passScore ?? Math.round(maxScore / 2);
+      setMinPassScore(Number(publishedPassScore));
 
-      const classified = activeStudents.map((s) => {
-        const studentMatrixRow = matrix?.students?.find((m) => m.enrollmentId === s.enrollmentId);
-        const absences = studentMatrixRow?.summary?.absent ?? s.absences ?? 0;
-        const unmarked = studentMatrixRow?.summary?.notMarked ?? 0;
-        const absencePct = conducted > 0 ? (absences * 100) / conducted : 0;
-        const score = s.finalScore;
-
-        let eligible = true;
-        let reason = '';
-        let suggestedResult: 'PASSED' | 'FAILED' = 'FAILED';
-
-        if (score === null || score === undefined) {
-          eligible = false;
-          reason = 'Chưa có điểm cuối khóa';
-        } else if (!isOnline && unmarked > 0) {
-          eligible = false;
-          reason = `Còn ${unmarked} buổi chưa điểm danh`;
-        } else {
-          const isScorePass = score >= defaultPassScore;
-          const isAttendancePass = isOnline || absencePct <= maxAbsencePct;
-          if (isScorePass && isAttendancePass) {
-            suggestedResult = 'PASSED';
-            reason = 'Đủ điều kiện (Điểm đạt & Chuyên cần đạt)';
-          } else {
-            suggestedResult = 'FAILED';
-            if (!isScorePass && !isAttendancePass) {
-              reason = `Điểm ${score} (< ${defaultPassScore}) & vắng ${absencePct.toFixed(1)}% (> ${maxAbsencePct}%)`;
-            } else if (!isScorePass) {
-              reason = `Điểm ${score} (< ${defaultPassScore})`;
-            } else {
-              reason = `Vắng ${absences}/${conducted} buổi (${absencePct.toFixed(1)}% > ${maxAbsencePct}%)`;
-            }
-          }
-        }
-
-        return {
-          enrollmentId: s.enrollmentId,
-          studentCode: s.studentCode || '—',
-          studentName: s.studentName || `Ghi danh #${s.enrollmentId}`,
-          studentEmail: s.studentEmail || '—',
-          finalScore: score,
-          conductedSessions: conducted,
-          absences,
-          absencePercent: absencePct,
-          unmarkedSessions: unmarked,
-          suggestedResult,
-          eligible,
-          reason,
-        };
+      const classified = classifyCompletionStudents({
+        students: activeStudents,
+        matrix,
+        isOnline,
+        defaultPassScore: Number(publishedPassScore),
+        maxAbsencePercent: maxAbsencePct,
       });
 
       setClassifiedStudents(classified);
@@ -401,39 +394,6 @@ export default function CourseEnrollmentList({ courseId, courseType, courseStatu
     } finally {
       setAnalyzingCompletion(false);
     }
-  };
-
-  const recalculateClassification = (newPassScore: number) => {
-    setMinPassScore(newPassScore);
-    setClassifiedStudents((prev) => {
-      const updated = prev.map((s) => {
-        if (!s.eligible && (s.finalScore === null || s.unmarkedSessions > 0)) {
-          return s;
-        }
-        const isScorePass = (s.finalScore ?? 0) >= newPassScore;
-        const isAttendancePass = isOnline || s.absencePercent <= 20;
-        const suggestedResult: 'PASSED' | 'FAILED' = isScorePass && isAttendancePass ? 'PASSED' : 'FAILED';
-        let reason = '';
-        if (isScorePass && isAttendancePass) {
-          reason = 'Đủ điều kiện (Điểm đạt & Chuyên cần đạt)';
-        } else if (!isScorePass && !isAttendancePass) {
-          reason = `Điểm ${s.finalScore} (< ${newPassScore}) và vắng ${s.absencePercent.toFixed(1)}% (> 20%)`;
-        } else if (!isScorePass) {
-          reason = `Điểm ${s.finalScore} (< ${newPassScore})`;
-        } else {
-          reason = `Vắng ${s.absencePercent.toFixed(1)}% (> 20%)`;
-        }
-        return {
-          ...s,
-          eligible: true,
-          suggestedResult,
-          reason,
-        };
-      });
-      setSelectedPassIds(updated.filter((c) => c.eligible && c.suggestedResult === 'PASSED').map((c) => c.enrollmentId));
-      setSelectedFailIds(updated.filter((c) => c.eligible && c.suggestedResult === 'FAILED').map((c) => c.enrollmentId));
-      return updated;
-    });
   };
 
   const handleConfirmAutoCompletion = async () => {
@@ -534,7 +494,7 @@ export default function CourseEnrollmentList({ courseId, courseType, courseStatu
           ) : (
             <Text type="secondary">Chưa cập nhật</Text>
           )}
-          {score !== null && gradeReviewStatus?.status !== 'APPROVED' && (
+          {score !== null && gradeReviewStatus?.status === 'PENDING_APPROVAL' && (
             <Tag color="orange" bordered={false} className="!mr-0 text-[10px]">
               Chờ duyệt
             </Tag>
@@ -559,11 +519,29 @@ export default function CourseEnrollmentList({ courseId, courseType, courseStatu
               <Tooltip title="Bảng điểm đã được duyệt & công bố, không thể sửa">
                 <Button size="small" aria-label="Bảng điểm đã chốt" icon={<LockOutlined />} disabled />
               </Tooltip>
+            ) : gradeReviewStatus?.status === 'PENDING_APPROVAL' ? (
+              <Tooltip title="Bảng điểm đang chờ duyệt — thu hồi để chỉnh sửa">
+                <Button size="small" aria-label="Bảng điểm đang chờ duyệt" icon={<FormOutlined />} disabled />
+              </Tooltip>
+            ) : !scoreEntryAllowed ? (
+              <Tooltip title={scoreEntryBlockedReason}>
+                <Button size="small" aria-label="Chưa thể nhập điểm cuối khóa" icon={<FormOutlined />} disabled />
+              </Tooltip>
             ) : (
               <Tooltip title="Cập nhật điểm cuối khóa">
                 <Button size="small" aria-label="Cập nhật điểm cuối khóa" icon={<FormOutlined />} onClick={() => openScoreEditor(row)} />
               </Tooltip>
             )
+          )}
+          {canManageScores && !isOnline && row.status === 'COMPLETED' && (
+            <Tooltip title="Hoàn tác xét hoàn thành">
+              <Button
+                size="small"
+                aria-label="Hoàn tác xét hoàn thành"
+                icon={<UndoOutlined />}
+                onClick={() => openReopenCompletion(row)}
+              />
+            </Tooltip>
           )}
           {canEditEnrollment && !isOnline && !['TERMINATED', 'COMPLETED'].includes(row.status) && (
             <Tooltip title="Chỉnh sửa">
@@ -621,79 +599,15 @@ export default function CourseEnrollmentList({ courseId, courseType, courseStatu
         />}
         {!isOnline && (
           <div className="flex items-center gap-2">
-            {gradeReviewStatus?.status === 'APPROVED' ? (
-              <Tag color="success" icon={<CheckCircleOutlined />} className="py-1 px-2.5">
-                Bảng điểm: Đã duyệt & Công bố
-              </Tag>
-            ) : gradeReviewStatus?.status === 'PENDING_APPROVAL' ? (
-              <Space size={6}>
-                <Tag color="warning" icon={<ClockCircleOutlined />} className="py-1 px-2.5">
-                  Bảng điểm: Chờ duyệt
-                </Tag>
-                {isAdmin() && (
-                  <Space size={4}>
-                    <Popconfirm
-                      title="Duyệt bảng điểm này và công bố cho học viên?"
-                      onConfirm={() => void handleAdminReviewGrades(true)}
-                      okText="Duyệt"
-                      cancelText="Hủy"
-                    >
-                      <Button size="small" type="primary" className="!bg-emerald-600">
-                        Duyệt
-                      </Button>
-                    </Popconfirm>
-                    <Popconfirm
-                      title="Từ chối bảng điểm này?"
-                      onConfirm={() => void handleAdminReviewGrades(false)}
-                      okText="Từ chối"
-                      cancelText="Hủy"
-                    >
-                      <Button size="small" danger>
-                        Từ chối
-                      </Button>
-                    </Popconfirm>
-                  </Space>
-                )}
-              </Space>
-            ) : gradeReviewStatus?.status === 'REJECTED' ? (
-              <Space size={6}>
-                <Tooltip title={gradeReviewStatus.rejectReason ? `Lý do: ${gradeReviewStatus.rejectReason}` : undefined}>
-                  <Tag color="error" icon={<CloseCircleOutlined />} className="py-1 px-2.5 cursor-help">
-                    Bảng điểm: Bị từ chối
-                  </Tag>
-                </Tooltip>
-                {canManageScores && (
-                  <Popconfirm
-                    title="Gửi lại bảng điểm này để Quản trị viên duyệt?"
-                    onConfirm={() => void handleSubmitGradeReview()}
-                    okText="Gửi duyệt"
-                    cancelText="Hủy"
-                  >
-                    <Button icon={<SendOutlined />} size="small" loading={submittingGradeReview}>
-                      Gửi duyệt lại
-                    </Button>
-                  </Popconfirm>
-                )}
-              </Space>
-            ) : (
-              <Space size={6}>
-                <Tag color="default" className="py-1 px-2.5">
-                  Bảng điểm: Bản nháp
-                </Tag>
-                {canManageScores && (
-                  <Popconfirm
-                    title="Gửi bảng điểm này để Quản trị viên duyệt trước khi công bố cho học viên?"
-                    onConfirm={() => void handleSubmitGradeReview()}
-                    okText="Gửi duyệt"
-                    cancelText="Hủy"
-                  >
-                    <Button icon={<SendOutlined />} size="small" loading={submittingGradeReview}>
-                      Gửi duyệt bảng điểm
-                    </Button>
-                  </Popconfirm>
-                )}
-              </Space>
-            )}
+            <GradeReviewActions
+              courseStatus={courseStatus}
+              gradeReviewStatus={gradeReviewStatus}
+              canManageScores={canManageScores}
+              submitting={submittingGradeReview}
+              recalling={recallingGradeReview}
+              onSubmit={() => void handleSubmitGradeReview()}
+              onRecall={() => void handleRecallGradeReview()}
+            />
           </div>
         )}
         {canComplete && !isOnline && (
@@ -722,14 +636,24 @@ export default function CourseEnrollmentList({ courseId, courseType, courseStatu
           </Button>
         )}
         {canManageScores && !isOnline && (
-          <Tooltip title={gradeReviewStatus?.status === 'APPROVED' ? 'Bảng điểm đã được duyệt & công bố, không thể nhập lại' : undefined}>
+          <Tooltip
+            title={
+              gradeReviewStatus?.status === 'APPROVED'
+                ? 'Bảng điểm đã được duyệt & công bố, không thể nhập lại'
+                : gradeReviewStatus?.status === 'PENDING_APPROVAL'
+                  ? 'Bảng điểm đang chờ duyệt — thu hồi để chỉnh sửa'
+                  : !scoreEntryAllowed
+                    ? scoreEntryBlockedReason
+                    : undefined
+            }
+          >
             <Upload
               accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
               showUploadList={false}
-              disabled={gradeReviewStatus?.status === 'APPROVED'}
+              disabled={gradeReviewStatus?.status === 'APPROVED' || gradeReviewStatus?.status === 'PENDING_APPROVAL' || !scoreEntryAllowed}
               beforeUpload={(file) => { void importScores(file); return false; }}
             >
-              <Button loading={importingScores} icon={<FileExcelOutlined />} disabled={gradeReviewStatus?.status === 'APPROVED'}>Nhập bảng điểm</Button>
+              <Button loading={importingScores} icon={<FileExcelOutlined />} disabled={gradeReviewStatus?.status === 'APPROVED' || gradeReviewStatus?.status === 'PENDING_APPROVAL' || !scoreEntryAllowed}>Nhập bảng điểm</Button>
             </Upload>
           </Tooltip>
         )}
@@ -930,6 +854,14 @@ export default function CourseEnrollmentList({ courseId, courseType, courseStatu
         </Form>
       </Modal>
 
+      <ReopenCompletionModal
+        open={reopenOpen}
+        studentName={selectedEnrollment?.studentName || (selectedEnrollment ? `Ghi danh #${selectedEnrollment.enrollmentId}` : undefined)}
+        loading={reopening}
+        onCancel={() => { setReopenOpen(false); setSelectedEnrollment(null); }}
+        onSubmit={saveReopenCompletion}
+      />
+
       <Modal
         title="Kết quả nhập bảng điểm"
         open={Boolean(importResult)}
@@ -958,217 +890,20 @@ export default function CourseEnrollmentList({ courseId, courseType, courseStatu
           />}
         </>}
       </Modal>
-      {/* Modal Tự động phân loại Xét hoàn thành khóa học */}
-      <Modal
-        title={
-          <div className="flex items-center justify-between pr-6">
-            <span className="font-semibold text-base flex items-center gap-2">
-              <CheckCircleOutlined className="text-emerald-500" /> Xét hoàn thành khóa học (Tự động phân loại)
-            </span>
-            <Space size={6} className="text-sm font-normal">
-              <span className="text-slate-500">Điểm chuẩn đạt:</span>
-              <InputNumber
-                min={0}
-                max={maxScore}
-                step={minPassScore <= 10 ? 0.5 : 5}
-                value={minPassScore}
-                onChange={(val) => {
-                  if (val !== null && val !== undefined) {
-                    recalculateClassification(val);
-                  }
-                }}
-                className="w-20"
-              />
-            </Space>
-          </div>
-        }
+      <AutoCompletionModal
         open={completionModalOpen}
+        analyzing={analyzingCompletion}
+        completing={completing}
+        minPassScore={minPassScore}
+        maxAbsencePercent={maxAbsencePercent}
+        students={classifiedStudents}
+        selectedPassIds={selectedPassIds}
+        selectedFailIds={selectedFailIds}
         onCancel={() => setCompletionModalOpen(false)}
-        width={850}
-        destroyOnHidden
-        footer={[
-          <Button key="cancel" onClick={() => setCompletionModalOpen(false)}>
-            Hủy
-          </Button>,
-          <Button
-            key="submit"
-            type="primary"
-            icon={<CheckCircleOutlined />}
-            loading={completing}
-            disabled={selectedPassIds.length + selectedFailIds.length === 0}
-            onClick={() => void handleConfirmAutoCompletion()}
-          >
-            Xác nhận hoàn thành ({selectedPassIds.length + selectedFailIds.length} học viên)
-          </Button>,
-        ]}
-      >
-        <div className="grid grid-cols-3 gap-3 mb-4 mt-2">
-          <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-center">
-            <div className="text-xs text-emerald-700 font-medium">Đủ điều kiện ĐẠT</div>
-            <div className="text-2xl font-bold text-emerald-600 mt-1">
-              {classifiedStudents.filter((s) => s.eligible && s.suggestedResult === 'PASSED').length}
-            </div>
-            <div className="text-[11px] text-emerald-600 mt-0.5">
-              Đã chọn: {selectedPassIds.length}
-            </div>
-          </div>
-          <div className="bg-rose-50 border border-rose-200 rounded-lg p-3 text-center">
-            <div className="text-xs text-rose-700 font-medium">KHÔNG ĐẠT</div>
-            <div className="text-2xl font-bold text-rose-600 mt-1">
-              {classifiedStudents.filter((s) => s.eligible && s.suggestedResult === 'FAILED').length}
-            </div>
-            <div className="text-[11px] text-rose-600 mt-0.5">
-              Đã chọn: {selectedFailIds.length}
-            </div>
-          </div>
-          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-center">
-            <div className="text-xs text-amber-700 font-medium">Chưa đủ điều kiện</div>
-            <div className="text-2xl font-bold text-amber-600 mt-1">
-              {classifiedStudents.filter((s) => !s.eligible).length}
-            </div>
-            <div className="text-[11px] text-amber-600 mt-0.5">
-              Thiếu điểm / Chưa ĐD
-            </div>
-          </div>
-        </div>
-
-        <Tabs
-          defaultActiveKey="passed"
-          items={[
-            {
-              key: 'passed',
-              label: (
-                <span>
-                  Đạt ({classifiedStudents.filter((s) => s.eligible && s.suggestedResult === 'PASSED').length})
-                </span>
-              ),
-              children: (
-                <Table
-                  size="small"
-                  rowKey="enrollmentId"
-                  loading={analyzingCompletion}
-                  pagination={{ pageSize: 6 }}
-                  dataSource={classifiedStudents.filter((s) => s.eligible && s.suggestedResult === 'PASSED')}
-                  rowSelection={{
-                    selectedRowKeys: selectedPassIds,
-                    onChange: (keys) => setSelectedPassIds(keys as number[]),
-                  }}
-                  columns={[
-                    { title: 'Mã HV', dataIndex: 'studentCode', width: 110 },
-                    { title: 'Họ tên', dataIndex: 'studentName' },
-                    {
-                      title: 'Điểm',
-                      dataIndex: 'finalScore',
-                      width: 90,
-                      render: (v: number | null) => <strong>{v ?? '—'}</strong>,
-                    },
-                    {
-                      title: 'Vắng',
-                      dataIndex: 'absences',
-                      width: 110,
-                      render: (_, r) => `${r.absences}/${r.conductedSessions} (${r.absencePercent.toFixed(0)}%)`,
-                    },
-                    {
-                      title: 'Kết quả',
-                      width: 140,
-                      render: () => <Tag color="success">Hoàn thành (Đạt)</Tag>,
-                    },
-                  ]}
-                />
-              ),
-            },
-            {
-              key: 'failed',
-              label: (
-                <span>
-                  Không đạt ({classifiedStudents.filter((s) => s.eligible && s.suggestedResult === 'FAILED').length})
-                </span>
-              ),
-              children: (
-                <Table
-                  size="small"
-                  rowKey="enrollmentId"
-                  loading={analyzingCompletion}
-                  pagination={{ pageSize: 6 }}
-                  dataSource={classifiedStudents.filter((s) => s.eligible && s.suggestedResult === 'FAILED')}
-                  rowSelection={{
-                    selectedRowKeys: selectedFailIds,
-                    onChange: (keys) => setSelectedFailIds(keys as number[]),
-                  }}
-                  columns={[
-                    { title: 'Mã HV', dataIndex: 'studentCode', width: 110 },
-                    { title: 'Họ tên', dataIndex: 'studentName' },
-                    {
-                      title: 'Điểm',
-                      dataIndex: 'finalScore',
-                      width: 90,
-                      render: (v: number | null) => <span className="text-rose-600 font-semibold">{v ?? '—'}</span>,
-                    },
-                    {
-                      title: 'Vắng',
-                      dataIndex: 'absences',
-                      width: 110,
-                      render: (_, r) => `${r.absences}/${r.conductedSessions} (${r.absencePercent.toFixed(0)}%)`,
-                    },
-                    {
-                      title: 'Lý do',
-                      dataIndex: 'reason',
-                      render: (reason: string) => <span className="text-xs text-rose-600">{reason}</span>,
-                    },
-                    {
-                      title: 'Kết quả',
-                      width: 160,
-                      render: () => <Tag color="error">Hoàn thành (Không đạt)</Tag>,
-                    },
-                  ]}
-                />
-              ),
-            },
-            ...(classifiedStudents.some((s) => !s.eligible)
-              ? [
-                  {
-                    key: 'ineligible',
-                    label: (
-                      <span>
-                        Chưa đủ ĐK ({classifiedStudents.filter((s) => !s.eligible).length})
-                      </span>
-                    ),
-                    children: (
-                      <Table
-                        size="small"
-                        rowKey="enrollmentId"
-                        loading={analyzingCompletion}
-                        pagination={{ pageSize: 6 }}
-                        dataSource={classifiedStudents.filter((s) => !s.eligible)}
-                        columns={[
-                          { title: 'Mã HV', dataIndex: 'studentCode', width: 110 },
-                          { title: 'Họ tên', dataIndex: 'studentName' },
-                          {
-                            title: 'Điểm',
-                            dataIndex: 'finalScore',
-                            width: 90,
-                            render: (v: number | null) => v ?? <Tag color="orange">Chưa nhập</Tag>,
-                          },
-                          {
-                            title: 'Điểm danh',
-                            dataIndex: 'unmarkedSessions',
-                            width: 120,
-                            render: (v: number) => (v > 0 ? <Tag color="warning">Còn ${v} buổi</Tag> : <Tag color="success">Đủ</Tag>),
-                          },
-                          {
-                            title: 'Nguyên nhân chặn',
-                            dataIndex: 'reason',
-                            render: (reason: string) => <span className="text-xs text-amber-700 font-medium">{reason}</span>,
-                          },
-                        ]}
-                      />
-                    ),
-                  },
-                ]
-              : []),
-          ]}
-        />
-      </Modal>
+        onConfirm={() => void handleConfirmAutoCompletion()}
+        onSelectedPassIdsChange={setSelectedPassIds}
+        onSelectedFailIdsChange={setSelectedFailIds}
+      />
     </Space>
   );
 }

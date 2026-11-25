@@ -27,6 +27,12 @@ public interface RequestService {
     RequestDetailResponse cancel(Long id);
 
     /**
+     * Thu hồi đơn xin nghỉ đã được duyệt: hoàn tác điểm danh và chuyển về CANCELLED.
+     * Chỉ giảng viên được phân công buổi học được thu hồi (ADMIN không có quyền).
+     */
+    RequestDetailResponse revoke(Long id);
+
+    /**
      * Preview conflict khi duyệt COURSE_REVIEW — trả danh sách course trùng lịch.
      * Chỉ áp dụng cho request type = COURSE_REVIEW; các loại khác trả empty.
      */

@@ -4,10 +4,8 @@ import type { PageResponse, RequestResponse } from '../types/api';
 import type {
   AttendanceAuditLogResponse,
   AttendanceMatrixResponse,
-  InstructorAttendanceCourse,
   AttendanceRecordResponse,
   AttendanceStatus,
-  InstructorAttendanceSession,
   EnrollmentBatchActionResponse,
   GradeReviewStatusResponse,
   FinalScoreImportResponse,
@@ -37,6 +35,8 @@ export const enrollmentApi = {
     (await api.put<RequestResponse<EnrollmentResponse>>(API_ENDPOINT.ENROLLMENT_FINAL_SCORE(id), body)).data.data,
   complete: async (id: number, result: 'PASSED' | 'FAILED') =>
     (await api.post<RequestResponse<EnrollmentResponse>>(API_ENDPOINT.ENROLLMENT_COMPLETE(id), { result })).data.data,
+  reopenCompletion: async (id: number, body: ReasonRequest) =>
+    (await api.post<RequestResponse<EnrollmentResponse>>(API_ENDPOINT.ENROLLMENT_REOPEN_COMPLETION(id), body)).data.data,
   completeBatch: async (courseId: number, enrollmentIds: number[], result: 'PASSED' | 'FAILED') =>
     (await api.post<RequestResponse<EnrollmentBatchActionResponse>>(
       API_ENDPOINT.ENROLLMENT_COMPLETE_BULK, { courseId, enrollmentIds, result },
@@ -58,16 +58,12 @@ export const enrollmentApi = {
     (await api.post<RequestResponse<GradeReviewStatusResponse>>(
       API_ENDPOINT.ENROLLMENT_GRADE_REVIEW_SUBMIT(courseId),
     )).data.data,
+  reopenGradeSheet: async (courseId: number, body: ReasonRequest) =>
+    (await api.post<RequestResponse<GradeReviewStatusResponse>>(
+      API_ENDPOINT.ENROLLMENT_GRADE_REVIEW_REOPEN(courseId), body,
+    )).data.data,
   attendanceHistory: async (id: number) =>
     (await api.get<RequestResponse<AttendanceRecordResponse[]>>(API_ENDPOINT.ENROLLMENT_ATTENDANCE_HISTORY(id))).data.data,
-  instructorAttendanceSessions: async (from: string, to: string) =>
-    (await api.get<RequestResponse<InstructorAttendanceSession[]>>(
-      API_ENDPOINT.INSTRUCTOR_ATTENDANCE_SESSIONS, { params: { from, to } },
-    )).data.data,
-  instructorAttendanceCourses: async () =>
-    (await api.get<RequestResponse<InstructorAttendanceCourse[]>>(
-      API_ENDPOINT.INSTRUCTOR_ATTENDANCE_COURSES,
-    )).data.data,
   statusHistory: async (id: number) =>
     (await api.get<RequestResponse<EnrollmentStatusLogResponse[]>>(API_ENDPOINT.ENROLLMENT_STATUS_HISTORY(id))).data.data,
   sessionAttendance: async (courseId: number, sessionId: number) =>

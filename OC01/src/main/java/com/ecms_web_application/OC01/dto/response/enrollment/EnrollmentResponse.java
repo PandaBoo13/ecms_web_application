@@ -30,6 +30,7 @@ public record EnrollmentResponse(
         LocalDateTime terminatedAt,
         Long terminatedBy,
         BigDecimal finalScore,
+        boolean scorePublished,
         LocalDateTime scoreRecordedAt,
         Long scoreRecordedBy,
         LocalDateTime completedAt,
@@ -98,7 +99,7 @@ public record EnrollmentResponse(
                 e.getEnrolledAt(), e.getEnrolledBy(), e.getUpdatedAt(), e.getUpdatedBy(),
                 e.getHoldReason(), e.getHoldStartDate(), e.getHoldEndDate(), e.getActualReturnDate(),
                 e.getHoldProcessedBy(), e.getTerminationReason(), e.getTerminatedAt(),
-                e.getTerminatedBy(), score, scoreRecordedAt,
+                e.getTerminatedBy(), score, !hideScore, scoreRecordedAt,
                 scoreRecordedBy, e.getCompletedAt(), e.getCompletedBy(), e.getCompletionResult(), absences,
                 studentName, studentCode, studentEmail, studentPhone, courseTitle, courseCode, invoiceCode,
                 completionEligible, completionBlockedReason);

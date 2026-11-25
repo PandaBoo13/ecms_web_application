@@ -169,6 +169,7 @@ SESSION_MY_SCHEDULE: '/api/sessions/my-schedule',
   REQUEST_DETAIL: (id: number) => `/api/requests/${id}`,
   REQUEST_REVIEW: (id: number) => `/api/requests/${id}/review`,
   REQUEST_CANCEL: (id: number) => `/api/requests/${id}/cancel`,
+  REQUEST_REVOKE: (id: number) => `/api/requests/${id}/revoke`,
   // 🆕 Preview conflict cho COURSE_REVIEW trước khi duyệt
   REQUEST_COURSE_CONFLICTS: (id: number) => `/api/requests/${id}/course-conflicts`,
 
@@ -251,19 +252,19 @@ SESSION_MY_SCHEDULE: '/api/sessions/my-schedule',
   ENROLLMENT_TERMINATE: (id: number) => `/api/enrollments/${id}/terminate`,
   ENROLLMENT_FINAL_SCORE: (id: number) => `/api/enrollments/${id}/final-score`,
   ENROLLMENT_COMPLETE: (id: number) => `/api/enrollments/${id}/complete`,
+  ENROLLMENT_REOPEN_COMPLETION: (id: number) => `/api/enrollments/${id}/reopen-completion`,
   ENROLLMENT_COMPLETE_BULK: '/api/enrollments/complete/bulk',
   ENROLLMENT_COURSE_ROSTER_EXPORT: (courseId: number) => `/api/enrollments/course/${courseId}/roster/export`,
   ENROLLMENT_FINAL_SCORES_IMPORT: (courseId: number) => `/api/enrollments/course/${courseId}/final-scores/import`,
   ENROLLMENT_GRADE_REVIEW_STATUS: (courseId: number) => `/api/enrollments/course/${courseId}/grade-review-status`,
   ENROLLMENT_GRADE_REVIEW_SUBMIT: (courseId: number) => `/api/enrollments/course/${courseId}/grade-review/submit`,
+  ENROLLMENT_GRADE_REVIEW_REOPEN: (courseId: number) => `/api/enrollments/course/${courseId}/grade-review/reopen`,
   SESSION_ATTENDANCE: (courseId: number, sessionId: number) =>
     `/api/courses/${courseId}/sessions/${sessionId}/attendance`,
   SESSION_ATTENDANCE_HISTORY: (courseId: number, sessionId: number) =>
     `/api/courses/${courseId}/sessions/${sessionId}/attendance/history`,
   COURSE_ATTENDANCE: (courseId: number) => `/api/courses/${courseId}/attendance`,
   COURSE_ATTENDANCE_EXPORT: (courseId: number) => `/api/courses/${courseId}/attendance/export`,
-  INSTRUCTOR_ATTENDANCE_SESSIONS: '/api/instructor/attendance/sessions',
-  INSTRUCTOR_ATTENDANCE_COURSES: '/api/instructor/attendance/courses',
 
   // ══════════════════════════════════════════════════════════════
   // AI AGENT
