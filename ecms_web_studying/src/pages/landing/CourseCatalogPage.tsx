@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useCallback } from 'react';
+import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import {
   Card,
   Col,
@@ -15,7 +15,8 @@ import { useNavigate } from 'react-router-dom';
 import { SearchOutlined, BookOutlined, SendOutlined, EyeOutlined, CreditCardOutlined } from '@ant-design/icons';
 import toast from 'react-hot-toast';
 
-import { courseApi, progressApi } from '@/services/api/course';
+import { courseApi } from '@/services/api/course';
+import { enrollmentApi } from '@/services/api/enrollment';
 import { useAuth } from '@/hooks/useAuth';
 import MoneyDisplay from '@/components/common/MoneyDisplay';
 import type { CourseResponse } from '@/services/types/course';
@@ -28,6 +29,7 @@ export default function CourseCatalogPage() {
   const { isAuthenticated } = useAuth();
   const [courses, setCourses] = useState<CourseResponse[]>([]);
   const [loading, setLoading] = useState(true);
+  const latestCourseRequest = useRef(0);
   const [searchText, setSearchText] = useState('');
   const [filterType, setFilterType] = useState<string>('ALL');
   const [ownedCourseIds, setOwnedCourseIds] = useState<Set<number>>(new Set());
@@ -38,18 +40,20 @@ export default function CourseCatalogPage() {
   const [consultCourse, setConsultCourse] = useState<CourseResponse | null>(null);
 
   const loadCourses = useCallback((type: string) => {
+    const requestId = ++latestCourseRequest.current;
     courseApi
       .search({ page: 0, size: 50, status: 'PUBLISHED', ...(type !== 'ALL' ? { type } : {}) })
       .then((res) => {
-        if (res?.content) {
-          setCourses(res.content);
-        }
+        if (requestId === latestCourseRequest.current) setCourses(res?.content ?? []);
       })
       .catch((err) => {
+        if (requestId !== latestCourseRequest.current) return;
         console.error(err);
         toast.error((err as { message?: string })?.message || 'Lỗi khi tải danh mục khóa học');
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (requestId === latestCourseRequest.current) setLoading(false);
+      });
   }, []);
 
   useEffect(() => {
@@ -65,11 +69,15 @@ export default function CourseCatalogPage() {
     }
     let active = true;
     setOwnedLoading(true);
-    progressApi
-      .getMyCourses({ page: 0, size: 500 })
+    enrollmentApi
+      .myEnrollments({ page: 0, size: 500 })
       .then((res) => {
         if (!active) return;
-        setOwnedCourseIds(new Set((res.content ?? []).map((p) => p.courseId)));
+        setOwnedCourseIds(new Set(
+          (res.content ?? [])
+            .filter((enrollment) => enrollment.status !== 'TERMINATED')
+            .map((enrollment) => enrollment.courseId),
+        ));
       })
       .catch(() => {
         if (active) setOwnedCourseIds(new Set());
@@ -110,8 +118,12 @@ export default function CourseCatalogPage() {
 
   const handleOnlineCheckout = (course: CourseResponse, event?: React.MouseEvent) => {
     if (event) event.stopPropagation();
-    if (ownedCourseIds.has(course.id)) {
+    if (course.courseType === 'ONLINE' && ownedCourseIds.has(course.id)) {
       toast.success('Bạn đã sở hữu khóa học này.');
+      return;
+    }
+    if (course.courseType === 'OFFLINE' && course.status !== 'FINISHED' && ownedCourseIds.has(course.id)) {
+      toast('Bạn đang trong thời gian học khóa này, chưa thể mua lại.', { icon: '⏳' });
       return;
     }
     navigate(`/checkout/${course.id}`);
@@ -292,16 +304,35 @@ export default function CourseCatalogPage() {
                     >
                       Tư vấn
                     </Button>
-                    {ownedCourseIds.has(c.id) ? (
+                    {c.courseType === 'ONLINE' && ownedCourseIds.has(c.id) ? (
                       <Tag color="green" style={{ margin: 0, padding: '4px 10px', fontWeight: 600, textAlign: 'center', lineHeight: '24px' }}>
                         Đã mua
                       </Tag>
+                    ) : c.courseType === 'OFFLINE'
+                      && c.status !== 'FINISHED'
+                      && ownedCourseIds.has(c.id) ? (
+                      <Button
+                        type="primary"
+                        size="middle"
+                        disabled
+                        title="Bạn đang trong thời gian học khóa này, chưa thể mua lại."
+                        style={{
+                          background: '#94a3b8',
+                          borderColor: '#94a3b8',
+                          color: '#fff',
+                          fontWeight: 600,
+                          borderRadius: 8,
+                          cursor: 'not-allowed',
+                        }}
+                      >
+                        Đang trong thời gian khóa học
+                      </Button>
                     ) : (
                       <Button
                         type="primary"
                         size="middle"
                         icon={<CreditCardOutlined />}
-                        loading={ownedLoading}
+                        loading={c.courseType === 'ONLINE' && ownedLoading}
                         onClick={(e) => handleOnlineCheckout(c, e)}
                         style={{
                           background: '#10b981',

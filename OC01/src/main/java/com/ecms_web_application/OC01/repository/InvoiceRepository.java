@@ -50,8 +50,28 @@ public interface InvoiceRepository extends IRepository<Invoice, Long>, JpaSpecif
     boolean existsByOriginalInvoiceId(Long originalInvoiceId);
     Optional<Invoice> findByOriginalInvoiceId(Long originalInvoiceId);
 
+    /** Paid ONLINE checkouts still needing automatic enrollment (including those with no Student yet). */
+    @Query("""
+            SELECT i FROM Invoice i
+            WHERE i.type = :type
+              AND i.status = :status
+              AND i.id > :afterId
+              AND EXISTS (SELECT c.id FROM Course c
+                          WHERE c.id = i.courseId AND c.courseType = :courseType)
+              AND NOT EXISTS (SELECT e.id FROM Enrollment e WHERE e.invoiceId = i.id)
+            ORDER BY i.paidAt ASC, i.id ASC
+            """)
+    List<Invoice> findPaidOnlineInvoicesWithoutEnrollmentAfterId(
+            @Param("type") InvoiceType type,
+            @Param("status") InvoiceStatus status,
+            @Param("courseType") CourseType courseType,
+            @Param("afterId") Long afterId,
+            Pageable pageable);
+
     boolean existsByLeadIdAndCourseIdAndTypeAndStatusIn(
             Long leadId, Long courseId, InvoiceType type, java.util.Collection<InvoiceStatus> statuses);
+    boolean existsByStudentIdAndCourseIdAndTypeAndStatusIn(
+            Long studentId, Long courseId, InvoiceType type, java.util.Collection<InvoiceStatus> statuses);
 
     /** Lấy nhanh danh sách leadId đang có hóa đơn học phí ở các trạng thái đang mở. */
     @Query("""
@@ -65,6 +85,58 @@ public interface InvoiceRepository extends IRepository<Invoice, Long>, JpaSpecif
             @Param("type") InvoiceType type,
             @Param("statuses") Collection<InvoiceStatus> statuses);
 
+    @Query("""
+            SELECT DISTINCT i.leadId FROM Invoice i
+            WHERE i.leadId IN :leadIds
+              AND i.type = :type
+              AND i.status = :paidStatus
+              AND EXISTS (
+                  SELECT l.id FROM Lead l
+                  WHERE l.id = i.leadId AND l.courseId = i.courseId
+              )
+            """)
+    List<Long> findLeadIdsWithPaidInvoiceForCurrentCourse(
+            @Param("leadIds") Collection<Long> leadIds,
+            @Param("type") InvoiceType type,
+            @Param("paidStatus") InvoiceStatus paidStatus);
+
+    @Query("""
+            SELECT DISTINCT i.leadId FROM Invoice i
+            WHERE i.leadId IN :leadIds
+              AND i.type = :type
+              AND i.status = :paidStatus
+              AND EXISTS (
+                  SELECT l.id FROM Lead l
+                  WHERE l.id = i.leadId AND l.courseId = i.courseId
+              )
+              AND EXISTS (
+                  SELECT e.id FROM Enrollment e WHERE e.invoiceId = i.id
+              )
+            """)
+    List<Long> findLeadIdsWithEnrollmentForCurrentCourse(
+            @Param("leadIds") Collection<Long> leadIds,
+            @Param("type") InvoiceType type,
+            @Param("paidStatus") InvoiceStatus paidStatus);
+
+    boolean existsByLeadIdAndCourseIdAndTypeAndStatus(
+            Long leadId, Long courseId, InvoiceType type, InvoiceStatus status);
+
+    @Query("""
+            SELECT CASE WHEN COUNT(i) > 0 THEN true ELSE false END FROM Invoice i
+            WHERE i.leadId = :leadId
+              AND i.courseId = :courseId
+              AND i.type = :type
+              AND i.status = :paidStatus
+              AND EXISTS (
+                  SELECT e.id FROM Enrollment e WHERE e.invoiceId = i.id
+              )
+            """)
+    boolean existsPaidInvoiceWithEnrollmentForLeadCourse(
+            @Param("leadId") Long leadId,
+            @Param("courseId") Long courseId,
+            @Param("type") InvoiceType type,
+            @Param("paidStatus") InvoiceStatus paidStatus);
+
     /**
      * Đếm hóa đơn theo trạng thái trong 1 query (thay cho 5 lần gọi search chỉ để lấy totalElements).
      * ownerStudentId chỉ áp dụng cho người dùng không phải ADMIN.
@@ -73,10 +145,13 @@ public interface InvoiceRepository extends IRepository<Invoice, Long>, JpaSpecif
             SELECT i.status, COUNT(i) FROM Invoice i
             WHERE i.type = :type
               AND (:ownerStudentId IS NULL OR i.studentId = :ownerStudentId)
+              AND (:hideUnpaidCheckout = false OR i.status = :paidStatus OR i.dueAt IS NOT NULL)
             GROUP BY i.status
             """)
     List<Object[]> countByTypeGroupedByStatus(@Param("type") InvoiceType type,
-            @Param("ownerStudentId") Long ownerStudentId);
+            @Param("ownerStudentId") Long ownerStudentId,
+            @Param("hideUnpaidCheckout") boolean hideUnpaidCheckout,
+            @Param("paidStatus") InvoiceStatus paidStatus);
 
     /**
      * Đếm hóa đơn PENDING đã qua hạn thanh toán (dueAt <= now) theo phạm vi chủ sở hữu

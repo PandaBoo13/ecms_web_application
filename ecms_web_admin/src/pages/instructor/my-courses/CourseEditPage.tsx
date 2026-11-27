@@ -458,7 +458,7 @@ const CourseEditPage = () => {
     tabItems.splice(3, 0, {
       key: 'attendance',
       label: <span>Điểm danh</span>,
-      children: <CourseAttendanceMatrix courseId={courseId} mode="instructor" />,
+      children: <CourseAttendanceMatrix courseId={courseId} courseStatus={course.status} mode="instructor" />,
     });
   }
 

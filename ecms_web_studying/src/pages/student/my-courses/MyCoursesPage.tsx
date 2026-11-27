@@ -53,6 +53,7 @@ const MyCoursesPage = () => {
   const [pageSize, setPageSize] = useState(9);
   const [attendance, setAttendance] = useState<AttendanceRecordResponse[]>([]);
   const [attendanceOpen, setAttendanceOpen] = useState(false);
+  const [attendanceLoading, setAttendanceLoading] = useState(false);
   const [leaveTarget, setLeaveTarget] = useState<AttendanceRecordResponse | null>(null);
   const [leaveSubmitting, setLeaveSubmitting] = useState(false);
   const [cancellingLeaveId, setCancellingLeaveId] = useState<number | null>(null);
@@ -84,11 +85,16 @@ const MyCoursesPage = () => {
   const total = filteredItems.length;
 
   const openAttendance = async (enrollmentId: number) => {
+    setAttendance([]);
+    setAttendanceLoading(true);
+    setAttendanceOpen(true);
     try {
       setAttendance(await enrollmentApi.attendanceHistory(enrollmentId));
-      setAttendanceOpen(true);
     } catch {
       toast.error('Không tải được lịch sử điểm danh');
+      setAttendanceOpen(false);
+    } finally {
+      setAttendanceLoading(false);
     }
   };
 
@@ -234,14 +240,16 @@ const MyCoursesPage = () => {
                             ? 'Xem lại bài học' 
                             : 'Học tiếp'}
                     </Button>
-                    <Button
-                      block
-                      size="small"
-                      style={{ marginTop: 8 }}
-                      onClick={() => void openAttendance(p.enrollmentId)}
-                    >
-                      Xem điểm danh
-                    </Button>
+                    {p.courseType === 'OFFLINE' && (
+                      <Button
+                        block
+                        size="small"
+                        style={{ marginTop: 8 }}
+                        onClick={() => void openAttendance(p.enrollmentId)}
+                      >
+                        Xem điểm danh
+                      </Button>
+                    )}
                   </Card>
                 </Col>
               );
@@ -276,6 +284,7 @@ const MyCoursesPage = () => {
       >
         <Table
           size="small"
+          loading={attendanceLoading}
           rowKey={(row) => row.attendanceId ?? `${row.enrollmentId}-${row.sessionId}`}
           dataSource={attendance}
           pagination={false}

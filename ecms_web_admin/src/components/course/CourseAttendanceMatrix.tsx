@@ -22,6 +22,7 @@ import type {
   AttendanceMatrixStudent,
   AttendanceStatus,
 } from '@/services/types/enrollment';
+import type { CourseStatus } from '@/services/types/course';
 import SessionAttendanceEditor, { ATTENDANCE_STATUS_COLOR, ATTENDANCE_STATUS_LABEL } from './SessionAttendanceEditor';
 
 const { Text } = Typography;
@@ -52,6 +53,7 @@ const LEAVE_STATUS_COLOR: Record<string, string> = {
 
 interface CourseAttendanceMatrixProps {
   courseId: number;
+  courseStatus: CourseStatus;
   mode?: 'admin' | 'instructor';
 }
 
@@ -68,7 +70,7 @@ interface ActiveCell {
 }
 
 /** Ma trận học viên × buổi học với 2 chế độ xem: Theo học viên (tiện theo dõi) & Ma trận tổng thể */
-export default function CourseAttendanceMatrix({ courseId, mode = 'admin' }: CourseAttendanceMatrixProps) {
+export default function CourseAttendanceMatrix({ courseId, courseStatus, mode = 'admin' }: CourseAttendanceMatrixProps) {
   const [matrix, setMatrix] = useState<AttendanceMatrixResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -118,8 +120,15 @@ export default function CourseAttendanceMatrix({ courseId, mode = 'admin' }: Cou
   }, [matrix, selectedChunkIndex, sessionChunks]);
 
   const readOnly = mode === 'admin';
+  const scheduleNotPublished = ['DRAFT', 'PENDING_REVIEW', 'PLANNED'].includes(courseStatus);
 
   const load = useCallback(async () => {
+    if (scheduleNotPublished) {
+      setMatrix(null);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     try {
       setMatrix(await enrollmentApi.courseAttendanceMatrix(courseId));
@@ -128,7 +137,7 @@ export default function CourseAttendanceMatrix({ courseId, mode = 'admin' }: Cou
     } finally {
       setLoading(false);
     }
-  }, [courseId]);
+  }, [courseId, scheduleNotPublished]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -497,7 +506,7 @@ export default function CourseAttendanceMatrix({ courseId, mode = 'admin' }: Cou
             onChange={(event) => setSearch(event.target.value)}
           />
           <Button icon={<ReloadOutlined />} loading={loading} onClick={() => void load()}>Làm mới</Button>
-          <Button type="primary" icon={<DownloadOutlined />} loading={exporting} onClick={() => void exportExcel()}>
+          <Button type="primary" icon={<DownloadOutlined />} loading={exporting} disabled={scheduleNotPublished} onClick={() => void exportExcel()}>
             Xuất Excel
           </Button>
         </Space>

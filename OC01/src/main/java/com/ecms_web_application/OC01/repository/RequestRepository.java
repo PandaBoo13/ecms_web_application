@@ -13,6 +13,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.Optional;
 
 @Repository
@@ -61,6 +62,18 @@ public interface RequestRepository extends IRepository<Request, Long> {
             @Param("targetId") Long targetId,
             @Param("type") RequestType type,
             Pageable pageable);
+
+    @Query("""
+        SELECT r FROM Request r
+        WHERE r.targetEntityType = :targetType
+          AND r.targetEntityId IN :targetIds
+          AND r.requestType = :type
+        ORDER BY r.createdAt DESC
+    """)
+    java.util.List<Request> findAllByTargetsAndType(
+            @Param("targetType") String targetType,
+            @Param("targetIds") Collection<Long> targetIds,
+            @Param("type") RequestType type);
 
     default java.util.Optional<Request> findLatestByTargetAndType(
             String targetType, Long targetId, RequestType type) {

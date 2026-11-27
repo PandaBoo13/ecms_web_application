@@ -16,6 +16,7 @@ import com.ecms_web_application.OC01.entity.Account;
 import com.ecms_web_application.OC01.entity.Lead;
 import com.ecms_web_application.OC01.entity.LeadAssignmentLog;
 import com.ecms_web_application.OC01.entity.LeadInteraction;
+import com.ecms_web_application.OC01.entity.Student;
 import com.ecms_web_application.OC01.entity.course.Course;
 import com.ecms_web_application.OC01.entity.enums.InvoiceStatus;
 import com.ecms_web_application.OC01.entity.enums.InvoiceType;
@@ -29,6 +30,7 @@ import com.ecms_web_application.OC01.repository.InvoiceRepository;
 import com.ecms_web_application.OC01.repository.LeadAssignmentLogRepository;
 import com.ecms_web_application.OC01.repository.LeadRepository;
 import com.ecms_web_application.OC01.repository.NotificationRecipientRepository;
+import com.ecms_web_application.OC01.repository.StudentRepository;
 import com.ecms_web_application.OC01.service.LeadService;
 import com.ecms_web_application.OC01.service.NotificationService;
 import lombok.RequiredArgsConstructor;
@@ -50,6 +52,7 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -70,6 +73,7 @@ public class LeadServiceImpl implements LeadService {
     private final CourseRepository courseRepository;
     private final NotificationService notificationService;
     private final NotificationRecipientRepository notificationRecipientRepository;
+    private final StudentRepository studentRepository;
     private final SimpMessagingTemplate messagingTemplate;
 
     @Override
@@ -96,13 +100,21 @@ public class LeadServiceImpl implements LeadService {
         leads.getContent().forEach(lead -> leadIds.add(lead.getId()));
 
         Set<Long> leadIdsWithInvoice = new HashSet<>();
+        Set<Long> leadIdsWithPaidInvoice = new HashSet<>();
+        Set<Long> leadIdsWithEnrollment = new HashSet<>();
         if (!leadIds.isEmpty()) {
             leadIdsWithInvoice.addAll(invoiceRepository.findLeadIdsWithActiveInvoice(
                     leadIds, InvoiceType.TUITION_PAYMENT, ACTIVE_INVOICE_STATUSES));
+            leadIdsWithPaidInvoice.addAll(invoiceRepository.findLeadIdsWithPaidInvoiceForCurrentCourse(
+                    leadIds, InvoiceType.TUITION_PAYMENT, InvoiceStatus.PAID));
+            leadIdsWithEnrollment.addAll(invoiceRepository.findLeadIdsWithEnrollmentForCurrentCourse(
+                    leadIds, InvoiceType.TUITION_PAYMENT, InvoiceStatus.PAID));
         }
         return leads.map(lead -> {
             LeadResponse response = toResponse(lead, consultantMap);
             response.setHasOpenInvoice(leadIdsWithInvoice.contains(lead.getId()));
+            response.setHasPaidInvoice(leadIdsWithPaidInvoice.contains(lead.getId()));
+            response.setHasEnrollment(leadIdsWithEnrollment.contains(lead.getId()));
             return response;
         });
     }
@@ -111,7 +123,9 @@ public class LeadServiceImpl implements LeadService {
     @Transactional(readOnly = true)
     public LeadResponse getById(Long id) {
         Lead lead = findLeadById(id);
-        return toResponse(lead, hasOpenInvoice(lead.getId()));
+        LeadResponse response = toResponse(lead, hasOpenInvoice(lead.getId()));
+        setPurchaseStatus(response, lead);
+        return response;
     }
 
     @Override
@@ -121,6 +135,7 @@ public class LeadServiceImpl implements LeadService {
         LeadDetailResponse detail = new LeadDetailResponse();
         copyPropertiesToResponse(lead, detail, getConsultantMap());
         detail.setHasOpenInvoice(hasOpenInvoice(lead.getId()));
+        setPurchaseStatus(detail, lead);
 
         List<LeadInteractionResponse> interactions = getInteractions(id);
         List<LeadPlacementTestResponse> placementTests = getPlacementTests(id);
@@ -515,8 +530,20 @@ public class LeadServiceImpl implements LeadService {
         response.setPhone(lead.getPhone());
         response.setCourseId(lead.getCourseId());
         response.setStudentId(lead.getStudentId());
+        Long matchedStudentId = null;
+        if (lead.getStudentId() == null && lead.getEmail() != null && !lead.getEmail().isBlank()) {
+            matchedStudentId = studentRepository.findByEmailIgnoreCase(lead.getEmail().trim())
+                    .map(Student::getId).orElse(null);
+        }
+        if (matchedStudentId == null && lead.getStudentId() == null
+                && lead.getPhone() != null && !lead.getPhone().isBlank()) {
+            matchedStudentId = studentRepository.findByPhone(lead.getPhone().trim())
+                    .map(Student::getId).orElse(null);
+        }
+        response.setMatchedStudentId(matchedStudentId);
         response.setStatus(lead.getStatus());
         response.setConsultedAt(lead.getConsultedAt());
+        response.setLatestInteractionResult(latestInteractionResult(lead));
         response.setConvertedAt(lead.getConvertedAt());
         response.setSourceName(lead.getSourceName());
         response.setChannelType(lead.getChannelType());
@@ -549,6 +576,18 @@ public class LeadServiceImpl implements LeadService {
         response.setUpdatedAt(lead.getUpdatedAt());
     }
 
+    private String latestInteractionResult(Lead lead) {
+        if (lead.getInteractions() == null || lead.getInteractions().isEmpty()) return null;
+        return lead.getInteractions().stream()
+                .filter(Objects::nonNull)
+                .max(Comparator.comparing(LeadInteraction::getCreatedAt,
+                        Comparator.nullsFirst(Comparator.naturalOrder())))
+                .map(LeadInteraction::getResult)
+                .filter(Objects::nonNull)
+                .map(result -> result.trim().toUpperCase(Locale.ROOT))
+                .orElse(null);
+    }
+
     private LeadResponse toResponse(Lead lead) {
         return toResponse(lead, getConsultantMap());
     }
@@ -569,6 +608,14 @@ public class LeadServiceImpl implements LeadService {
     private boolean hasOpenInvoice(Long leadId) {
         return !invoiceRepository.findLeadIdsWithActiveInvoice(
                 List.of(leadId), InvoiceType.TUITION_PAYMENT, ACTIVE_INVOICE_STATUSES).isEmpty();
+    }
+
+    private void setPurchaseStatus(LeadResponse response, Lead lead) {
+        boolean sameCourse = lead.getCourseId() != null;
+        response.setHasPaidInvoice(sameCourse && invoiceRepository.existsByLeadIdAndCourseIdAndTypeAndStatus(
+                lead.getId(), lead.getCourseId(), InvoiceType.TUITION_PAYMENT, InvoiceStatus.PAID));
+        response.setHasEnrollment(sameCourse && invoiceRepository.existsPaidInvoiceWithEnrollmentForLeadCourse(
+                lead.getId(), lead.getCourseId(), InvoiceType.TUITION_PAYMENT, InvoiceStatus.PAID));
     }
 
     private LeadInteractionResponse toInteractionResponse(LeadInteraction interaction) {

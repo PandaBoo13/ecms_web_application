@@ -16,8 +16,12 @@ public class LeadResponse {
     private String phone;
     private Long courseId;
     private Long studentId;
+    private Long matchedStudentId;
     private String status;
     private LocalDateTime consultedAt;
+    private String latestInteractionResult;
+    private Boolean hasPaidInvoice;
+    private Boolean hasEnrollment;
     private LocalDateTime convertedAt;
     private String sourceName;
     private String channelType;

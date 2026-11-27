@@ -172,7 +172,8 @@ public interface CourseRepository extends IRepository<Course, Long> {
         c.thumbnail_url AS thumbnailUrl,
         e.status AS enrollmentStatus,
         e.enrolled_at AS enrolledAt,
-        p.progress_percentage AS progressPercentage
+        p.progress_percentage AS progressPercentage,
+        c.course_type AS courseType
     FROM enrollments e
     JOIN course c ON e.course_id = c.id
     JOIN students s ON e.student_id = s.id

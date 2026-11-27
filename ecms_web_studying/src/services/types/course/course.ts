@@ -169,6 +169,7 @@ export interface EnrolledCourseResponse {
   courseCode: string;
   courseTitle: string;
   thumbnailUrl?: string;
+  courseType?: CourseType;
   enrollmentStatus: 'PENDING' | 'ACTIVE' | 'RESERVED' | 'COMPLETED' | 'TERMINATED';
   enrolledAt: string;
   progressPercentage?: number;

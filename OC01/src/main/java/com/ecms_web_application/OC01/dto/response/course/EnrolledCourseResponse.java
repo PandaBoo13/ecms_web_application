@@ -17,4 +17,6 @@ public class EnrolledCourseResponse {
 
     // (Tùy chọn) Nếu bạn muốn hiển thị thanh tiến độ ngay trên thẻ Card
     private Double progressPercentage;
+
+    private String courseType; // ONLINE or OFFLINE
 }

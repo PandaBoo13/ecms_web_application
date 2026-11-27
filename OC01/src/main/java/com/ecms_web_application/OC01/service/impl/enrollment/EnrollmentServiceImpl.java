@@ -180,7 +180,6 @@ public class EnrollmentServiceImpl implements EnrollmentService {
             // vẫn đảm bảo học viên có tài khoản để email thanh toán gửi được thông tin đăng
             // nhập.
             ensureAccountForExistingEnrollment(existing, invoice);
-            progressCalculationService.recalculateForEnrollment(existing.getId(), existing.getCourseId());
             return response(existing);
         }
         Course course = lockAndGetCourse(invoice.getCourseId());
@@ -191,7 +190,6 @@ public class EnrollmentServiceImpl implements EnrollmentService {
         Long studentId = ensureOnlineStudentProfile(invoice, actorId);
         EnrollmentResponse enrollment = createEnrollment(
                 invoice, course, EnrollmentStatus.ACTIVE, actorId, studentId);
-        progressCalculationService.recalculateForEnrollment(enrollment.enrollmentId(), course.getId());
         return enrollment;
     }
 
@@ -1378,26 +1376,23 @@ public class EnrollmentServiceImpl implements EnrollmentService {
             findLatestLeaveRequests(Set<Long> sessionIds) {
         Map<Long, Map<Long, com.ecms_web_application.OC01.entity.request.Request>> result = new HashMap<>();
         if (sessionIds == null || sessionIds.isEmpty()) return result;
-        for (Long sessionId : sessionIds) {
-            List<com.ecms_web_application.OC01.entity.request.Request> leaveRequests =
-                    requestRepository.findAllByTargetAndType(
-                            "SESSION", sessionId,
-                            com.ecms_web_application.OC01.entity.enums.RequestType.LEAVE_FEEDBACK,
-                            org.springframework.data.domain.Pageable.unpaged());
-            for (com.ecms_web_application.OC01.entity.request.Request req : leaveRequests) {
-                Object enrollmentIdObj = req.getPayload() == null ? null : req.getPayload().get("enrollmentId");
-                if (enrollmentIdObj == null) continue;
-                Long enrollmentId;
-                if (enrollmentIdObj instanceof Number num) {
-                    enrollmentId = num.longValue();
-                } else {
-                    try { enrollmentId = Long.parseLong(enrollmentIdObj.toString()); }
-                    catch (NumberFormatException ignored) { continue; }
-                }
-                // findAllByTargetAndType ORDER BY createdAt DESC → giữ bản ghi mới nhất
-                result.computeIfAbsent(enrollmentId, key -> new HashMap<>())
-                        .putIfAbsent(sessionId, req);
+        List<com.ecms_web_application.OC01.entity.request.Request> leaveRequests =
+                requestRepository.findAllByTargetsAndType(
+                        "SESSION", sessionIds,
+                        com.ecms_web_application.OC01.entity.enums.RequestType.LEAVE_FEEDBACK);
+        for (com.ecms_web_application.OC01.entity.request.Request req : leaveRequests) {
+            Object enrollmentIdObj = req.getPayload() == null ? null : req.getPayload().get("enrollmentId");
+            if (enrollmentIdObj == null || req.getTargetEntityId() == null) continue;
+            Long enrollmentId;
+            if (enrollmentIdObj instanceof Number num) {
+                enrollmentId = num.longValue();
+            } else {
+                try { enrollmentId = Long.parseLong(enrollmentIdObj.toString()); }
+                catch (NumberFormatException ignored) { continue; }
             }
+            // Kết quả đã sắp xếp mới nhất trước, putIfAbsent giữ đơn gần nhất.
+            result.computeIfAbsent(enrollmentId, key -> new HashMap<>())
+                    .putIfAbsent(req.getTargetEntityId(), req);
         }
         return result;
     }

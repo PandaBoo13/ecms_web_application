@@ -39,7 +39,8 @@ import {
 import toast from 'react-hot-toast';
 import { useAuth } from '@/hooks/useAuth';
 
-import { courseApi, progressApi, resourceApi, sessionApi } from '@/services/api/course';
+import { courseApi, resourceApi, sessionApi } from '@/services/api/course';
+import { enrollmentApi } from '@/services/api/enrollment';
 // Nếu báo lỗi không tìm thấy, đổi thành import từ thư mục file tương ứng
 
 import type {
@@ -84,12 +85,17 @@ export default function CourseDetailPage() {
   const [sessions, setSessions] = useState<SessionResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [consultModalOpen, setConsultModalOpen] = useState(false);
-  const [purchaseStatus, setPurchaseStatus] = useState<'CHECKING' | 'AVAILABLE' | 'OWNED'>('CHECKING');
+  const [purchaseStatus, setPurchaseStatus] = useState<'CHECKING' | 'AVAILABLE' | 'OWNED' | 'IN_PROGRESS'>('CHECKING');
 
   const handleBuyOnlineCourse = () => {
     if (!course) return;
-    if (purchaseStatus === 'OWNED') {
-      navigate('/student/my-courses');
+    if (course.courseType === 'ONLINE' && purchaseStatus === 'OWNED') {
+      toast('Bạn đã mua khóa học này.', { icon: '✅' });
+      navigate(`/student/courses/${course.id}/learn`);
+      return;
+    }
+    if (course.courseType === 'OFFLINE' && purchaseStatus === 'IN_PROGRESS') {
+      toast('Bạn đang trong thời gian học khóa này, chưa thể mua lại.', { icon: '⏳' });
       return;
     }
     navigate(`/checkout/${course.id}`);
@@ -136,23 +142,33 @@ export default function CourseDetailPage() {
   useEffect(() => {
     let active = true;
     const courseId = Number(id);
-    if (!isAuthenticated || !Number.isInteger(courseId) || courseId <= 0) {
+    if (!course || !isAuthenticated || !Number.isInteger(courseId) || courseId <= 0) {
       setPurchaseStatus('AVAILABLE');
       return () => { active = false; };
     }
 
     setPurchaseStatus('CHECKING');
-    progressApi.getMyCourseProgress(courseId)
-      .then(() => {
-        if (active) setPurchaseStatus('OWNED');
+    enrollmentApi.myEnrollments({ courseId, page: 0, size: 50 })
+      .then((res) => {
+        const enrolled = (res.content ?? []).some(
+          (enrollment) => enrollment.courseId === courseId && enrollment.status !== 'TERMINATED',
+        );
+        if (!active) return;
+        if (!enrolled) {
+          setPurchaseStatus('AVAILABLE');
+        } else if (course.courseType === 'ONLINE') {
+          setPurchaseStatus('OWNED');
+        } else {
+          setPurchaseStatus(course.status === 'FINISHED' ? 'AVAILABLE' : 'IN_PROGRESS');
+        }
       })
       .catch(() => {
-        // Chưa có tiến độ khóa học nghĩa là tài khoản chưa được ghi danh.
+        // Không có bản ghi ghi danh nghĩa là tài khoản chưa sở hữu khóa học.
         if (active) setPurchaseStatus('AVAILABLE');
       });
 
     return () => { active = false; };
-  }, [id, isAuthenticated]);
+  }, [course, id, isAuthenticated]);
 
   if (loading) {
     return (
@@ -714,18 +730,24 @@ export default function CourseDetailPage() {
                     size="large"
                     icon={course.isFree ? <PlayCircleOutlined /> : <CreditCardOutlined />}
                     onClick={handleBuyOnlineCourse}
+                    disabled={(isAuthenticated && purchaseStatus === 'CHECKING')
+                      || (course.courseType === 'OFFLINE' && purchaseStatus === 'IN_PROGRESS')}
                     block
                     style={{
                       height: 48,
                       fontSize: 16,
                       fontWeight: 700,
-                      background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                      borderColor: '#059669',
-                      boxShadow: '0 4px 14px rgba(16, 185, 129, 0.35)',
+                      background: purchaseStatus === 'IN_PROGRESS'
+                        ? '#94a3b8'
+                        : 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                      borderColor: purchaseStatus === 'IN_PROGRESS' ? '#94a3b8' : '#059669',
+                      boxShadow: purchaseStatus === 'IN_PROGRESS' ? 'none' : '0 4px 14px rgba(16, 185, 129, 0.35)',
                     }}
                   >
                     {purchaseStatus === 'OWNED'
-                      ? 'Đã sở hữu khóa học (Vào học ngay)'
+                      ? 'Đã mua khóa học · Vào học ngay'
+                      : purchaseStatus === 'IN_PROGRESS'
+                        ? 'Đang trong thời gian khóa học'
                       : course.isFree
                         ? 'Vào học ngay miễn phí'
                         : 'Thanh toán & Mua ngay'}
@@ -819,14 +841,20 @@ export default function CourseDetailPage() {
                       height: 50,
                       fontSize: 16,
                       fontWeight: 700,
-                      background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                      borderColor: '#059669',
-                      boxShadow: '0 4px 14px rgba(16, 185, 129, 0.35)',
+                      background: purchaseStatus === 'IN_PROGRESS'
+                        ? '#94a3b8'
+                        : 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                      borderColor: purchaseStatus === 'IN_PROGRESS' ? '#94a3b8' : '#059669',
+                      boxShadow: purchaseStatus === 'IN_PROGRESS' ? 'none' : '0 4px 14px rgba(16, 185, 129, 0.35)',
                     }}
                     onClick={handleBuyOnlineCourse}
+                    disabled={(isAuthenticated && purchaseStatus === 'CHECKING')
+                      || (course.courseType === 'OFFLINE' && purchaseStatus === 'IN_PROGRESS')}
                   >
                     {purchaseStatus === 'OWNED'
-                      ? 'Đã sở hữu khóa học (Vào học ngay)'
+                      ? 'Đã mua khóa học · Vào học ngay'
+                      : purchaseStatus === 'IN_PROGRESS'
+                        ? 'Đang trong thời gian khóa học'
                       : course.isFree
                         ? 'Vào học ngay miễn phí'
                         : 'Mua khóa học ngay'}

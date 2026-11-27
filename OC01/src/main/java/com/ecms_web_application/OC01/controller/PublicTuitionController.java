@@ -12,7 +12,6 @@ import com.ecms_web_application.OC01.service.impl.tuition.VnpayGatewayService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -41,9 +40,6 @@ public class PublicTuitionController {
     private final TuitionPaymentLinkService paymentLinkService;
     private final VnpayGatewayService vnpayGatewayService;
     private final TuitionService tuitionService;
-
-    @Value("${APP_STUDYING_URL:http://localhost:5174}")
-    private String studyingUrl;
 
     /** Checkout công khai: khách chưa có tài khoản vẫn tạo được hóa đơn và token thanh toán. */
     @PostMapping("/checkout")
@@ -208,13 +204,9 @@ public class PublicTuitionController {
                 ? "Hệ thống đã ghi nhận thanh toán cho hóa đơn này. Bạn có thể đóng trang."
                 : awaitingConfirmation
                     ? "VNPAY báo giao dịch thành công nhưng hệ thống chưa đối soát xong. Vui lòng chờ cập nhật và không thanh toán lại ngay."
-                    : "Hóa đơn chưa được xác nhận đã thanh toán. Bạn có thể dùng lại link thanh toán trong email để thử lại.";
+                    : "Hóa đơn chưa được xác nhận đã thanh toán.";
         String emailGuidance = result.success()
                 ? "<br><span class='email-note'>Hãy kiểm tra email để xem chi tiết hóa đơn.</span>"
-                : "";
-        String homeButton = result.success()
-                && result.courseType() == com.ecms_web_application.OC01.entity.enums.CourseType.ONLINE
-                ? "<a class='home-button' href='" + HtmlUtils.htmlEscape(studyingUrl) + "'>Về trang chủ</a>"
                 : "";
         String html = """
                 <!doctype html>
@@ -234,8 +226,6 @@ public class PublicTuitionController {
                 gap:20px;padding:13px 0;border-bottom:1px solid #e8edf4}.row:last-child{border:0}.label{color:#718096}.value{font-weight:700;
                 text-align:right;overflow-wrap:anywhere}.next{padding:14px 16px;text-align:left;border-radius:12px;background:%s;
                 color:#354256;font-size:14px}.email-note{display:inline-block;margin-top:7px;color:#246b43;font-weight:600}
-                .home-actions{margin-top:18px}.home-button{display:inline-block;padding:11px 22px;border-radius:8px;background:#1677ff;
-                color:#fff;text-decoration:none;font-weight:700}.home-button:hover{background:#0958d9;color:#fff}
                 .footer{border-top:1px solid #edf0f5;padding:16px 24px;text-align:center;color:#8793a5;font-size:12px}
                 @media(max-width:480px){.content{padding:28px 22px 24px}.title{font-size:24px}.details{padding:2px 13px}}
                 </style></head><body><main><div class="top"></div><section class="content">
@@ -244,7 +234,7 @@ public class PublicTuitionController {
                 <p class="message">%s</p><div class="details">
                 <div class="row"><span class="label">Mã hóa đơn</span><span class="value">%s</span></div>
                 <div class="row"><span class="label">Số tiền</span><span class="value">%s</span></div>
-                </div><div class="next">%s%s</div><div class="home-actions">%s</div></section>
+                </div><div class="next">%s%s</div></section>
                 <footer class="footer">Kết quả giao dịch được xác minh bởi ECMS</footer>
                 </main></body></html>
                 """.formatted(HtmlUtils.htmlEscape(heading),
@@ -254,7 +244,7 @@ public class PublicTuitionController {
                 result.success() ? "#16803c" : awaitingConfirmation ? "#a45b00" : "#b42318",
                 awaitingConfirmation ? "#fff8e9" : result.success() ? "#f0faf3" : "#fff5f5",
                 icon, badge, HtmlUtils.htmlEscape(heading), HtmlUtils.htmlEscape(result.message()),
-                invoice, amount, HtmlUtils.htmlEscape(guidance), emailGuidance, homeButton);
+                invoice, amount, HtmlUtils.htmlEscape(guidance), emailGuidance);
         return ResponseEntity.ok().contentType(MediaType.TEXT_HTML).body(html);
     }
 }

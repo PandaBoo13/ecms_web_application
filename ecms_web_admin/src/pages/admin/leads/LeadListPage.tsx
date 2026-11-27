@@ -442,10 +442,10 @@ const LeadListPage = () => {
     return data.filter((item) => {
       const isBuyNow = item.sourceName?.includes('Mua ngay') || item.note?.toLowerCase().includes('mua');
       if (demandFilter === 'BUY_NOW_PENDING') {
-        return isBuyNow && !item.studentId;
+        return isBuyNow && !item.hasPaidInvoice;
       }
       if (demandFilter === 'BUY_NOW_PAID') {
-        return isBuyNow && !!item.studentId;
+        return isBuyNow && !!item.hasPaidInvoice;
       }
       if (demandFilter === 'CONSULTATION') {
         return !isBuyNow;
@@ -516,8 +516,10 @@ const LeadListPage = () => {
               </div>
               <div className="mt-1 flex items-center gap-1.5 flex-wrap">
                 {record.sourceName?.includes('Mua ngay') || record.note?.toLowerCase().includes('mua') ? (
-                  record.studentId ? (
-                    <Tooltip title="Khách tự mua khóa học online & đã thanh toán thành công. Đã tự động tạo học viên & ghi danh, không cần gọi tư vấn.">
+                  record.hasPaidInvoice ? (
+                    <Tooltip title={record.hasEnrollment
+                      ? 'Khách đã thanh toán và ghi danh thành công.'
+                      : 'Đã nhận thanh toán; hệ thống đang hoàn tất ghi danh.'}>
                       <Tag color="success" style={{ margin: 0, fontSize: 11, borderRadius: 4, fontWeight: 600 }}>
                         ⚡ Mua ngay · Đã thanh toán
                       </Tag>
@@ -599,7 +601,7 @@ const LeadListPage = () => {
             );
           }
           const isBuyNow = record.sourceName?.includes('Mua ngay') || record.note?.toLowerCase().includes('mua');
-          if (isBuyNow && record.studentId) {
+          if (isBuyNow && record.hasEnrollment) {
             return (
               <Tooltip title="Khách tự mua online & thanh toán thành công, hệ thống đã tự động kích hoạt. Không cần phân công TVV.">
                 <Tag
@@ -617,6 +619,9 @@ const LeadListPage = () => {
                 </Tag>
               </Tooltip>
             );
+          }
+          if (isBuyNow && record.hasPaidInvoice) {
+            return <Tag color="processing">Đã thanh toán · Đang ghi danh</Tag>;
           }
           return (
             <Tag
@@ -641,7 +646,7 @@ const LeadListPage = () => {
         width: 130,
         render: (status: LeadStatus, record: Lead) => {
           const isBuyNow = record.sourceName?.includes('Mua ngay') || record.note?.toLowerCase().includes('mua');
-          if (isBuyNow && record.studentId) {
+          if (isBuyNow && record.hasEnrollment) {
             return (
               <Tooltip title="Khách tự mua online & thanh toán thành công. Đã tự động tạo học viên và ghi danh, không cần tư vấn.">
                 <Tag color="success" style={{ borderRadius: 12, fontWeight: 600, padding: '2px 10px' }}>
@@ -650,6 +655,9 @@ const LeadListPage = () => {
               </Tooltip>
             );
           }
+          if (isBuyNow && record.hasPaidInvoice) {
+            return <Tag color="processing" style={{ borderRadius: 12 }}>Đang ghi danh</Tag>;
+          }
           return <StatusTag status={status} />;
         },
       },
@@ -657,15 +665,21 @@ const LeadListPage = () => {
         title: t('lead.converted'),
         dataIndex: 'studentId',
         width: 160,
-        render: (studentId?: number) =>
-          studentId ? (
+        render: (_studentId: number | undefined, record: Lead) =>
+          record.studentId ? (
             <Tag
               color="cyan"
               icon={<CheckCircleOutlined />}
               style={{ borderRadius: 12, fontWeight: 600, padding: '2px 10px' }}
             >
-              Học viên #{studentId}
+              Học viên #{record.studentId}
             </Tag>
+          ) : record.matchedStudentId ? (
+            <Tooltip title="Thông tin liên hệ khớp hồ sơ học viên; lead chưa được liên kết với hồ sơ này.">
+              <Tag color="gold" style={{ borderRadius: 12, fontWeight: 600, padding: '2px 10px' }}>
+                Khớp hồ sơ #{record.matchedStudentId}
+              </Tag>
+            </Tooltip>
           ) : (
             <span
               style={{
@@ -696,12 +710,12 @@ const LeadListPage = () => {
           const invoiceCourse = record.courseId
             ? courses.find((c) => c.id === record.courseId)
             : undefined;
-          const invoiceDisabledReason = record.studentId
-            ? t('lead.invoiceReasonEnrolled')
-            : record.hasOpenInvoice
+          const invoiceDisabledReason = record.hasOpenInvoice
               ? t('lead.invoiceReasonHasInvoice')
               : record.status !== 'CONSULTED'
                 ? t('lead.invoiceReasonNotConsulted')
+                : record.latestInteractionResult !== 'INTERESTED'
+                  ? t('lead.invoiceReasonNotInterested')
                 : !invoiceCourse
                   ? t('lead.invoiceReasonNoCourse')
                   : invoiceCourse.courseType !== 'OFFLINE'
@@ -736,27 +750,25 @@ const LeadListPage = () => {
               />
             </Tooltip>
 
-            {!record.studentId && (
-              <Tooltip title={invoiceDisabledReason ?? t('lead.tooltip.createInvoice')}>
-                <span style={{ display: 'inline-block' }}>
-                  <Button
-                    type="text"
-                    shape="circle"
-                    className="action-btn-circle"
-                    disabled={!!invoiceDisabledReason}
-                    icon={
-                      <DollarOutlined
-                        style={{
-                          color: invoiceDisabledReason ? '#bfbfbf' : '#059669',
-                          fontSize: 15,
-                        }}
-                      />
-                    }
-                    onClick={() => handleOpenInvoice(record)}
-                  />
-                </span>
-              </Tooltip>
-            )}
+            <Tooltip title={invoiceDisabledReason ?? t('lead.tooltip.createInvoice')}>
+              <span style={{ display: 'inline-block' }}>
+                <Button
+                  type="text"
+                  shape="circle"
+                  className="action-btn-circle"
+                  disabled={!!invoiceDisabledReason}
+                  icon={
+                    <DollarOutlined
+                      style={{
+                        color: invoiceDisabledReason ? '#bfbfbf' : '#059669',
+                        fontSize: 15,
+                      }}
+                    />
+                  }
+                  onClick={() => handleOpenInvoice(record)}
+                />
+              </span>
+            </Tooltip>
 
             <Dropdown
               trigger={['click']}
@@ -774,15 +786,15 @@ const LeadListPage = () => {
                             setConvertModalVisible(true);
                           },
                         },
-                        {
-                          key: 'invoice',
-                          icon: <DollarOutlined style={{ color: '#059669' }} />,
-                          label: 'Tạo hóa đơn học phí',
-                          disabled: !!invoiceDisabledReason,
-                          onClick: () => handleOpenInvoice(record),
-                        },
                       ]
                     : []),
+                  {
+                    key: 'invoice',
+                    icon: <DollarOutlined style={{ color: invoiceDisabledReason ? '#bfbfbf' : '#059669' }} />,
+                    label: 'Tạo hóa đơn học phí',
+                    disabled: !!invoiceDisabledReason,
+                    onClick: () => handleOpenInvoice(record),
+                  },
                   {
                     key: 'assign',
                     icon: <UserSwitchOutlined style={{ color: '#722ed1' }} />,
@@ -1736,7 +1748,7 @@ const LeadListPage = () => {
                     {(() => {
                       const isBuyNow = leadDetail.sourceName?.includes('Mua ngay') || leadDetail.note?.toLowerCase().includes('mua');
                       if (isBuyNow) {
-                        if (leadDetail.studentId) {
+                        if (leadDetail.hasEnrollment) {
                           return (
                             <Alert
                               type="success"
@@ -1747,6 +1759,17 @@ const LeadListPage = () => {
                             />
                           );
                         } else {
+                          if (leadDetail.hasPaidInvoice) {
+                            return (
+                              <Alert
+                                type="info"
+                                showIcon
+                                message="Đã thanh toán, đang hoàn tất ghi danh"
+                                description="Hệ thống đã nhận thanh toán và đang xử lý hồ sơ ghi danh. Trạng thái sẽ cập nhật khi hoàn tất."
+                                style={{ borderRadius: 8 }}
+                              />
+                            );
+                          }
                           return (
                             <Alert
                               type="warning"
@@ -1856,6 +1879,12 @@ const LeadListPage = () => {
                             <Tag color="cyan" style={{ fontWeight: 600 }}>
                               Học viên #{leadDetail.studentId}
                             </Tag>
+                          ) : leadDetail.matchedStudentId ? (
+                            <Tooltip title="Thông tin liên hệ khớp hồ sơ học viên; lead chưa được liên kết với hồ sơ này.">
+                              <Tag color="gold" style={{ fontWeight: 600 }}>
+                                Khớp hồ sơ #{leadDetail.matchedStudentId}
+                              </Tag>
+                            </Tooltip>
                           ) : (
                             <Tag color="default">{t('lead.notConverted')}</Tag>
                           )}

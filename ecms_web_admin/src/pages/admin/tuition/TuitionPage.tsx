@@ -4,8 +4,8 @@ import {
   Tag, Tooltip, Typography,
 } from 'antd';
 import {
-  CheckCircleOutlined, ClockCircleOutlined, CopyOutlined, EditOutlined, ExclamationCircleOutlined,
-  EyeOutlined, FilePdfOutlined, FileTextOutlined, LinkOutlined, ReloadOutlined, StopOutlined,
+  CheckCircleOutlined, ClockCircleOutlined, EditOutlined, ExclamationCircleOutlined,
+  EyeOutlined, FilePdfOutlined, FileTextOutlined, ReloadOutlined, StopOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType, TablePaginationConfig } from 'antd/es/table';
 import dayjs from 'dayjs';
@@ -16,7 +16,7 @@ import StatsCard from '@/components/common/StatsCard';
 import ThumbnailUpload from '@/components/common/ThumbnailUpload';
 import { tuitionApi } from '@/services/api/tuition';
 import type {
-  InvoiceResponse, InvoiceStatus, PaymentLinkResponse,
+  InvoiceResponse, InvoiceStatus,
 } from '@/services/types/tuition';
 import { printTuitionInvoice } from '@/utils/printTuitionInvoice';
 
@@ -49,7 +49,6 @@ export default function TuitionPage() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [invoiceForm] = Form.useForm();
-  const [linkResult, setLinkResult] = useState<PaymentLinkResponse | null>(null);
 
   const loadInvoices = useCallback(async (page = 1, pageSize = 10) => {
     setLoadingInvoices(true);
@@ -114,7 +113,6 @@ export default function TuitionPage() {
       } else if (selectedInvoice && effectiveAction === 'link') {
         const result = await tuitionApi.sendPaymentLink(selectedInvoice.invoiceId, values.email as string | undefined);
         successMessage = `Đã tạo link thanh toán và đang gửi email tới ${result.sentTo}`;
-        setLinkResult(result);
       } else if (selectedInvoice && effectiveAction === 'extend') {
         await tuitionApi.extendDueDate(selectedInvoice.invoiceId, dayjs(values.dueAt as dayjs.ConfigType).format('YYYY-MM-DDTHH:mm:ss'));
       } else if (selectedInvoice && effectiveAction === 'cancel') {
@@ -130,16 +128,6 @@ export default function TuitionPage() {
 
   const showInvoiceAction = (action: Exclude<InvoiceAction, null>, invoice?: InvoiceResponse) => {
     setSelectedInvoice(invoice ?? null); setInvoiceAction(action); invoiceForm.resetFields();
-  };
-
-  const copyPaymentLink = async () => {
-    if (!linkResult) return;
-    try {
-      await navigator.clipboard.writeText(linkResult.paymentLink);
-      toast.success('Đã sao chép link thanh toán');
-    } catch {
-      toast.error('Không sao chép được, hãy bôi đen link và sao chép thủ công');
-    }
   };
 
   const exportInvoicePdf = () => {
@@ -331,33 +319,6 @@ export default function TuitionPage() {
     <PageContainer>
       <PageHeader title="Quản lý hóa đơn" subtitle="Theo dõi, cập nhật và xác nhận thanh toán hóa đơn học phí của học viên." />
       {invoiceTab}
-
-      {/* Kết quả link thanh toán */}
-      <Modal title="Link thanh toán học phí" open={!!linkResult} width={620}
-        onCancel={() => setLinkResult(null)}
-        footer={[
-          <Button key="copy" icon={<CopyOutlined />} onClick={() => void copyPaymentLink()}>Sao chép link</Button>,
-          <Button key="open" type="primary" icon={<LinkOutlined />} disabled={!linkResult}
-            onClick={() => linkResult && window.open(linkResult.paymentLink, '_blank', 'noopener,noreferrer')}>Mở trang thanh toán</Button>,
-          <Button key="close" onClick={() => setLinkResult(null)}>Đóng</Button>,
-        ]}>
-        {linkResult && <>
-          {linkResult.emailSent
-            ? <Alert type="success" showIcon className="mb-4"
-              message={`Email đang được gửi tới ${linkResult.sentTo}`}
-              description="Hệ thống gửi email ở chế độ nền nên thao tác không phải chờ. Bạn cũng có thể sao chép link bên dưới để gửi qua kênh khác (Zalo/SMS)." />
-            : <Alert type="warning" showIcon className="mb-4"
-              message="Gửi email thất bại"
-              description={linkResult.emailError || 'Hãy sao chép link bên dưới và gửi qua kênh khác (Zalo/SMS).'} />}
-          <Descriptions size="small" column={1} bordered>
-            <Descriptions.Item label="Người nhận">{linkResult.sentTo}</Descriptions.Item>
-            <Descriptions.Item label="Hạn link">{dateText(linkResult.expiresAt)}</Descriptions.Item>
-            <Descriptions.Item label="Link">
-              <Input.TextArea value={linkResult.paymentLink} readOnly autoSize={{ minRows: 2, maxRows: 4 }} />
-            </Descriptions.Item>
-          </Descriptions>
-        </>}
-      </Modal>
 
       {/* Cập nhật hóa đơn */}
       <Modal title={actionTitle[action ?? ''] ?? 'Cập nhật hóa đơn'} open={invoiceAction !== null} confirmLoading={busy}

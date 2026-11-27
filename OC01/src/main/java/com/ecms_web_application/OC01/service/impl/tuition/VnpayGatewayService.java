@@ -3,6 +3,7 @@ package com.ecms_web_application.OC01.service.impl.tuition;
 import com.ecms_web_application.OC01.config.SecurityUtils;
 import com.ecms_web_application.OC01.dto.response.tuition.VnpayReturnResponse;
 import com.ecms_web_application.OC01.entity.Invoice;
+import com.ecms_web_application.OC01.entity.Lead;
 import com.ecms_web_application.OC01.entity.PaymentWebhookLog;
 import com.ecms_web_application.OC01.entity.enums.CourseType;
 import com.ecms_web_application.OC01.entity.enums.InvoiceStatus;
@@ -13,6 +14,7 @@ import com.ecms_web_application.OC01.event.InvoicePaidEvent;
 import com.ecms_web_application.OC01.exception.ErrorHandler;
 import com.ecms_web_application.OC01.repository.InvoiceRepository;
 import com.ecms_web_application.OC01.repository.CourseRepository;
+import com.ecms_web_application.OC01.repository.LeadRepository;
 import com.ecms_web_application.OC01.repository.PaymentWebhookLogRepository;
 import com.ecms_web_application.OC01.repository.StudentRepository;
 import lombok.RequiredArgsConstructor;
@@ -46,6 +48,7 @@ public class VnpayGatewayService {
     private final CourseRepository courseRepository;
     private final PaymentWebhookLogRepository webhookLogRepository;
     private final StudentRepository studentRepository;
+    private final LeadRepository leadRepository;
     private final ApplicationEventPublisher eventPublisher;
 
     @Value("${VNPAY_TMN_CODE:}") private String tmnCode;
@@ -226,11 +229,19 @@ public class VnpayGatewayService {
     private void requireCanView(Invoice invoice) {
         if (SecurityUtils.hasRole("ADMIN")) return;
         Long accountId = SecurityUtils.requireCurrentAccountId();
-        boolean ownsAsStudent = studentRepository.findByUserId(accountId)
-                .map(student -> student.getId().equals(invoice.getStudentId())
-                        || (invoice.getLeadId() != null && invoice.getLeadId().equals(student.getLeadId())))
-                .orElse(false);
+        var owner = studentRepository.findByUserId(accountId).orElse(null);
+        boolean ownsAsStudent = owner != null && (owner.getId().equals(invoice.getStudentId())
+                || (invoice.getLeadId() != null && (invoice.getLeadId().equals(owner.getLeadId())
+                || leadRepository.findById(invoice.getLeadId())
+                .map(lead -> owner.getId().equals(lead.getStudentId())
+                        || sameContact(lead.getEmail(), owner.getEmail())
+                        || sameContact(lead.getPhone(), owner.getPhone()))
+                .orElse(false))));
         if (!ownsAsStudent) throw new ErrorHandler(HttpStatus.FORBIDDEN, "Bạn không có quyền thanh toán hóa đơn này");
+    }
+
+    private boolean sameContact(String left, String right) {
+        return left != null && right != null && left.trim().equalsIgnoreCase(right.trim());
     }
 
     private void requireConfiguration() {

@@ -110,6 +110,7 @@ export const vi = {
   'lead.invoiceReasonEnrolled': 'Lead đã được ghi danh thành học viên',
   'lead.invoiceReasonHasInvoice': 'Lead đã có hóa đơn học phí đang mở',
   'lead.invoiceReasonNotConsulted': 'Lead chưa được tư vấn',
+  'lead.invoiceReasonNotInterested': 'Chỉ tạo hóa đơn khi kết quả tư vấn gần nhất là Quan tâm',
   'lead.convertBtn': 'Ghi danh',
   'lead.assignBtn': 'Phân công TVV',
   'lead.interactBtn': 'Ghi tương tác',

@@ -65,6 +65,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -175,7 +176,7 @@ public class TuitionServiceImpl implements TuitionService {
         invoice.setCourseId(course.getId());
         invoice.setAmount(course.getPrice());
         invoice.setStatus(InvoiceStatus.PENDING);
-        // Online purchases remain payable until the learner completes payment.
+        // Mua ngay remains payable until the learner completes payment.
         invoice.setDueAt(null);
         invoice.setCreatedBy(accountId);
         applyCheckoutContact(invoice, request);
@@ -309,16 +310,24 @@ public class TuitionServiceImpl implements TuitionService {
     @Override
     @Transactional
     public CreateInvoiceFromLeadResponse createInvoiceFromLead(CreateInvoiceFromLeadRequest request) {
-        requireAdmin();
+        requireAdminOrConsultant();
         Long actorId = SecurityUtils.requireCurrentAccountId();
         Lead lead = leadRepository.findById(request.getLeadId())
                 .orElseThrow(() -> new ErrorHandler(HttpStatus.NOT_FOUND, "Lead không tồn tại"));
         if (!"CONSULTED".equalsIgnoreCase(lead.getStatus())) {
             throw new ErrorHandler(HttpStatus.CONFLICT, "Chỉ tạo hóa đơn cho lead đã được tư vấn");
         }
-        if (lead.getStudentId() != null) {
+        String latestInteractionResult = lead.getInteractions() == null ? null : lead.getInteractions().stream()
+                .filter(Objects::nonNull)
+                .max(Comparator.comparing(com.ecms_web_application.OC01.entity.LeadInteraction::getCreatedAt,
+                        Comparator.nullsFirst(Comparator.naturalOrder())))
+                .map(com.ecms_web_application.OC01.entity.LeadInteraction::getResult)
+                .filter(Objects::nonNull)
+                .map(result -> result.trim().toUpperCase(Locale.ROOT))
+                .orElse(null);
+        if (!"INTERESTED".equals(latestInteractionResult)) {
             throw new ErrorHandler(HttpStatus.CONFLICT,
-                    "Lead đã được chuyển thành học viên; hãy tạo hóa đơn theo học viên");
+                    "Chỉ tạo hóa đơn khi kết quả tư vấn gần nhất là Quan tâm (INTERESTED)");
         }
         if (lead.getCourseId() == null) {
             throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Lead chưa chọn khóa học");
@@ -326,6 +335,33 @@ public class TuitionServiceImpl implements TuitionService {
         Course course = lockOfflineCourse(lead.getCourseId());
         if (course.getCourseType() != CourseType.OFFLINE) {
             throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Chỉ tạo hóa đơn thủ công cho khóa OFFLINE");
+        }
+        Student matchedStudent = null;
+        if (lead.getStudentId() != null) {
+            matchedStudent = studentRepository.findById(lead.getStudentId()).orElse(null);
+        }
+        if (matchedStudent == null && lead.getEmail() != null && !lead.getEmail().isBlank()) {
+            matchedStudent = studentRepository.findByEmailIgnoreCase(lead.getEmail().trim()).orElse(null);
+        }
+        if (matchedStudent == null && lead.getPhone() != null && !lead.getPhone().isBlank()) {
+            matchedStudent = studentRepository.findByPhone(lead.getPhone().trim()).orElse(null);
+        }
+        if (matchedStudent != null) {
+            if (enrollmentRepository.existsByCourseIdAndStudentIdAndStatusNot(
+                    course.getId(), matchedStudent.getId(), EnrollmentStatus.TERMINATED)) {
+                throw new ErrorHandler(HttpStatus.CONFLICT,
+                        "Học viên này đã được ghi danh khóa học; không cần tạo hóa đơn lần nữa");
+            }
+            if (invoiceRepository.existsByStudentIdAndCourseIdAndTypeAndStatusIn(
+                    matchedStudent.getId(), course.getId(), InvoiceType.TUITION_PAYMENT,
+                    List.of(InvoiceStatus.PENDING, InvoiceStatus.PAID, InvoiceStatus.OVERDUE))) {
+                throw new ErrorHandler(HttpStatus.CONFLICT,
+                        "Học viên này đã có hóa đơn cho khóa học; không thể tạo hóa đơn trùng");
+            }
+            if (lead.getStudentId() == null) {
+                lead.setStudentId(matchedStudent.getId());
+                leadRepository.save(lead);
+            }
         }
         if (course.getPrice() == null || course.getPrice().compareTo(BigDecimal.ZERO) <= 0) {
             throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Khóa học chưa có học phí hợp lệ");
@@ -347,6 +383,9 @@ public class TuitionServiceImpl implements TuitionService {
         invoice.setType(InvoiceType.TUITION_PAYMENT);
         invoice.setCourseId(course.getId());
         invoice.setLeadId(lead.getId());
+        if (matchedStudent != null) {
+            invoice.setStudentId(matchedStudent.getId());
+        }
         invoice.setAmount(course.getPrice());
         invoice.setCreatedBy(actorId);
         invoice.setPaymentMethod(method);
@@ -368,14 +407,14 @@ public class TuitionServiceImpl implements TuitionService {
         invoice.setStatus(InvoiceStatus.PENDING);
         invoice.setDueAt(LocalDateTime.now().plusHours(24));
         Invoice saved = invoiceRepository.save(invoice);
-        PaymentLinkResponse link = paymentLinkService.queuePaymentLink(saved.getId(), request.getEmail());
+        PaymentLinkResponse link = paymentLinkService.queuePaymentLinkFromLead(saved.getId(), request.getEmail());
         return new CreateInvoiceFromLeadResponse(toResponse(saved), link);
     }
 
     @Override
     @Transactional(readOnly = true)
     public Page<EligibleLeadResponse> searchEligibleLeads(String search, Pageable pageable) {
-        requireAdmin();
+        requireAdminOrConsultant();
         Page<Lead> leads;
         if (search == null || search.trim().isEmpty()) {
             leads = leadRepository.findConsultedLeads(
@@ -415,12 +454,21 @@ public class TuitionServiceImpl implements TuitionService {
                                         Long studentId, Long leadId, String search, boolean refundable,
                                         Pageable pageable) {
         Long ownerStudentId = null;
+        Long ownerLeadId = null;
+        String ownerEmail = null;
+        String ownerPhone = null;
         if (!SecurityUtils.hasRole("ADMIN")) {
             Long currentAccountId = SecurityUtils.requireCurrentAccountId();
-            ownerStudentId = studentRepository.findByUserId(currentAccountId).map(Student::getId).orElse(-1L);
+            Student ownerStudent = studentRepository.findByUserId(currentAccountId).orElse(null);
+            ownerStudentId = ownerStudent != null ? ownerStudent.getId() : -1L;
+            ownerLeadId = ownerStudent != null ? ownerStudent.getLeadId() : null;
+            ownerEmail = ownerStudent != null ? ownerStudent.getEmail() : null;
+            ownerPhone = ownerStudent != null ? ownerStudent.getPhone() : null;
         }
+        boolean hideUnpaidCheckout = SecurityUtils.hasRole("ADMIN");
         Page<Invoice> page = invoiceRepository.findAll(buildSearchSpecification(type, status, courseType, courseId,
-                studentId, leadId, ownerStudentId, search, refundable), pageable);
+                studentId, leadId, ownerStudentId, ownerLeadId, ownerEmail, ownerPhone,
+                search, refundable, hideUnpaidCheckout), pageable);
         InvoiceResponseContext context = loadResponseContext(page.getContent());
         return page.map(invoice -> toResponse(invoice, context));
     }
@@ -434,9 +482,11 @@ public class TuitionServiceImpl implements TuitionService {
             ownerStudentId = studentRepository.findByUserId(currentAccountId).map(Student::getId).orElse(-1L);
         }
 
+        boolean hideUnpaidCheckout = SecurityUtils.hasRole("ADMIN");
         Map<InvoiceStatus, Long> counts = new EnumMap<>(InvoiceStatus.class);
         for (Object[] row : invoiceRepository.countByTypeGroupedByStatus(
-                InvoiceType.TUITION_PAYMENT, ownerStudentId)) {
+                InvoiceType.TUITION_PAYMENT, ownerStudentId, hideUnpaidCheckout,
+                InvoiceStatus.PAID)) {
             counts.put((InvoiceStatus) row[0], ((Number) row[1]).longValue());
         }
         long total = counts.values().stream().mapToLong(Long::longValue).sum();
@@ -534,8 +584,10 @@ public class TuitionServiceImpl implements TuitionService {
         }
         Course course = lockOfflineCourse(invoice.getCourseId());
         if (course.getCourseType() != CourseType.OFFLINE || request.getDueAt() == null
-                || !request.getDueAt().isAfter(LocalDateTime.now())) {
-            throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Hạn thanh toán mới không hợp lệ");
+                || !request.getDueAt().isAfter(LocalDateTime.now())
+                || (invoice.getCreatedAt() != null && request.getDueAt().isBefore(invoice.getCreatedAt()))) {
+            throw new ErrorHandler(HttpStatus.BAD_REQUEST,
+                    "Hạn thanh toán phải ở tương lai và không được trước ngày tạo hóa đơn");
         }
         ensureOfflineInvoiceCapacity(course, invoice.getId());
         invoice.setDueAt(request.getDueAt());
@@ -834,10 +886,15 @@ public class TuitionServiceImpl implements TuitionService {
     }
 
     private Specification<Invoice> buildSearchSpecification(InvoiceType type, InvoiceStatus status, CourseType courseType,
-            Long courseId, Long studentId, Long leadId, Long ownerStudentId,
-            String search, boolean refundable) {
+            Long courseId, Long studentId, Long leadId, Long ownerStudentId, Long ownerLeadId,
+            String ownerEmail, String ownerPhone, String search, boolean refundable, boolean hideUnpaidCheckout) {
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
+            if (hideUnpaidCheckout) {
+                predicates.add(cb.or(
+                        cb.equal(root.get("status"), InvoiceStatus.PAID),
+                        cb.isNotNull(root.get("dueAt"))));
+            }
             if (type != null) {
                 predicates.add(cb.equal(root.get("type"), type));
             }
@@ -892,7 +949,25 @@ public class TuitionServiceImpl implements TuitionService {
                 predicates.add(cb.equal(root.get("leadId"), leadId));
             }
             if (ownerStudentId != null) {
-                predicates.add(cb.equal(root.get("studentId"), ownerStudentId));
+                List<Predicate> ownerPredicates = new ArrayList<>();
+                ownerPredicates.add(cb.equal(root.get("studentId"), ownerStudentId));
+                if (ownerLeadId != null) {
+                    ownerPredicates.add(cb.equal(root.get("leadId"), ownerLeadId));
+                }
+                var linkedLeadQuery = query.subquery(Long.class);
+                var linkedLead = linkedLeadQuery.from(Lead.class);
+                List<Predicate> linkedLeadOwners = new ArrayList<>();
+                linkedLeadOwners.add(cb.equal(linkedLead.get("studentId"), ownerStudentId));
+                if (ownerEmail != null && !ownerEmail.isBlank()) {
+                    linkedLeadOwners.add(cb.equal(cb.lower(linkedLead.get("email")), ownerEmail.trim().toLowerCase(Locale.ROOT)));
+                }
+                if (ownerPhone != null && !ownerPhone.isBlank()) {
+                    linkedLeadOwners.add(cb.equal(linkedLead.get("phone"), ownerPhone.trim()));
+                }
+                linkedLeadQuery.select(linkedLead.get("id")).where(
+                        cb.or(linkedLeadOwners.toArray(Predicate[]::new)));
+                ownerPredicates.add(root.get("leadId").in(linkedLeadQuery));
+                predicates.add(cb.or(ownerPredicates.toArray(Predicate[]::new)));
             }
             if (search != null && !search.isBlank()) {
                 String pattern = "%" + search.trim().toLowerCase() + "%";
@@ -996,15 +1071,31 @@ public class TuitionServiceImpl implements TuitionService {
         }
     }
 
+    private void requireAdminOrConsultant() {
+        if (!SecurityUtils.hasRole("ADMIN") && !SecurityUtils.hasRole("CONSULTANT")) {
+            throw new ErrorHandler(HttpStatus.FORBIDDEN,
+                    "Chỉ ADMIN hoặc CONSULTANT được tạo hóa đơn từ lead");
+        }
+    }
+
     private void requireCanView(Invoice invoice) {
         if (SecurityUtils.hasRole("ADMIN")) return;
         Long accountId = SecurityUtils.requireCurrentAccountId();
-        boolean ownsAsStudent = invoice.getStudentId() != null
-                && studentRepository.findByUserId(accountId)
-                .map(student -> student.getId().equals(invoice.getStudentId())).orElse(false);
+        Student owner = studentRepository.findByUserId(accountId).orElse(null);
+        boolean ownsAsStudent = owner != null && (owner.getId().equals(invoice.getStudentId())
+                || (invoice.getLeadId() != null && (invoice.getLeadId().equals(owner.getLeadId())
+                || leadRepository.findById(invoice.getLeadId())
+                .map(lead -> owner.getId().equals(lead.getStudentId())
+                        || sameContact(lead.getEmail(), owner.getEmail())
+                        || sameContact(lead.getPhone(), owner.getPhone()))
+                .orElse(false))));
         if (!ownsAsStudent) {
             throw new ErrorHandler(HttpStatus.FORBIDDEN, "Bạn không có quyền xem hóa đơn này");
         }
+    }
+
+    private boolean sameContact(String left, String right) {
+        return left != null && right != null && left.trim().equalsIgnoreCase(right.trim());
     }
 
     private String generateInvoiceCode() {

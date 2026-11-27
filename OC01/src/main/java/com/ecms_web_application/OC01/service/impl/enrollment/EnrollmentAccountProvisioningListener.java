@@ -2,14 +2,18 @@ package com.ecms_web_application.OC01.service.impl.enrollment;
 
 import com.ecms_web_application.OC01.entity.Account;
 import com.ecms_web_application.OC01.entity.Enrollment;
+import com.ecms_web_application.OC01.entity.Invoice;
 import com.ecms_web_application.OC01.entity.Role;
 import com.ecms_web_application.OC01.entity.Student;
 import com.ecms_web_application.OC01.entity.UserProfile;
 import com.ecms_web_application.OC01.entity.course.Course;
+import com.ecms_web_application.OC01.entity.enums.InvoiceStatus;
+import com.ecms_web_application.OC01.entity.enums.InvoiceType;
 import com.ecms_web_application.OC01.event.EnrollmentCreatedEvent;
 import com.ecms_web_application.OC01.repository.AccountRepository;
 import com.ecms_web_application.OC01.repository.CourseRepository;
 import com.ecms_web_application.OC01.repository.EnrollmentRepository;
+import com.ecms_web_application.OC01.repository.InvoiceRepository;
 import com.ecms_web_application.OC01.repository.RoleRepository;
 import com.ecms_web_application.OC01.repository.StudentRepository;
 import com.ecms_web_application.OC01.service.EmailService;
@@ -29,6 +33,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
 public class EnrollmentAccountProvisioningListener {
 
     private final EnrollmentRepository enrollmentRepository;
+    private final InvoiceRepository invoiceRepository;
     private final StudentRepository studentRepository;
     private final CourseRepository courseRepository;
     private final AccountRepository accountRepository;
@@ -43,7 +48,8 @@ public class EnrollmentAccountProvisioningListener {
      * Sau khi Ghi danh thành công (Enrollment đã commit DB):
      * 1. Kiểm tra xem Học viên đã có tài khoản hay chưa.
      * 2. Nếu chưa có -> Tạo mới Account (role STUDENT) và gửi Email thông tin đăng nhập (Mật khẩu, User, Link).
-     * 3. Nếu đã có -> Gửi Email thông báo đã ghi danh thành công khóa học mới.
+     * 3. Chỉ gửi email ghi danh riêng cho hồ sơ không gắn với hóa đơn học phí đã thanh toán;
+     *    trường hợp thanh toán sẽ được xác nhận chung trong email hóa đơn.
      */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -51,6 +57,10 @@ public class EnrollmentAccountProvisioningListener {
         try {
             Enrollment enrollment = enrollmentRepository.findById(event.enrollmentId()).orElse(null);
             if (enrollment == null) return;
+            Invoice invoice = invoiceRepository.findById(enrollment.getInvoiceId()).orElse(null);
+            boolean paymentEmailIncludesEnrollment = invoice != null
+                    && invoice.getType() == InvoiceType.TUITION_PAYMENT
+                    && invoice.getStatus() == InvoiceStatus.PAID;
 
             Course course = courseRepository.findById(enrollment.getCourseId()).orElse(null);
             String courseTitle = course != null ? course.getTitle() : "Khóa học #" + enrollment.getCourseId();
@@ -108,26 +118,30 @@ public class EnrollmentAccountProvisioningListener {
                 studentRepository.save(student);
 
                 // GỬI EMAIL CHỨA THÔNG TIN TÀI KHOẢN (Mã học viên, Email, Mật khẩu, Link)
-                emailService.sendStudentAccountCredentialsEmail(
-                        studentEmail,
-                        student.getFullName(),
-                        student.getStudentCode(),
-                        rawPassword,
-                        courseTitle,
-                        loginUrl
-                );
-                log.info("[EnrollmentListener] Đã cấp tài khoản và gửi email cho học viên mới: email={}, studentCode={}",
+                if (!paymentEmailIncludesEnrollment) {
+                    emailService.sendStudentAccountCredentialsEmail(
+                            studentEmail,
+                            student.getFullName(),
+                            student.getStudentCode(),
+                            rawPassword,
+                            courseTitle,
+                            loginUrl
+                    );
+                }
+                log.info("[EnrollmentListener] Đã cấp tài khoản cho học viên mới: email={}, studentCode={}",
                         studentEmail, student.getStudentCode());
             } else {
                 // HỌC VIÊN ĐÃ CÓ TÀI KHOẢN -> GỬI EMAIL THÔNG BÁO GHI DANH KHÓA HỌC MỚI
-                emailService.sendEnrollmentNotificationEmail(
-                        studentEmail,
-                        student.getFullName(),
-                        student.getStudentCode(),
-                        courseTitle,
-                        loginUrl
-                );
-                log.info("[EnrollmentListener] Học viên đã có tài khoản, gửi email thông báo ghi danh mới: email={}", studentEmail);
+                if (!paymentEmailIncludesEnrollment) {
+                    emailService.sendEnrollmentNotificationEmail(
+                            studentEmail,
+                            student.getFullName(),
+                            student.getStudentCode(),
+                            courseTitle,
+                            loginUrl
+                    );
+                }
+                log.info("[EnrollmentListener] Đã xử lý ghi danh cho học viên có tài khoản: email={}", studentEmail);
             }
         } catch (Exception ex) {
             log.error("[EnrollmentListener] Lỗi khi xử lý tạo tài khoản hoặc gửi email sau ghi danh: {}", ex.getMessage(), ex);
