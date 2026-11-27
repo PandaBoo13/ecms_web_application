@@ -34,7 +34,11 @@ export interface Lead {
   phone?: string;
   courseId?: number;
   studentId?: number;
+  matchedStudentId?: number;
   status: LeadStatus;
+  latestInteractionResult?: InteractionResult;
+  hasPaidInvoice?: boolean;
+  hasEnrollment?: boolean;
   convertedAt?: string;
   sourceId?: number;
   sourceName?: string;

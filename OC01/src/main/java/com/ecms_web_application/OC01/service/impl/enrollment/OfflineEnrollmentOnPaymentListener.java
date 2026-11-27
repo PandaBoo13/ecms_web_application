@@ -25,21 +25,22 @@ public class OfflineEnrollmentOnPaymentListener {
     private final CourseRepository courseRepository;
     private final EnrollmentService enrollmentService;
 
+    @org.springframework.core.annotation.Order(1)
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void createOfflineEnrollmentWhenPaid(InvoicePaidEvent event) {
-        Invoice invoice = invoiceRepository.findById(event.invoiceId()).orElse(null);
-        if (invoice == null || invoice.getType() != InvoiceType.TUITION_PAYMENT
-                || invoice.getStatus() != InvoiceStatus.PAID) return;
-
-        Course course = courseRepository.findById(invoice.getCourseId()).orElse(null);
-        if (course == null || course.getCourseType() != CourseType.OFFLINE) return;
-
         try {
+            Invoice invoice = invoiceRepository.findById(event.invoiceId()).orElse(null);
+            if (invoice == null || invoice.getType() != InvoiceType.TUITION_PAYMENT
+                    || invoice.getStatus() != InvoiceStatus.PAID) return;
+
+            Course course = courseRepository.findById(invoice.getCourseId()).orElse(null);
+            if (course == null || course.getCourseType() != CourseType.OFFLINE) return;
+
             enrollmentService.createOfflineAfterPayment(invoice.getId());
         } catch (Exception ex) {
-            // Payment is already committed; the paid invoice remains visible in the admin retry queue.
-            log.error("Không thể tự động ghi danh OFFLINE từ hóa đơn {}: {}",
-                    invoice.getInvoiceCode(), ex.getMessage(), ex);
+            // This AFTER_COMMIT listener must not prevent the receipt email listener from running.
+            log.error("Không thể hoàn tất xử lý ghi danh OFFLINE cho sự kiện thanh toán hóa đơn {}: {}",
+                    event.invoiceId(), ex.getMessage(), ex);
         }
     }
 }

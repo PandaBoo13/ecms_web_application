@@ -264,7 +264,6 @@ app:
     # nên khi demo vẫn có thể hiển thị "ECMS <noreply@ecms.vn>".
     from: "${MAIL_FROM:${MAIL_USERNAME:noreply@ecms.vn}}"
     from-name: ${MAIL_FROM_NAME:ECMS}
-
   password:
     min-length: ${PASSWORD_MIN_LENGTH:6}
     max-length: ${PASSWORD_MAX_LENGTH:128}

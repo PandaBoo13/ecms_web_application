@@ -30,7 +30,8 @@ public class PaidInvoiceEmailDispatcher {
                     payload.to(), payload.fullName(), payload.phone(), payload.invoiceCode(),
                     payload.invoiceCreatedAt(), payload.courseCode(), payload.courseTitle(),
                     payload.paidAt(), payload.amount(), payload.paymentMethod(),
-                    payload.transactionReference(), payload.loginEmail(), payload.temporaryPassword());
+                    payload.transactionReference(), payload.loginEmail(), payload.temporaryPassword(),
+                    payload.studentCode(), payload.enrollmentConfirmed());
             // Chỉ xóa mật khẩu tạm sau khi SMTP gửi thành công để có thể retry khi gửi lỗi.
             if (payload.temporaryPassword() != null && !payload.temporaryPassword().isBlank()) {
                 temporaryCredentialStore.consume(payload.loginEmail());
@@ -56,7 +57,9 @@ public class PaidInvoiceEmailDispatcher {
             String paymentMethod,
             String transactionReference,
             String loginEmail,
-            String temporaryPassword
+            String temporaryPassword,
+            String studentCode,
+            boolean enrollmentConfirmed
     ) {
     }
 }

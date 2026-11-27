@@ -17,12 +17,13 @@ public interface EmailService {
     void sendTuitionInvoiceExtendedEmail(String to, String fullName, String invoiceCode, String courseTitle,
                                          java.math.BigDecimal amount, LocalDateTime dueAt, String paymentLink);
 
-    /** Gửi hóa đơn/xác nhận thanh toán học phí sau khi hóa đơn được ghi nhận PAID.
+    /** Gửi hóa đơn và, nếu đã tạo ghi danh, xác nhận ghi danh trong cùng email.
      *  @param temporaryPassword mật khẩu tạm của tài khoản vừa được cấp (null nếu khách đã có tài khoản). */
     void sendTuitionPaidInvoiceEmail(String to, String fullName, String phone, String invoiceCode,
                                      LocalDateTime invoiceCreatedAt, String courseCode, String courseTitle,
                                      LocalDateTime paidAt, java.math.BigDecimal amount, String paymentMethod,
-                                     String transactionReference, String loginEmail, String temporaryPassword);
+                                     String transactionReference, String loginEmail, String temporaryPassword,
+                                     String studentCode, boolean enrollmentConfirmed);
 
     /** Gửi xác nhận hoàn tiền cho người nhận sau khi chứng từ hoàn tiền được ghi nhận. */
     void sendTuitionRefundEmail(String to, String fullName, String refundInvoiceCode,

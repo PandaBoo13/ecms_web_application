@@ -115,7 +115,8 @@ class TuitionServiceImplSearchTest {
     @Test
     void getStatsAggregatesCountsFromSingleGroupedQuery() {
         when(invoiceRepository.countByTypeGroupedByStatus(
-                eq(InvoiceType.TUITION_PAYMENT), isNull()))
+                eq(InvoiceType.TUITION_PAYMENT), isNull(), eq(true),
+                eq(InvoiceStatus.PAID)))
                 .thenReturn(List.<Object[]>of(
                         new Object[]{InvoiceStatus.PENDING, 4L},
                         new Object[]{InvoiceStatus.PAID, 6L},
@@ -128,13 +129,15 @@ class TuitionServiceImplSearchTest {
         assertEquals(6L, stats.paid());
         assertEquals(0L, stats.overdue());
         assertEquals(1L, stats.cancelled());
-        verify(invoiceRepository).countByTypeGroupedByStatus(InvoiceType.TUITION_PAYMENT, null);
+        verify(invoiceRepository).countByTypeGroupedByStatus(
+                InvoiceType.TUITION_PAYMENT, null, true, InvoiceStatus.PAID);
     }
 
     @Test
     void getStatsBucketsExpiredPendingIntoOverdue() {
         when(invoiceRepository.countByTypeGroupedByStatus(
-                eq(InvoiceType.TUITION_PAYMENT), isNull()))
+                eq(InvoiceType.TUITION_PAYMENT), isNull(), eq(true),
+                eq(InvoiceStatus.PAID)))
                 .thenReturn(List.<Object[]>of(
                         new Object[]{InvoiceStatus.PENDING, 4L},
                         new Object[]{InvoiceStatus.OVERDUE, 1L},

@@ -13,6 +13,7 @@ import {
   Result,
   Row,
   Skeleton,
+  Spin,
   Space,
   Tag,
   Typography,
@@ -32,6 +33,7 @@ import {
 import toast from 'react-hot-toast';
 
 import { courseApi } from '@/services/api/course';
+import { enrollmentApi } from '@/services/api/enrollment';
 import { leadApi } from '@/services/api/leads';
 import {
   LAST_ONLINE_PAYMENT_INVOICE_KEY,
@@ -84,6 +86,7 @@ export default function OnlineCheckoutPage() {
   const [error, setError] = useState<string | null>(null);
   const [loginRequired, setLoginRequired] = useState(false);
   const [completedOrder, setCompletedOrder] = useState<CompletedOrderInfo | null>(null);
+  const [purchaseStatus, setPurchaseStatus] = useState<'CHECKING' | 'AVAILABLE' | 'OWNED' | 'IN_PROGRESS'>('CHECKING');
 
   // Theo dõi phương thức thanh toán đang chọn để render nút bấm phù hợp
   const selectedPaymentMethod = Form.useWatch('paymentMethod', form) || 'VNPAY';
@@ -130,6 +133,36 @@ export default function OnlineCheckoutPage() {
     };
   }, [courseId, invalidCourseId, parsedCourseId]);
 
+  // Kiểm tra ghi danh để chặn mua lại ONLINE và khóa OFFLINE vẫn đang diễn ra.
+  useEffect(() => {
+    let active = true;
+    if (!course || !isAuthenticated) {
+      setPurchaseStatus('AVAILABLE');
+      return () => { active = false; };
+    }
+
+    setPurchaseStatus('CHECKING');
+    enrollmentApi.myEnrollments({ courseId: course.id, page: 0, size: 50 })
+      .then((res) => {
+        if (!active) return;
+        const alreadyEnrolled = (res.content ?? []).some(
+          (enrollment) => enrollment.courseId === course.id && enrollment.status !== 'TERMINATED',
+        );
+        if (!alreadyEnrolled) {
+          setPurchaseStatus('AVAILABLE');
+        } else if (course.courseType === 'ONLINE') {
+          setPurchaseStatus('OWNED');
+        } else {
+          setPurchaseStatus(course.status === 'FINISHED' ? 'AVAILABLE' : 'IN_PROGRESS');
+        }
+      })
+      .catch(() => {
+        if (active) setPurchaseStatus('AVAILABLE');
+      });
+
+    return () => { active = false; };
+  }, [course, isAuthenticated]);
+
   // Validator số điện thoại theo chuẩn FR_02
   const validatePhone = (_: unknown, value?: string) => {
     const trimmed = value ? value.trim() : '';
@@ -159,6 +192,32 @@ export default function OnlineCheckoutPage() {
   // Xử lý nộp đơn mua ngay & thanh toán
   const handleCheckoutSubmit = async (values: CheckoutFormValues) => {
     if (!course) return;
+    if (course.courseType === 'OFFLINE' && values.paymentMethod !== 'VNPAY') {
+      setError('Khóa học OFFLINE hiện chỉ hỗ trợ thanh toán qua VNPAY.');
+      return;
+    }
+    if (purchaseStatus === 'OWNED') {
+      toast('Bạn đã mua khóa học này.', { icon: '✅' });
+      navigate(`/student/courses/${course.id}/learn`);
+      return;
+    }
+    if (course.courseType === 'OFFLINE' && purchaseStatus === 'IN_PROGRESS') {
+      toast('Bạn đang trong thời gian học khóa này, chưa thể mua lại.', { icon: '⏳' });
+      return;
+    }
+    if (purchaseStatus === 'CHECKING' && isAuthenticated) {
+      toast('Đang kiểm tra trạng thái ghi danh. Vui lòng thử lại sau giây lát.');
+      return;
+    }
+
+    const opensVnpayTab = values.paymentMethod === 'VNPAY' && course.price > 0 && !course.isFree;
+    const paymentTab = opensVnpayTab ? window.open('about:blank', '_blank') : null;
+    if (opensVnpayTab && !paymentTab) {
+      setError('Trình duyệt đã chặn tab thanh toán mới. Hãy cho phép mở cửa sổ bật lên rồi thử lại.');
+      return;
+    }
+    if (paymentTab) paymentTab.opener = null;
+
     setPaying(true);
     setError(null);
     setLoginRequired(false);
@@ -210,6 +269,7 @@ export default function OnlineCheckoutPage() {
           const invoice = await tuitionApi.createOnlineCheckout(course.id, contact);
 
           if (invoice.status === 'PAID') {
+            paymentTab?.close();
             toast.success('Đăng ký khóa học thành công! Chúc bạn học tập tốt.');
             navigate('/student/my-courses');
             return;
@@ -226,6 +286,7 @@ export default function OnlineCheckoutPage() {
             const checkout = await publicTuitionApi.createCheckout(course.id, contact);
 
             if (checkout.status === 'PAID') {
+              paymentTab?.close();
               toast.success('Đăng ký khóa học thành công! Chúc bạn học tập tốt.');
               navigate('/student/my-courses');
               return;
@@ -249,6 +310,7 @@ export default function OnlineCheckoutPage() {
               setLoginRequired(true);
               setError(null);
               setPaying(false);
+              paymentTab?.close();
               return;
             }
             // Thử gọi tuitionApi hiện tại của hệ thống
@@ -258,7 +320,10 @@ export default function OnlineCheckoutPage() {
         }
 
         if (paymentUrl) {
-          window.location.assign(paymentUrl);
+          if (!paymentTab || paymentTab.closed) {
+            throw new Error('Tab thanh toán VNPAY đã bị đóng trước khi chuyển hướng.');
+          }
+          paymentTab.location.replace(paymentUrl);
           return;
         }
 
@@ -269,22 +334,17 @@ export default function OnlineCheckoutPage() {
           setLoginRequired(true);
           setError(null);
           setPaying(false);
+          paymentTab?.close();
           return;
         }
 
-        // Nếu cổng VNPAY gặp trục trặc, vẫn hiển thị màn hình thông tin chuyển khoản để khách không bị gián đoạn
-        setCompletedOrder({
-          orderCode: `ECMS-${course.id}-${Date.now().toString().slice(-4)}`,
-          customerName: values.fullName.trim(),
-          customerPhone: cleanedPhone,
-          customerEmail: cleanedEmail,
-          paymentMethod: 'BANK_TRANSFER',
-          courseTitle: course.title,
-          amount: course.price,
-        });
+        paymentTab?.close();
+
+        setError(err.message || 'Không thể kết nối VNPAY. Vui lòng thử lại sau.');
         setPaying(false);
       }
     } else {
+      paymentTab?.close();
       // Hình thức Chuyển khoản ngân hàng hoặc Đóng tiền tại quầy trung tâm
       setCompletedOrder({
         orderCode: `ECMS-${course.id}-${Date.now().toString().slice(-4)}`,
@@ -336,6 +396,42 @@ export default function OnlineCheckoutPage() {
           extra={<Button onClick={() => navigate('/courses')}>Về danh sách khóa học</Button>}
         />
       </div>
+    );
+  }
+
+  if (isAuthenticated && purchaseStatus === 'CHECKING') {
+    return (
+      <div style={{ maxWidth: 760, margin: '0 auto', padding: '64px 24px' }}>
+        <Card bordered={false} style={{ textAlign: 'center', borderRadius: 16 }}>
+          <Spin size="large" />
+          <Paragraph type="secondary" style={{ marginTop: 18 }}>Đang kiểm tra trạng thái ghi danh...</Paragraph>
+        </Card>
+      </div>
+    );
+  }
+
+  if (course.courseType === 'ONLINE' && isAuthenticated && purchaseStatus === 'OWNED') {
+    return (
+      <Result
+        status="info"
+        title="Bạn đã mua khóa học này"
+        subTitle="Khóa học đã được ghi danh vào tài khoản của bạn. Bạn có thể vào học ngay."
+        extra={[
+          <Button type="primary" key="learn" onClick={() => navigate(`/student/courses/${course.id}/learn`)}>Vào học ngay</Button>,
+          <Button key="courses" onClick={() => navigate('/student/my-courses')}>Khóa học của tôi</Button>,
+        ]}
+      />
+    );
+  }
+
+  if (course.courseType === 'OFFLINE' && isAuthenticated && purchaseStatus === 'IN_PROGRESS') {
+    return (
+      <Result
+        status="warning"
+        title="Bạn đang trong thời gian khóa học"
+        subTitle="Bạn đã được ghi danh vào khóa OFFLINE này. Vui lòng hoàn thành khóa học trước khi mua lại."
+        extra={<Button onClick={() => navigate(`/courses/${course.id}`)}>Quay lại khóa học</Button>}
+      />
     );
   }
 
@@ -530,9 +626,6 @@ export default function OnlineCheckoutPage() {
             <Button size="large" onClick={() => navigate('/courses')}>
               Khám phá thêm khóa học
             </Button>
-            <Button type="primary" size="large" onClick={() => navigate('/')}>
-              Về trang chủ
-            </Button>
           </Space>
         </Card>
       </div>
@@ -715,49 +808,6 @@ export default function OnlineCheckoutPage() {
                       </div>
                     </Radio>
 
-                    {/* 2. CHUYỂN KHOẢN NGÂN HÀNG */}
-                    <Radio
-                      value="BANK_TRANSFER"
-                      style={{
-                        padding: '14px 16px',
-                        border: selectedPaymentMethod === 'BANK_TRANSFER' ? '2px solid #10b981' : '1px solid #e2e8f0',
-                        background: selectedPaymentMethod === 'BANK_TRANSFER' ? '#f0fdf4' : '#ffffff',
-                        borderRadius: 12,
-                        width: '100%',
-                      }}
-                    >
-                      <div style={{ marginLeft: 8 }}>
-                        <div style={{ fontWeight: 700, color: '#0f172a', fontSize: 15 }}>
-                          <BankOutlined style={{ color: '#10b981', marginRight: 8 }} />
-                          Chuyển khoản trực tiếp vào tài khoản ngân hàng trung tâm
-                        </div>
-                        <Text type="secondary" style={{ fontSize: 13 }}>
-                          Nhận mã đơn đăng ký và số tài khoản ngân hàng của trung tâm để chuyển khoản qua App Mobile Banking.
-                        </Text>
-                      </div>
-                    </Radio>
-
-                    {/* 3. THANH TOÁN TẠI TRUNG TÂM (ĐẶC BIỆT CHO OFFLINE) */}
-                    <Radio
-                      value="AT_CENTER"
-                      style={{
-                        padding: '14px 16px',
-                        border: selectedPaymentMethod === 'AT_CENTER' ? '2px solid #f59e0b' : '1px solid #e2e8f0',
-                        background: selectedPaymentMethod === 'AT_CENTER' ? '#fffbeb' : '#ffffff',
-                        borderRadius: 12,
-                        width: '100%',
-                      }}
-                    >
-                      <div style={{ marginLeft: 8 }}>
-                        <div style={{ fontWeight: 700, color: '#0f172a', fontSize: 15 }}>
-                          <ShopOutlined style={{ color: '#f59e0b', marginRight: 8 }} />
-                          Thanh toán trực tiếp tại trung tâm (Tiền mặt / Quẹt thẻ POS)
-                        </div>
-                        <Text type="secondary" style={{ fontSize: 13 }}>
-                          Phòng học vụ sẽ liên hệ xác nhận lịch đến trung tâm nhận lớp và giáo trình.
-                        </Text>
-                      </div>
-                    </Radio>
                   </Space>
                 </Radio.Group>
               </Form.Item>
@@ -767,7 +817,7 @@ export default function OnlineCheckoutPage() {
                   type="warning"
                   showIcon
                   message="Email này đã gắn với một tài khoản học viên tại ECMS"
-                  description="Bạn có thể đăng nhập để gắn trực tiếp khóa học vào tài khoản hiện tại, hoặc chọn hình thức Chuyển khoản ngân hàng để hoàn tất nhanh."
+                  description="Hãy đăng nhập để gắn khóa học vào tài khoản hiện tại và tiếp tục thanh toán bằng VNPAY."
                   action={
                     <Button
                       size="small"

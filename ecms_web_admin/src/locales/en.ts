@@ -112,6 +112,7 @@ export const en: Record<keyof typeof vi, string> = {
   'lead.invoiceReasonEnrolled': 'This lead has already been enrolled as a student',
   'lead.invoiceReasonHasInvoice': 'This lead already has an open tuition invoice',
   'lead.invoiceReasonNotConsulted': 'This lead has not been consulted yet',
+  'lead.invoiceReasonNotInterested': 'An invoice can only be created when the latest consultation result is Interested',
   'lead.convertBtn': 'Enroll Student',
   'lead.assignBtn': 'Assign',
   'lead.interactBtn': 'Log Interaction',

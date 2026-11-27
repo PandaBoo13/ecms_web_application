@@ -129,7 +129,7 @@ public class EmailServiceImpl implements EmailService {
                 + (dueText != null ? row("Hạn thanh toán", esc(dueText)) : "")
                 + "</table>"
                 + "<p style='text-align:center;margin:24px 0'>"
-                + "<a href='" + esc(paymentLink) + "' style='background:#2196F3;color:#fff;padding:12px 28px;"
+                + "<a href='" + esc(paymentLink) + "' target='_blank' rel='noopener noreferrer' style='background:#2196F3;color:#fff;padding:12px 28px;"
                 + "border-radius:6px;text-decoration:none;font-weight:bold'>Thanh toán qua VNPAY</a></p>"
                 + "<p class='muted'>Nếu nút không bấm được, mở liên kết sau: <br/>"
                 + "<a href='" + esc(paymentLink) + "'>" + esc(paymentLink) + "</a></p>"
@@ -154,7 +154,7 @@ public class EmailServiceImpl implements EmailService {
                 + "</table>"
                 + "<p>Vui lòng tranh thủ thanh toán trước hạn mới để giữ chỗ trong khóa học.</p>"
                 + "<p style='text-align:center;margin:24px 0'>"
-                + "<a href='" + esc(paymentLink) + "' style='background:#2196F3;color:#fff;padding:12px 28px;"
+                + "<a href='" + esc(paymentLink) + "' target='_blank' rel='noopener noreferrer' style='background:#2196F3;color:#fff;padding:12px 28px;"
                 + "border-radius:6px;text-decoration:none;font-weight:bold'>Thanh toán ngay</a></p>"
                 + "<p class='muted'>Nếu nút không bấm được, mở liên kết sau: <br/>"
                 + "<a href='" + esc(paymentLink) + "'>" + esc(paymentLink) + "</a></p>";
@@ -165,62 +165,49 @@ public class EmailServiceImpl implements EmailService {
     public void sendTuitionPaidInvoiceEmail(String to, String fullName, String phone, String invoiceCode,
                                             LocalDateTime invoiceCreatedAt, String courseCode, String courseTitle,
                                             LocalDateTime paidAt, java.math.BigDecimal amount, String paymentMethod,
-                                            String transactionReference, String loginEmail, String temporaryPassword) {
+                                            String transactionReference, String loginEmail, String temporaryPassword,
+                                            String studentCode, boolean enrollmentConfirmed) {
         String amountText = String.format("%,.0f ₫", amount).replace(',', '.');
-        String invoiceDateText = formatInvoiceDate(invoiceCreatedAt);
         String paidText = paidAt != null
                 ? formatInvoiceDate(paidAt)
                 : "Đã thanh toán";
-        String itemName = (courseCode != null && !courseCode.isBlank()
-                ? "<span style='color:#64748b;font-size:12px'>" + esc(courseCode) + "</span><br/>" : "")
-                + "<strong style='color:#0f172a'>" + esc(courseTitle) + "</strong>";
-        String credentialsBlock = buildCredentialsBlock(
-                loginEmail != null && !loginEmail.isBlank() ? loginEmail : to, temporaryPassword);
+        String credentialsBlock = temporaryPassword == null || temporaryPassword.isBlank()
+                ? ""
+                : buildCredentialsBlock(loginEmail != null && !loginEmail.isBlank() ? loginEmail : to,
+                        temporaryPassword);
         String body = "<p style='margin:0 0 16px'>Xin chào <strong>" + esc(fullName) + "</strong>,</p>"
-                + "<p style='margin:0 0 20px;color:#475569'>ECMS xác nhận đã nhận thanh toán học phí. "
-                + "Thông tin hóa đơn của bạn được ghi dưới đây.</p>"
-                + "<div style='padding:14px 16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;margin-bottom:18px'>"
-                + "<div style='font-size:12px;color:#64748b;margin-bottom:5px'>MÃ HÓA ĐƠN</div>"
-                + "<strong style='font-size:18px;letter-spacing:.3px;color:#0f172a'>" + esc(invoiceCode) + "</strong>"
-                + "<span style='float:right;padding:5px 10px;background:#dcfce7;color:#15803d;"
-                + "border-radius:20px;font-size:12px;font-weight:bold'>ĐÃ THANH TOÁN</span></div>"
-                + "<div style='font-weight:bold;color:#0f172a;margin:18px 0 8px'>Thông tin người thanh toán</div>"
-                + "<table role='presentation' style='width:100%;border-collapse:collapse;margin-bottom:18px'>"
-                + invoiceRow("Họ và tên", esc(fullName))
-                + invoiceRow("Email", esc(to))
-                + (phone != null && !phone.isBlank() ? invoiceRow("Số điện thoại", esc(phone)) : "")
-                + "</table>"
-                + "<div style='font-weight:bold;color:#0f172a;margin:18px 0 8px'>Chi tiết hóa đơn</div>"
-                + "<table role='presentation' style='width:100%;border-collapse:collapse;margin-bottom:12px'>"
-                + invoiceRow("Ngày tạo hóa đơn", esc(invoiceDateText))
-                + invoiceRow("Loại hóa đơn", "Học phí khóa học")
-                + "</table>"
-                + "<table role='presentation' style='width:100%;border-collapse:collapse;border:1px solid #e2e8f0'>"
-                + "<thead><tr style='background:#f1f5f9'>"
-                + invoiceCell("Nội dung", true) + invoiceCell("SL", true)
-                + invoiceCell("Thành tiền", true) + "</tr></thead>"
-                + "<tbody><tr>" + invoiceCell(itemName, false)
-                + invoiceCell("1", false)
-                + invoiceCell(esc(amountText), false) + "</tr></tbody>"
-                + "</table>"
-                + "<table role='presentation' style='width:100%;border-collapse:collapse;margin-top:12px'>"
-                + "<tr><td style='padding:12px 8px;text-align:right;color:#475569'>Tổng thanh toán</td>"
-                + "<td style='padding:12px 8px;text-align:right;font-size:20px;font-weight:bold;color:#0b67c2;width:38%'>"
-                + esc(amountText) + "</td></tr></table>"
-                + "<div style='font-weight:bold;color:#0f172a;margin:18px 0 8px'>Thông tin thanh toán</div>"
+                + "<div style='padding:14px 16px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;margin:16px 0'>"
+                + "<strong style='color:#15803d'>" + (enrollmentConfirmed
+                        ? "Thanh toán thành công · Đã tạo hồ sơ học viên · Ghi danh thành công"
+                        : "Thanh toán học phí thành công") + "</strong></div>"
+                + (enrollmentConfirmed
+                    ? "<p style='margin:0 0 16px;color:#334155'>Hồ sơ học viên của bạn đã được tạo và bạn đã được ghi danh vào khóa học:</p>"
+                        + "<div style='padding:14px 16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;margin-bottom:18px'>"
+                        + (courseCode != null && !courseCode.isBlank()
+                            ? "<div style='font-size:12px;color:#64748b;margin-bottom:4px'>" + esc(courseCode) + "</div>" : "")
+                        + "<strong style='font-size:17px;color:#0f172a'>" + esc(courseTitle) + "</strong>"
+                        + (studentCode != null && !studentCode.isBlank()
+                            ? "<div style='margin-top:8px;color:#475569'>Mã học viên: <strong>" + esc(studentCode) + "</strong></div>" : "")
+                        + "</div>"
+                    : "<p style='margin:0 0 16px;color:#475569'>ECMS đã nhận được khoản thanh toán học phí của bạn.</p>")
+                + "<div style='font-weight:bold;color:#0f172a;margin:18px 0 8px'>Thông tin hóa đơn</div>"
                 + "<table role='presentation' style='width:100%;border-collapse:collapse'>"
-                + invoiceRow("Trạng thái", "<strong style='color:#15803d'>Đã thanh toán</strong>")
-                + invoiceRow("Thời gian thanh toán", esc(paidText))
+                + invoiceRow("Mã hóa đơn", "<strong>" + esc(invoiceCode) + "</strong>")
+                + invoiceRow("Khóa học", esc(courseTitle))
+                + invoiceRow("Số tiền", "<strong style='color:#0b67c2'>" + esc(amountText) + "</strong>")
+                + invoiceRow("Thanh toán lúc", esc(paidText))
                 + invoiceRow("Phương thức", esc(paymentMethod != null && !paymentMethod.isBlank()
                         ? paymentMethod : "Không có thông tin"))
                 + (transactionReference != null && !transactionReference.isBlank()
                     ? invoiceRow("Mã giao dịch", esc(transactionReference)) : "")
+                + (phone != null && !phone.isBlank() ? invoiceRow("Số điện thoại", esc(phone)) : "")
                 + "</table>"
                 + credentialsBlock
-                + "<p style='margin:20px 0 0;color:#64748b;font-size:12px'>Email này được tạo tự động từ hệ thống ECMS. "
-                + "Vui lòng lưu lại để tra cứu hoặc đối chiếu khi cần hỗ trợ.</p>";
-        doSend(to, "Hóa đơn học phí " + invoiceCode + " - Đã thanh toán",
-                buildHtml("Hóa đơn thanh toán học phí", body), false);
+                + "<p style='margin:20px 0 0;color:#64748b;font-size:12px'>Vui lòng lưu email này để tra cứu hóa đơn khi cần.</p>";
+        String subject = enrollmentConfirmed
+                ? "[ECMS] Ghi danh thành công & thanh toán học phí - " + courseTitle
+                : "[ECMS] Thanh toán học phí thành công - " + invoiceCode;
+        doSend(to, subject, buildHtml("Xác nhận ghi danh & thanh toán", body), false);
     }
 
     @Override
@@ -267,11 +254,8 @@ public class EmailServiceImpl implements EmailService {
                 buildHtml("Xác nhận hoàn tiền", body), false);
     }
 
-    /** Khối thông tin tài khoản học viên chỉ xuất hiện khi hệ thống vừa cấp tài khoản mới. */
+    /** Shows credentials only when this payment created a new student account. */
     private String buildCredentialsBlock(String email, String temporaryPassword) {
-        if (temporaryPassword == null || temporaryPassword.isBlank()) {
-            return "";
-        }
         String baseUrl = (studyingUrl != null && !studyingUrl.isBlank())
                 ? studyingUrl.trim()
                 : "http://localhost:5174";

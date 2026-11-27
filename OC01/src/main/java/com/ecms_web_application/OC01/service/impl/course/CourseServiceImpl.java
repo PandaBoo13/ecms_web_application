@@ -1020,6 +1020,10 @@ public class CourseServiceImpl implements CourseService {
                     ? ((Number) row[7]).doubleValue()
                     : 0.0;
 
+            String courseType = row.length > 8 && row[8] != null
+                    ? row[8].toString()
+                    : null;
+
             return EnrolledCourseResponse.builder()
                     .enrollmentId(enrollmentId)
                     .courseId(courseId)
@@ -1029,6 +1033,7 @@ public class CourseServiceImpl implements CourseService {
                     .enrollmentStatus(enrollmentStatus)
                     .enrolledAt(enrolledAt)
                     .progressPercentage(progressPercentage)
+                    .courseType(courseType)
                     .build();
         }).toList();
     }

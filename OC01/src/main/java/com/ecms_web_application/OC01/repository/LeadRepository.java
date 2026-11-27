@@ -91,11 +91,10 @@ public interface LeadRepository extends IRepository<Lead, Long> {
 
     long countByAssignedConsultantIdIsNull();
 
-    /** Lead đủ điều kiện tạo hóa đơn khi không có tìm kiếm: đã tư vấn, chưa chuyển thành học viên và chưa có hóa đơn đang mở. */
+    /** Lead đủ điều kiện tạo hóa đơn: đã tư vấn (kể cả học viên cũ) và chưa có hóa đơn đang mở. */
     @Query(value = """
         SELECT l FROM Lead l
         WHERE l.status = 'CONSULTED'
-          AND l.studentId IS NULL
           AND NOT EXISTS (
               SELECT i.id FROM Invoice i
               WHERE i.leadId = l.id
@@ -107,7 +106,6 @@ public interface LeadRepository extends IRepository<Lead, Long> {
     """, countQuery = """
         SELECT COUNT(l) FROM Lead l
         WHERE l.status = 'CONSULTED'
-          AND l.studentId IS NULL
           AND NOT EXISTS (
               SELECT i.id FROM Invoice i
               WHERE i.leadId = l.id
@@ -125,7 +123,6 @@ public interface LeadRepository extends IRepository<Lead, Long> {
     @Query(value = """
         SELECT l FROM Lead l
         WHERE l.status = 'CONSULTED'
-          AND l.studentId IS NULL
           AND NOT EXISTS (
               SELECT i.id FROM Invoice i
               WHERE i.leadId = l.id
@@ -140,7 +137,6 @@ public interface LeadRepository extends IRepository<Lead, Long> {
     """, countQuery = """
         SELECT COUNT(l) FROM Lead l
         WHERE l.status = 'CONSULTED'
-          AND l.studentId IS NULL
           AND NOT EXISTS (
               SELECT i.id FROM Invoice i
               WHERE i.leadId = l.id

@@ -412,7 +412,7 @@ const CourseDetailPage = () => {
     tabItems.splice(3, 0, {
       key: 'attendance',
       label: 'Điểm danh',
-      children: <CourseAttendanceMatrix courseId={courseId} />,
+      children: <CourseAttendanceMatrix courseId={courseId} courseStatus={course.status} />,
     });
   }
 

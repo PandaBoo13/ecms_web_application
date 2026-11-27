@@ -35,46 +35,53 @@ public class OnlineEnrollmentOnPaymentListener {
     private final EnrollmentService enrollmentService;
     private final NotificationService notificationService;
 
+    @org.springframework.core.annotation.Order(2)
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void createEnrollmentWhenPaid(InvoicePaidEvent event) {
-        Invoice invoice = invoiceRepository.findById(event.invoiceId()).orElse(null);
-        if (invoice == null || invoice.getType() != InvoiceType.TUITION_PAYMENT
-                || invoice.getStatus() != InvoiceStatus.PAID) return;
+        try {
+            Invoice invoice = invoiceRepository.findById(event.invoiceId()).orElse(null);
+            if (invoice == null || invoice.getType() != InvoiceType.TUITION_PAYMENT
+                    || invoice.getStatus() != InvoiceStatus.PAID) return;
 
-        if (invoice.getLeadId() != null) {
-            leadRepository.findById(invoice.getLeadId()).ifPresent(lead -> {
-                lead.setNote("[MUA NGAY - ĐÃ THANH TOÁN] Khách đã thanh toán hóa đơn " + invoice.getInvoiceCode() + " (" + String.format("%,.0f đ", invoice.getAmount()) + ") & tự động ghi danh.");
-                if (!"CONSULTED".equalsIgnoreCase(lead.getStatus())) {
-                    lead.setStatus("CONSULTED");
-                    lead.setConsultedAt(java.time.LocalDateTime.now());
-                }
-                if (lead.getConvertedAt() == null) {
-                    lead.setConvertedAt(java.time.LocalDateTime.now());
-                }
-                leadRepository.save(lead);
-            });
-        }
-        Course course = courseRepository.findById(invoice.getCourseId()).orElse(null);
-        if (course != null && course.getCourseType() == CourseType.ONLINE) {
-            try {
-                enrollmentService.createOnlineFromPaidInvoice(invoice.getId());
-            } catch (Exception ex) {
-                // A failed enrollment must not roll back a successful payment. The paid invoice
-                // remains available for admin reconciliation/retry.
-                log.error("Không thể tự động ghi danh ONLINE từ hóa đơn {}: {}",
-                        invoice.getInvoiceCode(), ex.getMessage(), ex);
+            if (invoice.getLeadId() != null) {
+                leadRepository.findById(invoice.getLeadId()).ifPresent(lead -> {
+                    lead.setNote("[MUA NGAY - ĐÃ THANH TOÁN] Khách đã thanh toán hóa đơn " + invoice.getInvoiceCode() + " (" + String.format("%,.0f đ", invoice.getAmount()) + ") & tự động ghi danh.");
+                    if (!"CONSULTED".equalsIgnoreCase(lead.getStatus())) {
+                        lead.setStatus("CONSULTED");
+                        lead.setConsultedAt(java.time.LocalDateTime.now());
+                    }
+                    if (lead.getConvertedAt() == null) {
+                        lead.setConvertedAt(java.time.LocalDateTime.now());
+                    }
+                    leadRepository.save(lead);
+                });
             }
+            Course course = courseRepository.findById(invoice.getCourseId()).orElse(null);
+            if (course != null && course.getCourseType() == CourseType.ONLINE) {
+                enrollmentService.createOnlineFromPaidInvoice(invoice.getId());
+            }
+        } catch (Exception ex) {
+            // This AFTER_COMMIT listener must not prevent later listeners from sending the receipt.
+            log.error("Không thể hoàn tất xử lý ghi danh ONLINE cho sự kiện thanh toán hóa đơn {}: {}",
+                    event.invoiceId(), ex.getMessage(), ex);
         }
     }
 
+    @org.springframework.core.annotation.Order(4)
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void notifyWhenPaid(InvoicePaidEvent event) {
-        Invoice invoice = invoiceRepository.findById(event.invoiceId()).orElse(null);
-        if (invoice == null || invoice.getType() != InvoiceType.TUITION_PAYMENT
-                || invoice.getStatus() != InvoiceStatus.PAID) return;
-        Course course = courseRepository.findById(invoice.getCourseId()).orElse(null);
-        sendPaymentNotification(invoice, course);
-        sendAdminPaymentNotification(invoice, course);
+        try {
+            Invoice invoice = invoiceRepository.findById(event.invoiceId()).orElse(null);
+            if (invoice == null || invoice.getType() != InvoiceType.TUITION_PAYMENT
+                    || invoice.getStatus() != InvoiceStatus.PAID) return;
+            Course course = courseRepository.findById(invoice.getCourseId()).orElse(null);
+            sendPaymentNotification(invoice, course);
+            sendAdminPaymentNotification(invoice, course);
+        } catch (Exception ex) {
+            // Notification failures must not prevent the paid-invoice email listener from running.
+            log.warn("Không thể phát notification cho sự kiện thanh toán hóa đơn {}: {}",
+                    event.invoiceId(), ex.getMessage(), ex);
+        }
     }
 
     private void sendAdminPaymentNotification(Invoice invoice, Course course) {

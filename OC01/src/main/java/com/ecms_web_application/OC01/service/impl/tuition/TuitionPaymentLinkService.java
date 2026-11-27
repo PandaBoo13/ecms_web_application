@@ -69,6 +69,20 @@ public class TuitionPaymentLinkService {
      */
     @Transactional
     public PaymentLinkResponse queuePaymentLink(Long invoiceId, String emailOverride) {
+        return queuePaymentLink(invoiceId, emailOverride, false);
+    }
+
+    /** Queue the initial payment link as part of an authorized lead-to-invoice operation. */
+    @Transactional
+    public PaymentLinkResponse queuePaymentLinkFromLead(Long invoiceId, String emailOverride) {
+        return queuePaymentLink(invoiceId, emailOverride, true);
+    }
+
+    private PaymentLinkResponse queuePaymentLink(Long invoiceId, String emailOverride, boolean allowConsultant) {
+        if (!SecurityUtils.hasRole("ADMIN")
+                && !(allowConsultant && SecurityUtils.hasRole("CONSULTANT"))) {
+            throw new ErrorHandler(HttpStatus.FORBIDDEN, "Thao tác này chỉ dành cho nhân viên quản lý học phí");
+        }
         PreparedPaymentLink prepared = preparePaymentLink(invoiceId, emailOverride);
         eventPublisher.publishEvent(new TuitionPaymentLinkEmailEvent(
                 prepared.invoice().getId(),
@@ -94,9 +108,6 @@ public class TuitionPaymentLinkService {
 
     /** Validate hóa đơn + dựng link (JWT nội bộ, không gọi mạng) dùng chung cho gửi ngay và gửi nền. */
     private PreparedPaymentLink preparePaymentLink(Long invoiceId, String emailOverride) {
-        if (!SecurityUtils.hasRole("ADMIN")) {
-            throw new ErrorHandler(HttpStatus.FORBIDDEN, "Thao tác này chỉ dành cho nhân viên quản lý học phí");
-        }
         Invoice invoice = invoiceRepository.findById(invoiceId)
                 .orElseThrow(() -> new ErrorHandler(HttpStatus.NOT_FOUND, "Hóa đơn không tồn tại"));
         if (invoice.getType() != InvoiceType.TUITION_PAYMENT || invoice.getStatus() != InvoiceStatus.PENDING) {
