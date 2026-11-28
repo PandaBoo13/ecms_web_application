@@ -3,9 +3,11 @@ package com.ecms_web_application.OC01.controller.course;
 import com.ecms_web_application.OC01.dto.request.course.SessionCancelRequest;
 import com.ecms_web_application.OC01.dto.request.course.SessionCreateRequest;
 import com.ecms_web_application.OC01.dto.response.RequestResponse;
+import com.ecms_web_application.OC01.dto.response.course.SessionBulkDeleteResult;
 import com.ecms_web_application.OC01.dto.response.course.SessionResponse;
 import com.ecms_web_application.OC01.service.SessionService;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotEmpty;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -156,5 +158,23 @@ public class SessionController {
             @PathVariable Long courseId, @PathVariable Long id) {
         sessionService.delete(id);
         return ResponseEntity.ok(new RequestResponse("Xóa session thành công"));
+    }
+
+    /**
+     * API: Xóa hàng loạt buổi học
+     * Method: DELETE /api/courses/{courseId}/sessions/bulk
+     * Chức năng: Xóa nhiều buổi học cùng lúc (bỏ qua các buổi đã COMPLETED).
+     */
+    @DeleteMapping("/bulk")
+    public ResponseEntity<RequestResponse> bulkDelete(
+            @PathVariable Long courseId,
+            @Valid @RequestBody @NotEmpty(message = "Danh sách session không được để trống") List<Long> sessionIds) {
+
+        SessionBulkDeleteResult result = sessionService.bulkDelete(courseId, sessionIds);
+
+        return ResponseEntity.ok(new RequestResponse(
+                result,
+                result.getMessage() != null ? result.getMessage() : "Xóa hàng loạt session thành công"
+        ));
     }
 }

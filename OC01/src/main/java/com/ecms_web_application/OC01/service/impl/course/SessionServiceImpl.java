@@ -80,6 +80,9 @@ public class SessionServiceImpl implements SessionService {
     // ============================================================
     // ADD MANUAL SESSION -> Gửi thông báo cho Instructor của course
     // ============================================================
+    // ============================================================
+    // ADD MANUAL SESSION -> Gửi thông báo cho Instructor & Student
+    // ============================================================
     @Override
     @Transactional
     public SessionResponse addManual(Long courseId, SessionCreateRequest request) {
@@ -157,27 +160,53 @@ public class SessionServiceImpl implements SessionService {
         Session saved = sessionRepository.save(s);
         auditLogService.log("CREATE", "SESSION", saved.getId(), "Thêm session #" + nextNum + " cho course " + courseId);
 
-        // Thông báo cho giảng viên của khóa học và giảng viên/trợ giảng phụ trách buổi học
-        Set<Long> instructorIds = collectSessionInstructorIds(course, saved);
         Room displayRoom = saved.getRoom() != null ? saved.getRoom() : course.getRoom();
         String roomInfo = displayRoom != null ? " - Phòng: " + displayRoom.getName() : "";
+        String scheduleText = formatSessionSchedule(saved);
+        String titleText = StringUtils.hasText(saved.getTitle()) ? saved.getTitle() : "Buổi " + saved.getSessionNumber();
 
+        // =========================================================
+        // 1. GỬI THÔNG BÁO CHO GIẢNG VIÊN / TRỢ GIẢNG
+        // =========================================================
+        Set<Long> instructorIds = collectSessionInstructorIds(course, saved);
         sendSessionNotification(
                 instructorIds,
                 course,
                 saved,
                 "SESSION_CREATED",
-                "Buổi học mới được tạo",
+                "Buổi dạy mới được tạo",
                 String.format("Buổi #%d (%s) của khóa học \"%s\" (%s) vừa được tạo vào %s%s.",
                         saved.getSessionNumber(),
-                        StringUtils.hasText(saved.getTitle()) ? saved.getTitle() : "Buổi " + saved.getSessionNumber(),
+                        titleText,
                         course.getTitle(),
                         course.getCode(),
-                        formatSessionSchedule(saved),
+                        scheduleText,
                         roomInfo),
                 "NORMAL",
                 false
         );
+
+        // =========================================================
+        // 2. GỬI THÔNG BÁO CHO HỌC VIÊN (PENDING, ACTIVE, RESERVED)
+        // =========================================================
+        Set<Long> studentAccountIds = collectEnrolledStudentAccountIds(course.getId());
+        if (!studentAccountIds.isEmpty()) {
+            sendSessionNotification(
+                    studentAccountIds,
+                    course,
+                    saved,
+                    "SESSION_CREATED",
+                    "Lịch học mới được cập nhật",
+                    String.format("Buổi học mới #%d (%s) của khóa học \"%s\" (%s) vừa được thêm vào lịch. Vui lòng chú ý theo dõi thời khóa biểu.%s",
+                            saved.getSessionNumber(),
+                            titleText,
+                            course.getTitle(),
+                            course.getCode(),
+                            roomInfo),
+                    "NORMAL",
+                    false
+            );
+        }
 
         return mapper.toSessionResponse(saved);
     }
@@ -204,24 +233,44 @@ public class SessionServiceImpl implements SessionService {
         progressCalculationService.onSessionChanged(s.getCourse().getId());
 
         Course course = saved.getCourse();
-        Set<Long> recipientIds = collectAllRelatedAccountIds(course, saved);
         String reasonText = StringUtils.hasText(request.getReason()) ? " Lý do: " + request.getReason() : "";
+        String scheduleInfo = String.format("Buổi #%d (%s) của khóa học \"%s\" (%s) đã bị hủy.",
+                saved.getSessionNumber(),
+                formatSessionSchedule(saved),
+                course.getTitle(),
+                course.getCode());
 
+        // =========================================================
+        // 1. GỬI THÔNG BÁO CHO GIẢNG VIÊN / TRỢ GIẢNG
+        // =========================================================
+        Set<Long> instructorIds = collectSessionInstructorIds(course, saved);
         sendSessionNotification(
-                recipientIds,
+                instructorIds,
                 course,
                 saved,
                 "SESSION_CANCELLED",
-                "Thông báo hủy buổi học",
-                String.format("Buổi #%d (%s) của khóa học \"%s\" (%s) đã bị hủy.%s",
-                        saved.getSessionNumber(),
-                        formatSessionSchedule(saved),
-                        course.getTitle(),
-                        course.getCode(),
-                        reasonText),
+                "Thông báo hủy buổi dạy",
+                scheduleInfo + reasonText,
                 "HIGH",
                 true
         );
+
+        // =========================================================
+        // 2. GỬI THÔNG BÁO RIÊNG CHO HỌC VIÊN
+        // =========================================================
+        Set<Long> studentAccountIds = collectEnrolledStudentAccountIds(course.getId());
+        if (!studentAccountIds.isEmpty()) {
+            sendSessionNotification(
+                    studentAccountIds,
+                    course,
+                    saved,
+                    "SESSION_CANCELLED",
+                    "Thông báo hủy buổi học",
+                    scheduleInfo + reasonText + " Vui lòng theo dõi thông báo tiếp theo từ trung tâm để biết lịch học bù (nếu có).",
+                    "HIGH",
+                    true
+            );
+        }
 
         return mapper.toSessionResponse(saved);
     }
@@ -832,4 +881,113 @@ public class SessionServiceImpl implements SessionService {
         return "#" + account.getId();
     }
 
+    @Override
+    @Transactional
+    public SessionBulkDeleteResult bulkDelete(Long courseId, List<Long> sessionIds) {
+        if (sessionIds == null || sessionIds.isEmpty()) {
+            throw new ErrorHandler(HttpStatus.BAD_REQUEST, "Danh sách session rỗng");
+        }
+
+        Course course = courseRepository.findById(courseId)
+                .orElseThrow(() -> new ErrorHandler(HttpStatus.NOT_FOUND, "Khóa học không tồn tại"));
+
+        List<Session> sessions = sessionRepository.findAllById(sessionIds);
+        if (sessions.size() != sessionIds.size()) {
+            throw new ErrorHandler(HttpStatus.NOT_FOUND, "Một số session không tồn tại");
+        }
+
+        // Validate tất cả thuộc cùng course
+        for (Session s : sessions) {
+            if (!s.getCourse().getId().equals(courseId)) {
+                throw new ErrorHandler(HttpStatus.BAD_REQUEST,
+                        "Session #" + s.getId() + " không thuộc khóa học này");
+            }
+        }
+
+        // Tách COMPLETED → skip (không fail toàn batch)
+        List<Session> deletable = new ArrayList<>();
+        List<Long> skippedIds = new ArrayList<>();
+        for (Session s : sessions) {
+            if (s.getStatus() == SessionStatus.COMPLETED) {
+                skippedIds.add(s.getId());
+            } else {
+                deletable.add(s);
+            }
+        }
+
+        if (deletable.isEmpty()) {
+            throw new ErrorHandler(HttpStatus.CONFLICT, "Không có session nào có thể xóa (tất cả đã COMPLETED)");
+        }
+
+        // Gom recipient 1 lần duy nhất (đã tối ưu vòng lặp)
+        boolean anyScheduled = deletable.stream()
+                .anyMatch(s -> s.getStatus() == SessionStatus.SCHEDULED);
+
+        Set<Long> recipientIds = new LinkedHashSet<>();
+        for (Session s : deletable) {
+            if (anyScheduled) {
+                recipientIds.addAll(collectAllRelatedAccountIds(course, s));
+            } else {
+                recipientIds.addAll(collectSessionInstructorIds(course, s));
+            }
+        }
+
+        List<Long> deletedIds = deletable.stream().map(Session::getId).toList();
+        sessionRepository.deleteAll(deletable);
+
+        auditLogService.log("BULK_DELETE", "SESSION", null,
+                "courseId=" + courseId + ", deleted=" + deletedIds.size()
+                        + ", skipped=" + skippedIds.size());
+
+        // 1 notification tổng hợp
+        sendSessionNotification(
+                recipientIds, course, null,
+                "SESSION_BULK_DELETED",
+                "Nhiều buổi học đã bị xóa khỏi lịch",
+                String.format("%d buổi học của khóa \"%s\" (%s) đã bị xóa khỏi thời khóa biểu.",
+                        deletedIds.size(), course.getTitle(), course.getCode()),
+                anyScheduled ? "HIGH" : "NORMAL",
+                anyScheduled
+        );
+
+        // 🟢 SỬA LỖI TẠI ĐÂY: Dùng Builder để truyền đủ 4 tham số
+        return SessionBulkDeleteResult.builder()
+                .deletedIds(deletedIds)
+                .skippedIds(skippedIds)
+                .totalRequested(sessionIds.size())
+                .message(String.format("Đã xóa %d buổi, bỏ qua %d buổi (đã hoàn thành).",
+                        deletedIds.size(), skippedIds.size()))
+                .build();
+    }
+    /**
+     * Truy xuất Account ID của toàn bộ học viên đã ghi danh (bao gồm ACTIVE, PENDING, RESERVED).
+     * Chỉ sử dụng các hàm có sẵn của EnrollmentRepository.
+     */
+    private Set<Long> collectEnrolledStudentAccountIds(Long courseId) {
+        List<EnrollmentStatus> validStatuses = List.of(
+                EnrollmentStatus.ACTIVE,
+                EnrollmentStatus.PENDING,
+                EnrollmentStatus.RESERVED
+        );
+
+        // Lấy toàn bộ enrollment của khóa học, sau đó filter bằng Java Stream
+        List<Enrollment> enrollments = enrollmentRepository.findByCourseIdOrderByEnrolledAtAscIdAsc(courseId)
+                .stream()
+                .filter(e -> validStatuses.contains(e.getStatus()))
+                .toList();
+
+        if (enrollments.isEmpty()) {
+            return Set.of();
+        }
+
+        Set<Long> studentIds = enrollments.stream()
+                .map(Enrollment::getStudentId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+
+        return studentRepository.findAllById(studentIds).stream()
+                .map(Student::getUserId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+    }
 }
