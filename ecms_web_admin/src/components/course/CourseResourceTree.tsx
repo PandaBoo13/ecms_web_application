@@ -9,6 +9,7 @@ import {
   Button,
   Popconfirm,
   Tooltip,
+  Dropdown, // 🆕 Thêm Dropdown
 } from 'antd';
 import type { DataNode, TreeProps } from 'antd/es/tree';
 import {
@@ -25,6 +26,8 @@ import {
   PlusOutlined,
   RightOutlined,
   InboxOutlined,
+  DownOutlined, // 🆕 Thêm icon
+  CheckOutlined, // 🆕 Thêm icon
 } from '@ant-design/icons';
 import toast from 'react-hot-toast';
 import InlineEdit from '@/components/common/InlineEdit';
@@ -36,6 +39,14 @@ export interface ResourceReorderUpdate {
   id: number;
   orderIndex: number;
 }
+
+// 🆕 Định nghĩa trạng thái
+const STATUS_META: Record<string, { label: string; color: string }> = {
+  PUBLISHED: { label: 'Công khai', color: 'success' },
+  DRAFT: { label: 'Bản nháp', color: 'default' },
+  HIDDEN: { label: 'Tạm ẩn', color: 'warning' },
+  ARCHIVED: { label: 'Lưu trữ', color: 'error' },
+};
 
 interface Props {
   resources: CourseResourceResponse[];
@@ -55,6 +66,7 @@ interface Props {
   onAddChapter?: () => void;
   onAddHeaderLesson?: () => void;
   onAddLesson?: (chapter: CourseResourceResponse) => void;
+  onUpdateStatus?: (item: CourseResourceResponse, status: string) => void; // 🆕 Thêm prop xử lý trạng thái
 }
 
 const CourseResourceTree = ({
@@ -75,6 +87,7 @@ const CourseResourceTree = ({
   onAddChapter,
   onAddHeaderLesson,
   onAddLesson,
+  onUpdateStatus, // 🆕 Nhận prop
 }: Props) => {
   const structureResources = useMemo(
     () =>
@@ -165,6 +178,9 @@ const CourseResourceTree = ({
       const isDropTarget = isLesson && dragOverLessonId === r.id;
       const lessonCount = lessonCountByChapter.get(r.id) || 0;
       const materialCount = materialCountByLesson.get(r.id) || 0;
+      
+      // 🆕 Lấy trạng thái hiện tại
+      const statusMeta = STATUS_META[r.status] || STATUS_META.DRAFT;
 
       const rowStyleClass = isChapter
         ? 'bg-slate-100/80 border-slate-200/90 px-2.5 py-2 my-1 hover:border-blue-300'
@@ -279,6 +295,33 @@ const CourseResourceTree = ({
                   <span className="truncate block">{r.title}</span>
                 )}
               </div>
+
+              {/* 🆕 DROPDOWN TRẠNG THÁI (Luôn hiển thị, không bị ảnh hưởng bởi editable) */}
+              {onUpdateStatus && (
+                <Dropdown
+                  trigger={['click']}
+                  menu={{
+                    items: Object.entries(STATUS_META).map(([key, val]) => ({
+                      key: key,
+                      label: val.label,
+                      icon: r.status === key ? <CheckOutlined /> : <span className="w-3" />,
+                    })),
+                    onClick: ({ key, domEvent }) => {
+                      domEvent.stopPropagation(); // Ngăn sự kiện click lan ra ngoài
+                      onUpdateStatus(r, key);
+                    },
+                  }}
+                >
+                  <Tag
+                    color={statusMeta.color}
+                    onClick={(e) => e.stopPropagation()}
+                    className="!m-0 !cursor-pointer !text-[10.5px] !rounded-md !border-dashed hover:!border-solid hover:opacity-80 flex items-center gap-1 shrink-0 transition-all font-medium"
+                  >
+                    {statusMeta.label}
+                    <DownOutlined className="text-[8px]" />
+                  </Tag>
+                </Dropdown>
+              )}
 
               {isChapter && (
                 <span className="text-[11px] font-medium tabular-nums text-slate-500 bg-slate-200/80 px-2 py-0.5 rounded-full shrink-0">
@@ -401,6 +444,7 @@ const CourseResourceTree = ({
     onEdit,
     onDelete,
     onSaveTitle,
+    onUpdateStatus, // 🆕 Thêm dependency
   ]);
 
   const handleDrop: NonNullable<TreeProps['onDrop']> = async (info) => {
@@ -629,7 +673,7 @@ const CourseResourceTree = ({
             selectable={false}
             expandedKeys={expandedKeys}
             onExpand={(keys) => setExpandedKeys(keys)}
-            draggable={draggable ? { icon: false } : false}
+            draggable={draggable ? { icon: false } : true}
             onDrop={handleDrop}
             treeData={treeData}
           />

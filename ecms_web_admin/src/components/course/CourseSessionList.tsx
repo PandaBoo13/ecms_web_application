@@ -1,5 +1,6 @@
 // src/components/course/CourseSessionList.tsx
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import type { Key } from 'react'; // 🆕 Thêm import Key cho rowSelection
 import {
   Card,
   Table,
@@ -131,6 +132,11 @@ const CourseSessionList = ({
   const [generateResult, setGenerateResult] =
     useState<SessionGenerationResult | null>(null);
 
+  // 🆕 State cho Xóa hàng loạt
+  const [selectedRowKeys, setSelectedRowKeys] = useState<Key[]>([]);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkDeleteLoading, setBulkDeleteLoading] = useState(false);
+
   const isCourseClosed =
     course?.status === 'CANCELLED' || course?.status === 'ARCHIVED';
   const isReadOnly = Boolean(readOnly || isCourseClosed);
@@ -227,8 +233,73 @@ const CourseSessionList = ({
   }, [fetchSessions, onRefresh]);
 
   // ══════════════════════════════════════════════════════════════
+  // 🆕 BULK SELECTION LOGIC
+  // ══════════════════════════════════════════════════════════════
+  const selectedSessions = useMemo(
+    () => sessions.filter((s) => selectedRowKeys.includes(s.id)),
+    [sessions, selectedRowKeys],
+  );
+
+  // Không cho xóa các buổi COMPLETED
+  const bulkDeletableSessions = useMemo(
+    () => selectedSessions.filter((s) => s.status !== 'COMPLETED'),
+    [selectedSessions],
+  );
+
+  const bulkHasCompleted = selectedSessions.length > bulkDeletableSessions.length;
+  const bulkHasScheduled = bulkDeletableSessions.some(
+    (s) => s.status === 'SCHEDULED',
+  );
+
+  // Tự động dọn dẹp selection nếu session biến mất khỏi danh sách
+  useEffect(() => {
+    setSelectedRowKeys((prev) => {
+      if (prev.length === 0) return prev;
+      const validIds = new Set(sessions.map((s) => s.id));
+      const next = prev.filter((id) => validIds.has(id as number));
+      return next.length === prev.length ? prev : next;
+    });
+  }, [sessions]);
+
+  // ══════════════════════════════════════════════════════════════
   // HANDLERS
   // ══════════════════════════════════════════════════════════════
+
+  // 🆕 Handler Xóa hàng loạt
+  const handleBulkDelete = useCallback(async () => {
+    if (isReadOnly || bulkDeletableSessions.length === 0) return;
+    setBulkDeleteLoading(true);
+    try {
+      const idsToDelete = bulkDeletableSessions.map((s) => s.id);
+      
+      const result = await sessionApi.bulkDelete(courseId, idsToDelete);
+
+      if (result.skippedIds.length === 0) {
+        toast.success(result.message || `Đã xóa ${result.deletedIds.length} buổi học`);
+      } else {
+        toast(
+          result.message || `Đã xóa ${result.deletedIds.length} buổi. Bỏ qua ${result.skippedIds.length} buổi.`,
+          { icon: '⚠️' },
+        );
+      }
+
+      // Nếu drawer đang mở đúng session vừa xóa → đóng
+      setDrawerState((prev) =>
+        prev?.session?.id && result.deletedIds.includes(prev.session.id) ? null : prev,
+      );
+
+      setSelectedRowKeys([]);
+      setBulkDeleteOpen(false);
+      refreshAll();
+    } catch (err: any) {
+      toast.error(
+        err?.response?.data?.message || err?.message || 'Xóa hàng loạt thất bại',
+      );
+    } finally {
+      setBulkDeleteLoading(false);
+    }
+  }, [courseId, isReadOnly, bulkDeletableSessions, refreshAll]);
+
   const handleMarkDone = useCallback(
     (s: SessionResponse) => {
       if (isReadOnly) return;
@@ -1011,6 +1082,35 @@ const CourseSessionList = ({
         title={cardTitle}
         extra={headerExtra}
       >
+        {/* 🆕 BULK TOOLBAR */}
+        {!isReadOnly && selectedRowKeys.length > 0 && (
+          <div className="mb-3 flex items-center justify-between gap-2 rounded-lg border border-red-200 bg-red-50/70 px-3 py-2">
+            <span className="text-sm text-slate-700">
+              Đã chọn <b>{selectedSessions.length}</b> buổi học
+              {bulkHasCompleted && (
+                <span className="ml-2 text-[11px] text-amber-700">
+                  (bỏ qua {selectedSessions.length - bulkDeletableSessions.length} buổi đã hoàn thành)
+                </span>
+              )}
+            </span>
+            <Space size={6}>
+              <Button size="small" onClick={() => setSelectedRowKeys([])}>
+                Bỏ chọn
+              </Button>
+              <Button
+                danger
+                type="primary"
+                size="small"
+                icon={<DeleteOutlined />}
+                onClick={() => setBulkDeleteOpen(true)}
+                disabled={bulkDeletableSessions.length === 0}
+              >
+                Xóa đã chọn ({bulkDeletableSessions.length})
+              </Button>
+            </Space>
+          </div>
+        )}
+
         <Table<SessionResponse>
           columns={columns}
           dataSource={sessions}
@@ -1019,6 +1119,19 @@ const CourseSessionList = ({
           scroll={{ x: 'max-content' }}
           loading={loading}
           size="middle"
+          // 🆕 Row Selection
+          rowSelection={
+            isReadOnly
+              ? undefined
+              : {
+                  selectedRowKeys,
+                  onChange: setSelectedRowKeys,
+                  getCheckboxProps: (record) => ({
+                    disabled: record.status === 'COMPLETED',
+                    name: `buổi ${record.sessionNumber}`,
+                  }),
+                }
+          }
           onRow={(record) => ({
             onDoubleClick: () =>
               setDrawerState({ mode: 'view', session: record }),
@@ -1114,6 +1227,66 @@ const CourseSessionList = ({
             <span className="text-xs text-slate-400">
               Để trống rồi xác nhận để gỡ giảng viên hiện tại.
             </span>
+          </div>
+        </Modal>
+      )}
+
+      {/* 🆕 Modal xóa hàng loạt */}
+      {!isReadOnly && (
+        <Modal
+          title={
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-red-50 text-red-600 flex items-center justify-center shrink-0">
+                <DeleteOutlined />
+              </div>
+              <span className="font-bold text-slate-900">Xóa hàng loạt buổi học</span>
+            </div>
+          }
+          open={bulkDeleteOpen}
+          onCancel={() => setBulkDeleteOpen(false)}
+          onOk={handleBulkDelete}
+          confirmLoading={bulkDeleteLoading}
+          okText={`Xóa ${bulkDeletableSessions.length} buổi`}
+          okButtonProps={{ danger: true, className: '!rounded-lg' }}
+          cancelButtonProps={{ className: '!rounded-lg' }}
+          cancelText="Hủy"
+          destroyOnClose
+          width={520}
+        >
+          <div className="mt-3 flex flex-col gap-2.5">
+            <p className="m-0 text-slate-700">
+              Bạn sắp xóa <b>{bulkDeletableSessions.length}</b> buổi học:
+            </p>
+
+            <div className="max-h-40 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50/70 px-3 py-2 flex flex-wrap gap-1.5">
+              {bulkDeletableSessions.map((s) => (
+                <Tag
+                  key={s.id}
+                  color={s.status === 'SCHEDULED' ? 'orange' : 'default'}
+                  className="!m-0 !rounded-md"
+                >
+                  #{s.sessionNumber}
+                </Tag>
+              ))}
+            </div>
+
+            {bulkHasScheduled && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50/70 px-3 py-2 text-xs text-amber-800">
+                ⚠️ Có buổi đã công bố lịch (SCHEDULED). Hệ thống sẽ gửi thông báo
+                tới giảng viên và học viên.
+              </div>
+            )}
+
+            {bulkHasCompleted && (
+              <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                ℹ️ {selectedSessions.length - bulkDeletableSessions.length} buổi ở
+                trạng thái <b>COMPLETED</b> sẽ được bỏ qua (không thể xóa).
+              </div>
+            )}
+
+            <p className="m-0 text-xs text-slate-500">
+              Hành động này không thể hoàn tác.
+            </p>
           </div>
         </Modal>
       )}

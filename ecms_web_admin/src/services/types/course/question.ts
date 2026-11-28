@@ -1,11 +1,10 @@
-// src/services/types/course/question.ts
 import type { QuestionStatus, QuestionType } from './enums';
 
 export interface QuestionResponse {
   id: number;
   courseId: number;
-  lessonId?: number;
-  lessonTitle?: string;
+  lessonId?: number | null;
+  lessonTitle?: string | null;
   questionType: QuestionType;
   content: string;
   options?: string[];
@@ -24,16 +23,11 @@ export interface QuestionResponse {
  *   `POST /api/courses/{courseId}/questions`
  *   `PUT  /api/courses/{courseId}/questions/{id}`
  *
- * Backend dùng CHUNG schema cho cả 2 endpoint.
- *
- * ⚠️ Business rule:
- *  - Câu hỏi BẮT BUỘC thuộc 1 Lesson (comment trong QuestionController).
- *  - Vì vậy FE set `lessonId` là required — khi update nếu không đổi lesson
- *    thì vẫn gửi lại `lessonId` hiện tại của câu hỏi.
- *  - Bắt buộc: `questionType`, `content`, `lessonId`.
+ * - `lessonId` là tùy chọn (`null` hoặc bỏ trống = câu hỏi kho chung của khóa học).
+ * - Bắt buộc: `questionType`, `content`.
  */
 export interface QuestionCreateRequest {
-  lessonId: number;                  // required (business rule)
+  lessonId?: number | null;          // optional (null = kho chung)
   questionType: QuestionType;        // required
   content: string;                   // required, minLength 1
   options?: string[];
@@ -43,4 +37,17 @@ export interface QuestionCreateRequest {
   points?: number;                   // >= 0
   orderIndex?: number;               // >= 0
   status?: QuestionStatus;           // ACTIVE | INACTIVE
+}
+
+export interface QuestionImportRowError {
+  rowNumber: number;
+  content: string;
+  reason: string;
+}
+
+export interface QuestionImportResult {
+  totalRows: number;
+  successCount: number;
+  failedCount: number;
+  errors: QuestionImportRowError[];
 }

@@ -7,8 +7,12 @@ import type {
   SessionCreateRequest,
   SessionCancelRequest,
   SessionGenerationResult,
+  
 } from '../../types/course';
+import type {
 
+  SessionBulkDeleteResult
+} from '../../types/course/session';
 export const sessionApi = {
   list: async (courseId: number): Promise<SessionResponse[]> => {
     const { data } = await api.get<RequestResponse<SessionResponse[]>>(
@@ -97,6 +101,18 @@ update: async (
   ): Promise<SessionResponse> => {
     const { data } = await api.put<RequestResponse<SessionResponse>>(
       API_ENDPOINT.SESSION_DETAIL(courseId, id), payload);
+    return data.data;
+  },
+
+    bulkDelete: async (
+    courseId: number,
+    sessionIds: number[],
+  ): Promise<SessionBulkDeleteResult> => {
+    // Dùng axios.delete, body truyền qua thuộc tính `data`
+    const { data } = await api.delete<RequestResponse<SessionBulkDeleteResult>>(
+      `${API_ENDPOINT.SESSIONS(courseId)}/bulk`,
+      { data: sessionIds }
+    );
     return data.data;
   },
 };

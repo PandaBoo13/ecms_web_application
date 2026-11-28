@@ -1,3 +1,4 @@
+// src/components/course/ResourceManager.tsx
 import { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Card, Button, Input, Select, Switch, Space, Tag, Empty, Popconfirm, Tooltip, Spin, Dropdown,
@@ -9,19 +10,33 @@ import {
   BookOutlined, FileTextOutlined, HolderOutlined, InboxOutlined,
   RollbackOutlined, SwapOutlined, QuestionCircleOutlined, FilterOutlined,
   PlusOutlined, SearchOutlined,
+  DownOutlined, CheckOutlined, LockOutlined // Icon cho trạng thái
 } from '@ant-design/icons';
 import toast from 'react-hot-toast';
 
 import { resourceApi } from '@/services/api/course';
 import { fileApi, extractFileUrl } from '@/services/api/files';
 import InlineEdit from '@/components/common/InlineEdit';
-import type { ResourceType, CourseResourceResponse, ResourceCreateRequest } from '@/services/types/course';
+import type { 
+  ResourceType, 
+  CourseResourceResponse, 
+  ResourceCreateRequest,
+  ResourceStatus 
+} from '@/services/types/course';
 import CourseResourceTree, { RESOURCE_DRAG_MIME, type ResourceReorderUpdate } from './CourseResourceTree';
 import ResourceFormModal from './ResourceFormModal';
 
 const MAX_FILE_SIZE_MB = 200;
 const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
 type PoolFilter = 'ALL' | 'UNASSIGNED' | 'ASSIGNED';
+
+// Cấu hình hiển thị cho từng trạng thái
+const STATUS_META: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
+  PUBLISHED: { label: 'Công khai', color: 'success', icon: <CheckOutlined className="text-[10px]" /> },
+  DRAFT: { label: 'Bản nháp', color: 'default', icon: <EditOutlined className="text-[10px]" /> },
+  HIDDEN: { label: 'Tạm ẩn', color: 'warning', icon: <EyeOutlined className="text-[10px]" /> },
+  ARCHIVED: { label: 'Lưu trữ', color: 'error', icon: <LockOutlined className="text-[10px]" /> },
+};
 
 const ATTACHMENT_META: Record<string, { icon: React.ReactNode; label: string; color: string; bg: string }> = {
   PDF: { icon: <FilePdfOutlined />, label: 'PDF', color: '#dc2626', bg: '#fee2e2' },
@@ -209,6 +224,18 @@ const ResourceManager = ({ courseId, resources, onRefresh, readOnly = false }: P
     setModalOpen(false);
     setEditingRes(null);
     setCreatePreset(null);
+  };
+
+  // 🆕 Cập nhật trạng thái (Bỏ qua điều kiện readOnly)
+  const handleUpdateStatus = async (item: CourseResourceResponse, newStatus: string) => {
+    if (item.status === newStatus) return;
+    try {
+      await resourceApi.update(courseId, item.id, { status: newStatus as ResourceStatus });
+      toast.success(`Đã chuyển trạng thái thành "${STATUS_META[newStatus]?.label || newStatus}"`);
+      onRefresh();
+    } catch (err) {
+      toast.error(getErrMsg(err, 'Cập nhật trạng thái thất bại'));
+    }
   };
 
   const handleDirectFilesUpload = async (fileList: FileList | File[]) => {
@@ -401,6 +428,7 @@ const ResourceManager = ({ courseId, resources, onRefresh, readOnly = false }: P
             readOnly ? undefined : () => handleOpenCreate({ resourceType: 'LESSON', parentId: selectedLessonChapter?.id ?? chapters[0]?.id })
           }
           onAddLesson={readOnly ? undefined : (chapter) => handleOpenCreate({ resourceType: 'LESSON', parentId: chapter.id })}
+          onUpdateStatus={handleUpdateStatus} // 🆕 Truyền hàm cập nhật trạng thái
         />
       </div>
 
@@ -571,6 +599,7 @@ const ResourceManager = ({ courseId, resources, onRefresh, readOnly = false }: P
                   const meta = ATTACHMENT_META[item.resourceType] || ATTACHMENT_META.DOCUMENT;
                   const fileUrl = getResourceFileUrl(item);
                   const assignedLocation = item.parentId ? parentLabelMap.get(item.parentId) : undefined;
+                  const statusMeta = STATUS_META[item.status] || STATUS_META.DRAFT;
 
                   return (
                     <div
@@ -621,6 +650,27 @@ const ResourceManager = ({ courseId, resources, onRefresh, readOnly = false }: P
                               {meta.label}
                             </span>
 
+                            {/* DROPDOWN TRẠNG THÁI (Luôn hoạt động) */}
+                            <Dropdown
+                              trigger={['click']}
+                              menu={{
+                                items: Object.entries(STATUS_META).map(([key, val]) => ({
+                                  key: key,
+                                  label: val.label,
+                                  icon: item.status === key ? <CheckOutlined /> : <span className="w-3" />,
+                                })),
+                                onClick: ({ key }) => void handleUpdateStatus(item, key),
+                              }}
+                            >
+                              <Tag
+                                color={statusMeta.color}
+                                className="!m-0 !cursor-pointer !text-[11px] !rounded-md !border-dashed hover:!border-solid hover:opacity-80 flex items-center gap-1 transition-all"
+                              >
+                                {statusMeta.label}
+                                <DownOutlined className="text-[9px]" />
+                              </Tag>
+                            </Dropdown>
+
                             {!selectedLesson &&
                               (assignedLocation ? (
                                 <span
@@ -636,15 +686,21 @@ const ResourceManager = ({ courseId, resources, onRefresh, readOnly = false }: P
                                 </span>
                               ))}
 
-                            <label className={`inline-flex items-center gap-1 text-[11.5px] text-slate-500 select-none ${readOnly ? 'cursor-default' : 'cursor-pointer'}`}>
-                              <Switch size="small" disabled={readOnly} checked={!!item.isRequired} onChange={(c) => void handleToggleFlag(item, 'isRequired', c)} />
-                              <span>Bắt buộc</span>
-                            </label>
+                            {/* 🆕 CHỈ HIỂN THỊ VỚI QUIZ */}
+                            {item.resourceType === 'QUIZ' && (
+                              <>
+                                <label className={`inline-flex items-center gap-1 text-[11.5px] text-slate-500 select-none ${readOnly ? 'cursor-default' : 'cursor-pointer'}`}>
+                                  <Switch size="small" disabled={readOnly} checked={!!item.isRequired} onChange={(c) => void handleToggleFlag(item, 'isRequired', c)} />
+                                  <span>Bắt buộc</span>
+                                </label>
 
-                            <label className={`inline-flex items-center gap-1 text-[11.5px] text-slate-500 select-none ${readOnly ? 'cursor-default' : 'cursor-pointer'}`}>
-                              <Switch size="small" disabled={readOnly} checked={!!item.isFreePreview} onChange={(c) => void handleToggleFlag(item, 'isFreePreview', c)} />
-                              <span>Học thử</span>
-                            </label>
+                                <label className={`inline-flex items-center gap-1 text-[11.5px] text-slate-500 select-none ${readOnly ? 'cursor-default' : 'cursor-pointer'}`}>
+                                  <Switch size="small" disabled={readOnly} checked={!!item.isFreePreview} onChange={(c) => void handleToggleFlag(item, 'isFreePreview', c)} />
+                                  <span>Học thử</span>
+                                </label>
+                              </>
+                            )}
+                            {/* 🆕 KẾT THÚC */}
                           </div>
                         </div>
                       </div>
