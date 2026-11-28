@@ -53,4 +53,9 @@ export interface SessionGenerationResult {
   skipped: Array<{ date: string; reason: string }>;
   message: string;
 }
-
+export interface SessionBulkDeleteResult {
+  deletedIds: number[];
+  skippedIds: number[];
+  totalRequested: number;
+  message: string;
+}

@@ -32,7 +32,7 @@ public class Question {
      * sẽ bị DataIntegrityViolationException. Nay khóa chặt ở cả entity + service.
      */
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "lesson_id", nullable = false) private CourseResource lesson;
+    @JoinColumn(name = "lesson_id", nullable = true) private CourseResource lesson;
 
     @Column(length = 255) private String hashtag;
     @Column(columnDefinition = "TEXT", nullable = false) private String content;

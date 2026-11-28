@@ -24,7 +24,7 @@ import dayjs from 'dayjs';
 
 import PageContainer from '@/components/common/PageContainer';
 import PageHeader from '@/components/common/PageHeader';
-import { courseApi } from '@/services/api/course'; // 🆕 Dùng courseApi thay vì progressApi
+import { courseApi } from '@/services/api/course';
 import { enrollmentApi } from '@/services/api/enrollment';
 import { requestApi } from '@/services/api/request';
 import type { EnrolledCourseResponse } from '@/services/types/course';
@@ -61,7 +61,6 @@ const MyCoursesPage = () => {
 
   useEffect(() => {
     setLoading(true);
-    // 🆕 Gọi API mới
     courseApi.getMyEnrolledCourses()
       .then((res) => {
         setItems(res || []);
@@ -157,7 +156,7 @@ const MyCoursesPage = () => {
             value={keyword}
             onChange={(e) => {
               setKeyword(e.target.value);
-              setPage(1); // Reset về trang 1 khi tìm kiếm
+              setPage(1);
             }}
             allowClear
             style={{ width: 250 }}
@@ -183,14 +182,19 @@ const MyCoursesPage = () => {
             {paginatedItems.map((p) => {
               const percent = Math.round(p.progressPercentage || 0);
               const isDone = percent === 100;
-              // Chỉ cho phép vào học nếu đã kích hoạt hoặc đã hoàn thành
-              const canLearn = p.enrollmentStatus === 'ACTIVE' || p.enrollmentStatus === 'COMPLETED';
+              const learnUrl = `/student/courses/${p.courseId}/learn`;
 
               return (
                 <Col xs={24} sm={12} lg={8} key={p.enrollmentId}>
                   <Card 
-                    hoverable 
-                    style={{ height: '100%', display: 'flex', flexDirection: 'column' }}
+                    hoverable
+                    onClick={() => navigate(learnUrl)}
+                    style={{
+                      height: '100%',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      cursor: 'pointer',
+                    }}
                     styles={{ body: { flex: 1, display: 'flex', flexDirection: 'column', padding: '16px' } }}
                     className="group"
                   >
@@ -207,6 +211,7 @@ const MyCoursesPage = () => {
                         ellipsis={{ rows: 2 }} 
                         style={{ minHeight: 44, marginTop: 0, marginBottom: 16 }}
                         title={p.courseTitle}
+                        className="group-hover:!text-blue-600 transition-colors"
                       >
                         {p.courseTitle || `Khóa học #${p.courseId}`}
                       </Title>
@@ -229,23 +234,26 @@ const MyCoursesPage = () => {
                       type={isDone ? 'default' : 'primary'} 
                       block 
                       icon={percent === 0 ? <BookOutlined /> : <PlayCircleOutlined />}
-                      onClick={() => navigate(`/student/courses/${p.courseId}/learn`)}
-                      disabled={!canLearn}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(learnUrl);
+                      }}
                     >
-                      {!canLearn 
-                        ? 'Chưa thể vào học'
-                        : percent === 0 
-                          ? 'Bắt đầu học' 
-                          : isDone 
-                            ? 'Xem lại bài học' 
-                            : 'Học tiếp'}
+                      {percent === 0 
+                        ? 'Bắt đầu học' 
+                        : isDone 
+                          ? 'Xem lại bài học' 
+                          : 'Học tiếp'}
                     </Button>
                     {p.courseType === 'OFFLINE' && (
                       <Button
                         block
                         size="small"
                         style={{ marginTop: 8 }}
-                        onClick={() => void openAttendance(p.enrollmentId)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void openAttendance(p.enrollmentId);
+                        }}
                       >
                         Xem điểm danh
                       </Button>

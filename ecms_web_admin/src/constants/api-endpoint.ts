@@ -60,8 +60,11 @@ SESSION_MY_SCHEDULE: '/api/sessions/my-schedule',
   // QUESTIONS
   // ══════════════════════════════════════════════════════════════
   QUESTIONS: (courseId: number) => `/api/courses/${courseId}/questions`,
-  QUESTION_DETAIL: (courseId: number, id: number) =>
-    `/api/courses/${courseId}/questions/${id}`,
+QUESTION_DETAIL: (courseId: number, id: number) =>
+  `/api/courses/${courseId}/questions/${id}`,
+QUESTIONS_IMPORT: (courseId: number) => `/api/courses/${courseId}/questions/import`,
+QUESTIONS_IMPORT_TEMPLATE: (courseId: number) =>
+  `/api/courses/${courseId}/questions/import-template`,
 
   // ══════════════════════════════════════════════════════════════
   // QUIZZES

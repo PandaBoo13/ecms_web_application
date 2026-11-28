@@ -45,10 +45,8 @@ const RESOURCE_TYPE_GROUPS = [
 ];
 
 const QUIZ_CATEGORY_OPTIONS = [
-  { value: 'PRACTICE', label: 'Luyện tập (Practice)' },
-  { value: 'QUIZ', label: 'Kiểm tra nhanh (Quiz)' },
-  { value: 'MIDTERM', label: 'Kiểm tra giữa kỳ (Midterm)' },
-  { value: 'FINAL', label: 'Thi cuối kỳ (Final)' },
+  { value: 'OPTIONAL', label: 'Tự chọn / Luyện tập (Optional)' },
+  { value: 'MANDATORY', label: 'Bắt buộc (Mandatory)' },
 ];
 
 const FILE_REQUIRED_TYPES: ResourceType[] = ['PDF', 'VIDEO', 'SLIDE', 'AUDIO', 'IMAGE'];

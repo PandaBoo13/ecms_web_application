@@ -18,6 +18,10 @@ import ContactPage from '@/pages/landing/ContactPage';
 import StudentDashboardPage from '@/pages/student/dashboard/StudentDashboardPage';
 import MyCoursesPage from '@/pages/student/my-courses/MyCoursesPage';
 import CourseLearnPage from '@/pages/student/my-courses/CourseLearnPage';
+
+// 🆕 Import trang xem tài liệu chuyên dụng (Nhớ tạo file này theo hướng dẫn trước)
+import CourseResourceViewerPage from '@/pages/student/my-courses/CourseResourceViewerPage';
+
 import AssignmentListPage from '@/pages/student/assignments/AssignmentListPage';
 import AssignmentDetailPage from '@/pages/student/assignments/AssignmentDetailPage';
 import GradesPage from '@/pages/student/grades/GradesPage';
@@ -57,13 +61,18 @@ export default function AppRouter() {
           <Route path="/student" element={<Navigate to="/student/dashboard" replace />} />
           <Route path="/student/dashboard" element={<StudentDashboardPage />} />
           
-          {/* 🆕 Thêm Route Lịch học ở đây */}
           <Route path="/student/schedule" element={<StudentSchedulePage />} />
           
           <Route path="/student/courses" element={<MyCoursesPage />} />
           <Route path="/student/tuition" element={<TuitionPage />} />
           <Route path="/student/enrollments" element={<Navigate to="/student/courses" replace />} />
+          
+          {/* Trang tổng quan khóa học */}
           <Route path="/student/courses/:id/learn" element={<CourseLearnPage />} />
+          
+          {/* 🆕 Trang xem tài liệu chi tiết (Full-screen) */}
+          <Route path="/student/courses/:id/learn/:resourceId" element={<CourseResourceViewerPage />} />
+
           <Route path="/student/assignments" element={<AssignmentListPage />} />
           <Route path="/student/assignments/:id" element={<AssignmentDetailPage />} />
           <Route path="/student/grades" element={<GradesPage />} />
